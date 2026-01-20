@@ -1,0 +1,17 @@
+{
+  "name": "smart-page-scribe",
+  "version": "1.0.0",
+  "description": "智能网页文档助手浏览器插件",
+  "scripts": {
+    "build": "echo 'Building extension...' && echo 'Build complete. Load the dist folder in Chrome.'",
+    "dev": "echo 'Development mode. Load the current folder in Chrome.'"
+  },
+  "keywords": [
+    "chrome-extension",
+    "browser-extension",
+    "documentation",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT"
+}

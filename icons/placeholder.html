@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>生成占位图标</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .icon-preview {
+      display: flex;
+      gap: 20px;
+      margin: 20px 0;
+      flex-wrap: wrap;
+    }
+    .icon-wrapper {
+      text-align: center;
+    }
+    .icon-wrapper canvas {
+      border: 1px solid #ddd;
+      margin: 10px 0;
+    }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover {
+      opacity: 0.9;
+    }
+    .info {
+      background: #f3f4f6;
+      padding: 16px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Smart Page Scribe - 图标生成器</h1>
+
+  <div class="info">
+    <p>这个工具可以为您生成简单的占位图标。点击下面的按钮生成图标，然后右键点击每个图标保存。</p>
+  </div>
+
+  <button onclick="generateIcons()">生成图标</button>
+
+  <div class="icon-preview" id="preview"></div>
+
+  <script>
+    function generateIcons() {
+      const sizes = [16, 32, 48, 128];
+      const preview = document.getElementById('preview');
+      preview.innerHTML = '';
+
+      sizes.forEach(size => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'icon-wrapper';
+
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+
+        // 渐变背景
+        const gradient = ctx.createLinearGradient(0, 0, size, size);
+        gradient.addColorStop(0, '#667eea');
+        gradient.addColorStop(1, '#764ba2');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, size, size);
+
+        // 绘制文档图标
+        ctx.fillStyle = 'white';
+        const padding = size * 0.2;
+
+        // 文档主体
+        ctx.fillRect(padding, padding, size * 0.6, size * 0.7);
+
+        // 文档折角
+        ctx.beginPath();
+        ctx.moveTo(size * 0.8, padding);
+        ctx.lineTo(size * 0.8, padding + size * 0.15);
+        ctx.lineTo(size * 0.65, padding + size * 0.15);
+        ctx.closePath();
+        ctx.fill();
+
+        // 绘制笔
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = size * 0.05;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(size * 0.7, size * 0.5);
+        ctx.lineTo(size * 0.85, size * 0.35);
+        ctx.stroke();
+
+        // 笔尖
+        ctx.beginPath();
+        ctx.moveTo(size * 0.85, size * 0.35);
+        ctx.lineTo(size * 0.88, size * 0.32);
+        ctx.lineWidth = size * 0.03;
+        ctx.stroke();
+
+        const label = document.createElement('div');
+        label.textContent = `${size}x${size}`;
+
+        const downloadBtn = document.createElement('button');
+        downloadBtn.textContent = `下载 icon${size}.png`;
+        downloadBtn.style.fontSize = '12px';
+        downloadBtn.style.padding = '6px 12px';
+        downloadBtn.onclick = () => downloadIcon(canvas, size);
+
+        wrapper.appendChild(canvas);
+        wrapper.appendChild(label);
+        wrapper.appendChild(document.createElement('br'));
+        wrapper.appendChild(downloadBtn);
+        preview.appendChild(wrapper);
+      });
+    }
+
+    function downloadIcon(canvas, size) {
+      canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `icon${size}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+    }
+
+    // 自动生成一次
+    window.onload = generateIcons;
+  </script>
+</body>
+</html>
