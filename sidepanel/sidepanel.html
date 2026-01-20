@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>编辑器 - Smart Page Scribe</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>📝 智能文档助手</h1>
+      <button id="btn-new" class="btn-icon" title="新建">📄</button>
+    </header>
+
+    <!-- 加载状态 -->
+    <div id="loading-state" class="state-view hidden">
+      <div class="loading-content">
+        <div class="spinner"></div>
+        <p id="loading-text">正在处理...</p>
+      </div>
+    </div>
+
+    <!-- 描述选择器 -->
+    <div id="description-selector" class="state-view hidden">
+      <div class="selector-content">
+        <h2>智能推测您可能想生成的文档：</h2>
+        <div id="description-list" class="description-list">
+          <!-- 动态生成的描述选项 -->
+        </div>
+        <div class="custom-input">
+          <label>
+            <input type="radio" name="description" value="custom">
+            <span>或输入自定义描述：</span>
+          </label>
+          <textarea id="custom-description" class="textarea" placeholder="请输入您想要的文档描述..."></textarea>
+        </div>
+        <button id="btn-generate" class="btn btn-primary">
+          <span class="icon">✨</span>
+          生成文档
+        </button>
+      </div>
+    </div>
+
+    <!-- 文档编辑器 -->
+    <div id="document-editor" class="state-view hidden">
+      <div class="editor-toolbar">
+        <button id="btn-preview" class="btn-tool active" title="预览模式">
+          <span class="icon">👁</span> 预览
+        </button>
+        <button id="btn-edit" class="btn-tool" title="编辑模式">
+          <span class="icon">✏</span> 编辑
+        </button>
+        <div class="toolbar-spacer"></div>
+        <button id="btn-copy" class="btn-tool" title="复制Markdown">
+          <span class="icon">📋</span> 复制
+        </button>
+        <button id="btn-download" class="btn-tool" title="下载文件">
+          <span class="icon">💾</span> 下载
+        </button>
+      </div>
+      <div class="editor-content">
+        <div id="preview-pane" class="pane active">
+          <div id="markdown-preview" class="markdown-preview"></div>
+        </div>
+        <div id="edit-pane" class="pane">
+          <textarea id="markdown-editor" class="markdown-editor" placeholder="在此编辑Markdown内容..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- 空状态 -->
+    <div id="empty-state" class="state-view active">
+      <div class="empty-content">
+        <div class="empty-icon">📝</div>
+        <h2>欢迎使用智能文档助手</h2>
+        <p>点击浏览器工具栏中的插件图标</p>
+        <p>开始录制您的操作流程</p>
+        <button id="btn-start-here" class="btn btn-primary">
+          <span class="icon">⏺</span>
+          开始录制
+        </button>
+      </div>
+    </div>
+
+    <!-- 错误状态 -->
+    <div id="error-state" class="state-view hidden">
+      <div class="error-content">
+        <div class="error-icon">⚠️</div>
+        <h2>生成失败</h2>
+        <p id="error-message">请检查您的API配置和网络连接</p>
+        <button id="btn-retry" class="btn btn-primary">
+          <span class="icon">🔄</span>
+          重试
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

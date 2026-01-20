@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Page Scribe</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>📝 Smart Page Scribe</h1>
+    </header>
+
+    <div id="status-indicator" class="status-indicator">
+      <div class="status-dot"></div>
+      <span id="status-text">未录制</span>
+    </div>
+
+    <div id="main-content">
+      <!-- 未录制状态 -->
+      <div id="idle-state" class="state active">
+        <button id="btn-start" class="btn btn-primary">
+          <span class="icon">⏺</span>
+          开始录制
+        </button>
+        <p class="hint">点击开始录制您的操作流程</p>
+      </div>
+
+      <!-- 录制中状态 -->
+      <div id="recording-state" class="state">
+        <div class="recording-info">
+          <div class="recording-badge">🔴 正在录制</div>
+          <div class="step-count"><span id="step-count">0</span> 个步骤</div>
+        </div>
+        <button id="btn-stop" class="btn btn-danger">
+          <span class="icon">⏹</span>
+          停止录制
+        </button>
+      </div>
+
+      <!-- 已停止状态 -->
+      <div id="stopped-state" class="state">
+        <div class="success-message">
+          <p>✅ 录制完成！</p>
+          <p class="step-info">共记录 <span id="total-steps">0</span> 个步骤</p>
+        </div>
+        <button id="btn-open-editor" class="btn btn-primary">
+          <span class="icon">📄</span>
+          打开编辑器
+        </button>
+        <button id="btn-new-recording" class="btn btn-secondary">
+          <span class="icon">🔄</span>
+          新建录制
+        </button>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <button id="btn-settings" class="btn-text">⚙️ 设置</button>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
