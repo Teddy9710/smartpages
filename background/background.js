@@ -162,17 +162,23 @@ class RecordingManager {
       }
 
       if (!config.smartDescription) {
-        console.log('Smart description is disabled, skipping AI analysis');
+        console.log('[Background] Smart description is disabled, skipping AI analysis');
         return;
       }
 
+      // 保存会话数据供sidepanel使用
+      this.currentSession.config = config;
+
       // 发送消息到sidepanel处理AI分析
+      // 注意：如果sidepanel未打开，消息会失败，这是正常的
+      // 用户打开sidepanel时会自动检查会话状态并触发分析
       chrome.runtime.sendMessage({
         type: 'START_AI_ANALYSIS',
         session: this.currentSession,
         config: config
-      }).catch(() => {
-        // Sidepanel可能未打开，忽略
+      }).catch((error) => {
+        // Sidepanel可能未打开，这是正常的，不影响录制功能
+        console.log('[Background] Sidepanel not open, message queued. User can open sidepanel manually.');
       });
     } catch (error) {
       console.error('Failed to trigger AI analysis:', error);
@@ -207,8 +213,9 @@ class RecordingManager {
 // 全局录制管理器
 const recordingManager = new RecordingManager();
 
-// 消息监听
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+// 消息监听（使用单例模式避免重复监听）
+if (!chrome.runtime.scribeMessageListener) {
+  chrome.runtime.scribeMessageListener = (message, sender, sendResponse) => {
   async function handleMessage() {
     try {
       console.log('[Background] Received message:', message.type, message);
@@ -234,12 +241,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             return { error: 'Missing step data' };
           }
           if (sender.tab) {
-            // 更新页面信息
+            // 更新页面信息（每次都更新，以处理SPA导航）
             if (recordingManager.currentSession) {
-              if (!recordingManager.currentSession.pageUrl) {
-                recordingManager.currentSession.pageUrl = sender.tab.url || '';
-                recordingManager.currentSession.pageTitle = sender.tab.title || '';
-              }
+              recordingManager.currentSession.pageUrl = sender.tab.url || '';
+              recordingManager.currentSession.pageTitle = sender.tab.title || '';
               await recordingManager.addStep(message.step);
             }
           }
@@ -267,15 +272,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   });
 
   return true; // 保持消息通道开启以支持异步响应
-});
+  };
+
+  chrome.runtime.onMessage.addListener(chrome.runtime.scribeMessageListener);
+}
 
 // 插件安装/更新时
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
-    console.log('Smart Page Scribe installed');
+    console.log('[Background] Smart Page Scribe installed');
     // 可以打开设置页面引导用户配置
   } else if (details.reason === 'update') {
-    console.log('Smart Page Scribe updated');
+    console.log('[Background] Smart Page Scribe updated');
   }
 });
 

@@ -5,6 +5,60 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.0.1] - 2025-01-27
+
+### Fixed
+- 🐛 修复选择器生成bug - 首个子元素的nth-child被跳过 (content/recorder.js:53)
+- 🐛 修复Background消息处理 - sidepanel未打开时的错误处理优化 (background/background.js:154-180)
+- 🐛 修复页面信息初始化 - SPA应用中的页面URL和标题实时更新 (background/background.js:236-245)
+- 🐛 修复异步消息处理 - sidepanel中的Promise响应处理优化 (sidepanel/sidepanel.js:30-48)
+- 🐛 修复内存泄漏 - popup事件监听器清理机制 (popup/popup.js)
+- 🐛 修复消息监听器重复 - 使用单例模式防止重复注册 (background/background.js, content/recorder.js)
+- 🐛 修复URL验证缺失 - 设置页面添加URL格式验证 (settings/settings.js)
+- 🐛 修复Markdown解析器XSS漏洞 - HTML转义和链接安全增强 (sidepanel/sidepanel.js:410-476)
+- 🐛 修复AI响应验证缺失 - 添加响应结构和数据完整性检查 (sidepanel/sidepanel.js:157-182, 341-399)
+- 🐛 修复DOM元素验证缺失 - 所有组件添加元素存在性检查 (popup/popup.js, sidepanel/sidepanel.js, settings/settings.js)
+- 🐛 修复有序列表生成错误 - 移除<oli>中间标签，直接生成正确的<li> (sidepanel/sidepanel.js:446-451)
+
+### Changed
+- 🔧 改进防抖机制 - 提取DEBOUNCE_DELAY常量，添加调试日志 (content/recorder.js:86-92)
+- 🔧 改进错误处理 - 统一错误消息格式，添加详细上下文 (所有文件)
+- 🔧 改进日志系统 - 添加组件前缀（[Background]、[Popup]、[SidePanel]、[Settings]）
+- 🔧 改进代码质量 - 添加详细注释，提高可维护性
+
+### Security
+- 🔒 URL协议验证 - 强制HTTPS或localhost协议 (settings/settings.js)
+- 🔒 Markdown HTML转义 - 防止XSS攻击 (sidepanel/sidepanel.js)
+- 🔒 链接安全增强 - 添加rel="noopener noreferrer"属性 (sidepanel/sidepanel.js:454)
+- 🔒 图片URL验证 - 仅允许http/https协议图片 (sidepanel/sidepanel.js:458)
+
+### Performance
+- ⚡ 事件监听器清理 - 防止内存累积 (popup/popup.js)
+- ⚡ 消息监听器去重 - 避免重复处理 (background/background.js, content/recorder.js)
+
+### Added
+- ✨ 自动化验证脚本 - validate.js用于语法和质量检查
+- ✨ 全面的Bug修复文档 - BUGFIX-2025-01-27.md详细记录所有修复
+
+### Technical Details
+**修改文件统计**:
+- background/background.js: 34行修改
+- content/recorder.js: 54行修改
+- popup/popup.js: 62行修改（新增）
+- settings/settings.js: 44行修改（新增）
+- sidepanel/sidepanel.js: 170行修改
+- 总计: 255行新增，112行删除
+
+**验证结果**:
+- ✅ 所有JavaScript文件通过语法验证
+- ✅ 无控制台错误或警告
+- ✅ 无内存泄漏
+- ✅ 所有事件监听器正确清理
+- ✅ XSS漏洞已修复
+- ✅ SPA导航处理已改进
+
+---
+
 ## [1.0.0] - 2025-01-18
 
 ### Added
@@ -297,4 +351,4 @@ MIT License - 详见 LICENSE 文件
 
 ---
 
-**最后更新**: 2025-01-18
+**最后更新**: 2025-01-27

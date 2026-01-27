@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(python ~/.claude/plugins/cache/anthropic-agent-skills/document-skills/69c0b1a06741/skills/skill-creator/scripts/init_skill.py:*)",
-      "Bash(export PYTHONIOENCODING=utf-8:*)"
+      "Bash(export PYTHONIOENCODING=utf-8:*)",
+      "Bash(node:*)"
     ]
   }
 }

@@ -1,24 +1,40 @@
 // Popup状态管理
 class PopupManager {
   constructor() {
+    this.listeners = [];
     this.init();
   }
 
   async init() {
-    // 绑定按钮事件
-    document.getElementById('btn-start').addEventListener('click', () => this.startRecording());
-    document.getElementById('btn-stop').addEventListener('click', () => this.stopRecording());
-    document.getElementById('btn-open-editor').addEventListener('click', () => this.openEditor());
-    document.getElementById('btn-new-recording').addEventListener('click', () => this.newRecording());
-    document.getElementById('btn-settings').addEventListener('click', () => this.openSettings());
+    // 绑定按钮事件（带DOM验证）
+    const buttons = {
+      'btn-start': () => this.startRecording(),
+      'btn-stop': () => this.stopRecording(),
+      'btn-open-editor': () => this.openEditor(),
+      'btn-new-recording': () => this.newRecording(),
+      'btn-settings': () => this.openSettings()
+    };
+
+    for (const [id, handler] of Object.entries(buttons)) {
+      const element = document.getElementById(id);
+      if (element) {
+        const wrappedHandler = handler.bind(this);
+        element.addEventListener('click', wrappedHandler);
+        this.listeners.push({ element, event: 'click', handler: wrappedHandler });
+      } else {
+        console.error(`[Popup] Button with id '${id}' not found in DOM`);
+      }
+    }
 
     // 监听录制状态变化
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    const messageListener = (message, sender, sendResponse) => {
       console.log('[Popup] Received message:', message);
       if (message.type === 'RECORDING_STATE_CHANGED') {
         this.updateState(message.state);
       }
-    });
+    };
+    chrome.runtime.onMessage.addListener(messageListener);
+    this.listeners.push({ target: chrome.runtime.onMessage, event: 'message', handler: messageListener });
 
     // 获取当前状态
     await this.refreshState();
@@ -169,10 +185,38 @@ class PopupManager {
   openSettings() {
     chrome.runtime.openOptionsPage();
   }
+
+  // 清理资源
+  cleanup() {
+    // 移除DOM事件监听器
+    this.listeners.forEach(({ element, event, handler }) => {
+      if (element) {
+        element.removeEventListener(event, handler);
+      }
+    });
+
+    // 移除chrome.runtime消息监听器
+    this.listeners.forEach(({ target, handler }) => {
+      if (target && target.removeListener) {
+        target.removeListener(handler);
+      }
+    });
+
+    this.listeners = [];
+    console.log('[Popup] Cleaned up listeners');
+  }
 }
 
 // 初始化
+let popupManager = null;
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[Popup] Popup loaded');
-  new PopupManager();
+  popupManager = new PopupManager();
+});
+
+// 清理（当popup关闭时）
+window.addEventListener('unload', () => {
+  if (popupManager) {
+    popupManager.cleanup();
+  }
 });
