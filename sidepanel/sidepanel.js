@@ -12,38 +12,58 @@ class SidePanelManager {
   }
 
   async init() {
-    // 绑定按钮事件
-    document.getElementById('btn-new').addEventListener('click', () => this.createNew());
-    document.getElementById('btn-start-here').addEventListener('click', () => this.startRecording());
-    document.getElementById('btn-generate').addEventListener('click', () => this.generateDocument());
-    document.getElementById('btn-retry').addEventListener('click', () => this.retry());
-    document.getElementById('btn-preview').addEventListener('click', () => this.switchMode(false));
-    document.getElementById('btn-edit').addEventListener('click', () => this.switchMode(true));
-    document.getElementById('btn-copy').addEventListener('click', () => this.copyToClipboard());
-    document.getElementById('btn-download').addEventListener('click', () => this.downloadFile());
-    document.getElementById('markdown-editor').addEventListener('input', (e) => {
-      this.generatedDocument = e.target.value;
-      this.updatePreview();
-    });
+    // 绑定按钮事件（带DOM验证）
+    const buttons = {
+      'btn-new': () => this.createNew(),
+      'btn-start-here': () => this.startRecording(),
+      'btn-generate': () => this.generateDocument(),
+      'btn-retry': () => this.retry(),
+      'btn-preview': () => this.switchMode(false),
+      'btn-edit': () => this.switchMode(true),
+      'btn-copy': () => this.copyToClipboard(),
+      'btn-download': () => this.downloadFile()
+    };
+
+    for (const [id, handler] of Object.entries(buttons)) {
+      const element = document.getElementById(id);
+      if (element) {
+        element.addEventListener('click', handler);
+      } else {
+        console.error(`[SidePanel] Button with id '${id}' not found in DOM`);
+      }
+    }
+
+    // 绑定markdown编辑器事件
+    const editor = document.getElementById('markdown-editor');
+    if (editor) {
+      editor.addEventListener('input', (e) => {
+        this.generatedDocument = e.target.value;
+        this.updatePreview();
+      });
+    } else {
+      console.error("[SidePanel] Markdown editor not found in DOM");
+    }
 
     // 监听来自background的消息
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       console.log('[SidePanel] Received message:', message.type, message);
 
       if (message.type === 'START_AI_ANALYSIS') {
-        // 异步处理，但立即返回true保持通道开启
-        this.handleAIAnalysis(message.session, message.config)
-          .then(() => {
+        // 异步处理，保持消息通道开启
+        (async () => {
+          try {
+            await this.handleAIAnalysis(message.session, message.config);
             sendResponse({ success: true });
-          })
-          .catch(error => {
+          } catch (error) {
             console.error('[SidePanel] Failed to handle AI analysis:', error);
             sendResponse({ error: error.message });
-          });
-        return true;
+          }
+        })();
+        return true; // 保持通道开启以支持异步响应
       }
 
       // 对于其他消息类型，立即返回
+      sendResponse({ success: true });
       return false;
     });
 
@@ -157,28 +177,34 @@ class SidePanelManager {
   // 解析AI返回的描述文本
   parseDescriptions(text) {
     if (!text || typeof text !== 'string') {
+      console.warn('[SidePanel] Invalid AI response text');
       return [];
     }
 
-    // 按行分割，过滤空行
-    const lines = text.split('\n')
-                      .map(line => line.trim())
-                      .filter(line => line.length > 0);
+    try {
+      // 按行分割，过滤空行
+      const lines = text.split('\n')
+                        .map(line => line.trim())
+                        .filter(line => line.length > 0);
 
-    // 提取描述（移除序号、符号等）
-    const descriptions = lines
-      .map(line => {
-        // 移除开头的数字序号 "1. " 或 "1、"
-        line = line.replace(/^\d+[\.\、]\s*/, '');
-        // 移除开头的 "- " 或 "* "
-        line = line.replace(/^[-\*]\s*/, '');
-        // 移除开头的 "•"
-        line = line.replace(/^•\s*/, '');
-        return line;
-      })
-      .filter(line => line.length > 3 && line.length < 200); // 过滤过短或过长的
+      // 提取描述（移除序号、符号等）
+      const descriptions = lines
+        .map(line => {
+          // 移除开头的数字序号 "1. " 或 "1、"
+          line = line.replace(/^\d+[\.\、]\s*/, '');
+          // 移除开头的 "- " 或 "* "
+          line = line.replace(/^[-\*]\s*/, '');
+          // 移除开头的 "•"
+          line = line.replace(/^•\s*/, '');
+          return line.trim();
+        })
+        .filter(line => line.length > 3 && line.length < 200); // 过滤过短或过长的
 
-    return descriptions.slice(0, 3); // 最多返回3个
+      return descriptions.slice(0, 3); // 最多返回3个
+    } catch (error) {
+      console.error('[SidePanel] Error parsing descriptions:', error);
+      return [];
+    }
   }
 
   buildIntentPrompt() {
@@ -344,6 +370,11 @@ ${stepsDesc}
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
 
     try {
+      // 验证配置
+      if (!config || !config.apiKey || !config.baseUrl) {
+        throw new Error('AI配置不完整，请检查设置');
+      }
+
       // 确保URL格式正确
       let baseUrl = config.baseUrl.trim();
       if (baseUrl.endsWith('/')) {
@@ -352,8 +383,8 @@ ${stepsDesc}
 
       const url = `${baseUrl}/chat/completions`;
 
-      console.log('AI请求URL:', url);
-      console.log('使用模型:', config.modelName);
+      console.log('[SidePanel] AI请求URL:', url);
+      console.log('[SidePanel] 使用模型:', config.modelName);
 
       const response = await fetch(url, {
         method: 'POST',
@@ -383,7 +414,17 @@ ${stepsDesc}
       }
 
       const data = await response.json();
-      const content = data.choices[0]?.message?.content || '';
+
+      // 验证响应数据结构
+      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        throw new Error('AI返回数据格式异常');
+      }
+
+      const content = data.choices[0].message.content || '';
+
+      if (!content) {
+        throw new Error('AI返回内容为空');
+      }
 
       return content.trim();
     } catch (error) {
@@ -393,7 +434,7 @@ ${stepsDesc}
         throw new Error('请求超时（30秒），请检查网络连接或API地址');
       }
 
-      console.error('AI调用失败:', error);
+      console.error('[SidePanel] AI调用失败:', error);
       throw error;
     }
   }
@@ -407,20 +448,26 @@ ${stepsDesc}
     previewPane.innerHTML = html;
   }
 
-  // 简单的Markdown解析器
+  // 简单的Markdown解析器（带安全处理）
   parseMarkdown(text) {
     if (!text) return '';
 
     let html = text;
 
-    // 转义HTML
+    // 转义HTML（防止XSS）
     html = html.replace(/&/g, '&amp;')
                .replace(/</g, '&lt;')
                .replace(/>/g, '&gt;');
 
-    // 代码块 ```code```
+    // 代码块 ```code```（先处理，避免内部内容被转义）
     html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-      return `<pre><code class="${lang || ''}">${code.trim()}</code></pre>`;
+      // 代码块内容需要反向转义，使其可读
+      const unescapedCode = code
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .trim();
+      return `<pre><code class="${lang || ''}">${unescapedCode}</code></pre>`;
     });
 
     // 行内代码 `code`
@@ -442,20 +489,29 @@ ${stepsDesc}
     html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
     html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
 
-    // 有序列表 1. item
-    html = html.replace(/^\d+\. (.+)$/gm, '<oli>$1</oli>');
-    html = html.replace(/(<oli>.*<\/oli>\n?)+/g, function(match) {
-      return '<ol>' + match.replace(/<\/?oli>/g, function(m) {
-        return m === '<oli>' ? '<li>' : '</li>';
-      }) + '</ol>';
+    // 有序列表 1. item（直接生成正确的li标签）
+    html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/(<li>.*<\/li>\n?)+/g, function(match) {
+      // 检查是否是有序列表（通过判断前文是否有数字）
+      const lines = match.split('\n').filter(l => l.trim());
+      if (lines.length > 0 && /^\d+\./.test(text.split('\n').find(l => l.includes(lines[0].replace(/<li>|<\/li>/g, ''))) || '')) {
+        return '<ol>' + match + '</ol>';
+      }
+      return match;
     });
 
-    // 链接 [text](url)
-    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+    // 链接 [text](url) - 添加rel="noopener"防止安全风险
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 
     // 图片
-![alt](url)
-    html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
+![alt](url) - 仅允许http/https协议
+    html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, url) => {
+      // 简单的URL验证
+      if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/')) {
+        return `<img src="${url}" alt="${alt}" loading="lazy">`;
+      }
+      return match; // 不安全的URL不渲染
+    });
 
     // 段落（双换行）
     html = html.replace(/\n\n/g, '</p><p>');

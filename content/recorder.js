@@ -5,6 +5,7 @@
   let isListening = false;
   let lastElement = null;
   let lastClickTime = 0;
+  const DEBOUNCE_DELAY = 500; // 防抖延迟（毫秒）
 
   // 生成元素选择器
   function generateSelector(element) {
@@ -50,7 +51,7 @@
       if (current.parentElement) {
         const siblings = Array.from(current.parentElement.children);
         const index = siblings.indexOf(current);
-        if (index > 0) {
+        if (index >= 0) {
           selector += `:nth-child(${index + 1})`;
         }
       }
@@ -81,9 +82,10 @@
   function recordClick(event) {
     if (!isListening) return;
 
-    // 防止重复记录同一元素的快速点击
+    // 防止重复记录同一元素的快速点击（防抖）
     const now = Date.now();
-    if (event.target === lastElement && now - lastClickTime < 500) {
+    if (event.target === lastElement && now - lastClickTime < DEBOUNCE_DELAY) {
+      console.log('[Smart Page Scribe] Click debounced (too fast)');
       return;
     }
 
@@ -235,29 +237,33 @@
     console.log('[Smart Page Scribe] Recording stopped');
   }
 
-  // 监听来自background的消息
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    switch (message.type) {
-      case 'START_LISTENING':
-        startListening();
-        sendResponse({ success: true });
-        break;
+  // 监听来自background的消息（使用单例模式避免重复监听）
+  if (!window.scribeMessageListener) {
+    window.scribeMessageListener = (message, sender, sendResponse) => {
+      switch (message.type) {
+        case 'START_LISTENING':
+          startListening();
+          sendResponse({ success: true });
+          break;
 
-      case 'STOP_LISTENING':
-        stopListening();
-        sendResponse({ success: true });
-        break;
+        case 'STOP_LISTENING':
+          stopListening();
+          sendResponse({ success: true });
+          break;
 
-      case 'IS_LISTENING':
-        sendResponse({ isListening });
-        break;
+        case 'IS_LISTENING':
+          sendResponse({ isListening });
+          break;
 
-      default:
-        sendResponse({ error: 'Unknown message type' });
-    }
+        default:
+          sendResponse({ error: 'Unknown message type' });
+      }
 
-    return true;
-  });
+      return true;
+    };
+
+    chrome.runtime.onMessage.addListener(window.scribeMessageListener);
+  }
 
   // 页面加载完成时通知background
   if (document.readyState === 'loading') {

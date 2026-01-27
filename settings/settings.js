@@ -14,13 +14,28 @@ class SettingsManager {
     // 加载已保存的配置
     await this.loadConfig();
 
-    // 绑定事件
-    document.getElementById('btn-save').addEventListener('click', () => this.saveConfig());
-    document.getElementById('btn-test').addEventListener('click', () => this.testConnection());
-    document.getElementById('btn-toggle-key').addEventListener('click', () => this.toggleApiKeyVisibility());
-    document.getElementById('smart-description').addEventListener('change', (e) => {
-      this.config.smartDescription = e.target.checked;
-    });
+    // 绑定事件（带DOM验证）
+    const btnSave = document.getElementById('btn-save');
+    const btnTest = document.getElementById('btn-test');
+    const btnToggleKey = document.getElementById('btn-toggle-key');
+    const smartDesc = document.getElementById('smart-description');
+
+    if (btnSave) btnSave.addEventListener('click', () => this.saveConfig());
+    else console.error('[Settings] btnSave not found');
+
+    if (btnTest) btnTest.addEventListener('click', () => this.testConnection());
+    else console.error('[Settings] btnTest not found');
+
+    if (btnToggleKey) btnToggleKey.addEventListener('click', () => this.toggleApiKeyVisibility());
+    else console.error('[Settings] btnToggleKey not found');
+
+    if (smartDesc) {
+      smartDesc.addEventListener('change', (e) => {
+        this.config.smartDescription = e.target.checked;
+      });
+    } else {
+      console.error('[Settings] smartDescription checkbox not found');
+    }
 
     // 填充表单
     this.populateForm();
@@ -156,7 +171,7 @@ class SettingsManager {
 
   async testConnection() {
     const apiKeyInput = document.getElementById('api-key');
-    const baseUrl = document.getElementById('base-url').value.trim() || 'https://api.openai.com/v1';
+    let baseUrl = document.getElementById('base-url').value.trim() || 'https://api.openai.com/v1';
     const modelName = document.getElementById('model-name').value.trim() || 'gpt-3.5-turbo';
 
     let apiKey = apiKeyInput.dataset.fullKey || apiKeyInput.value;
@@ -166,6 +181,19 @@ class SettingsManager {
 
     if (!apiKey) {
       this.showTestResult('请先输入API Key', 'error');
+      return;
+    }
+
+    // 验证URL格式
+    try {
+      const url = new URL(baseUrl);
+      // 确保使用HTTPS或localhost
+      if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+        this.showTestResult('URL格式错误：必须以http://或https://开头', 'error');
+        return;
+      }
+    } catch (error) {
+      this.showTestResult('URL格式错误：' + error.message, 'error');
       return;
     }
 
