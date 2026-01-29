@@ -112,6 +112,15 @@ class PopupManager {
   async startRecording() {
     try {
       console.log('[Popup] Starting recording...');
+      
+      // 添加防抖机制
+      if (this.isStartingRecording) {
+        console.log('[Popup] Start recording already in progress');
+        return;
+      }
+      
+      this.isStartingRecording = true;
+      
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
       const response = await chrome.runtime.sendMessage({
@@ -131,6 +140,8 @@ class PopupManager {
     } catch (error) {
       console.error('[Popup] Failed to start recording:', error);
       alert('启动录制失败，请重试');
+    } finally {
+      this.isStartingRecording = false;
     }
   }
 
@@ -138,10 +149,20 @@ class PopupManager {
     try {
       console.log('[Popup] Stopping recording...');
 
+      // 添加防抖机制
+      if (this.isStoppingRecording) {
+        console.log('[Popup] Stop recording already in progress');
+        return;
+      }
+      
+      this.isStoppingRecording = true;
+
       // 禁用按钮，防止重复点击
       const btn = document.getElementById('btn-stop');
-      btn.disabled = true;
-      btn.textContent = '停止中...';
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '停止中...';
+      }
 
       const response = await chrome.runtime.sendMessage({ type: 'STOP_RECORDING' });
 
@@ -159,6 +180,14 @@ class PopupManager {
       console.error('[Popup] Failed to stop recording:', error);
       alert('停止录制失败，请重试');
       await this.refreshState();
+    } finally {
+      this.isStoppingRecording = false;
+      // 恢复按钮状态
+      const btn = document.getElementById('btn-stop');
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '停止录制';
+      }
     }
   }
 

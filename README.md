@@ -163,6 +163,7 @@ smartpages/
 - **Chrome Tabs API**: 标签页管理
 - **Chrome Side Panel API**: 侧边栏界面
 - **Marked.js**: Markdown渲染（通过CDN引入）
+- **性能优化**: 包含节流、防抖、异步处理等优化技术
 
 ## 开发说明
 

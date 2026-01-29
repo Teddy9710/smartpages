@@ -5,7 +5,9 @@
   let isListening = false;
   let lastElement = null;
   let lastClickTime = 0;
+  let lastRecordedAction = 0;
   const DEBOUNCE_DELAY = 500; // 防抖延迟（毫秒）
+  const THROTTLE_DELAY = 200; // 节流延迟（毫秒），防止过于频繁的记录
 
   // 生成元素选择器
   function generateSelector(element) {
@@ -82,15 +84,23 @@
   function recordClick(event) {
     if (!isListening) return;
 
-    // 防止重复记录同一元素的快速点击（防抖）
     const now = Date.now();
+    
+    // 防止重复记录同一元素的快速点击（防抖）
     if (event.target === lastElement && now - lastClickTime < DEBOUNCE_DELAY) {
       console.log('[Smart Page Scribe] Click debounced (too fast)');
       return;
     }
 
+    // 节流：防止过于频繁的记录（即使是不同元素）
+    if (now - lastRecordedAction < THROTTLE_DELAY) {
+      console.log('[Smart Page Scribe] Click throttled (too frequent)');
+      return;
+    }
+
     lastElement = event.target;
     lastClickTime = now;
+    lastRecordedAction = now;
 
     const target = event.target;
 

@@ -44,7 +44,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["libs/*"],
+      "resources": ["libs/*", "utils/*"],
       "matches": ["<all_urls>"]
     }
   ]

@@ -117,23 +117,38 @@ class RecordingManager {
     }
 
     try {
+      // 添加步骤但暂不截图，避免阻塞主线程
       this.currentSession.steps.push(step);
 
-      // 截图
-      try {
-        const screenshot = await chrome.tabs.captureVisibleTab(null, {
-          format: 'png',
-          quality: 85
-        });
-        this.currentSession.steps[this.currentSession.steps.length - 1].screenshot = screenshot;
-      } catch (error) {
-        console.error('[RecordingManager] Failed to capture screenshot:', error);
-        // 继续执行，截图失败不影响步骤记录
-      }
+      // 异步截图，提高响应速度
+      this.captureScreenshotAsync();
 
       this.notifyStateChanged();
     } catch (error) {
       console.error('[RecordingManager] Failed to add step:', error);
+    }
+  }
+
+  // 异步截图方法，避免阻塞主线程
+  async captureScreenshotAsync() {
+    try {
+      // 使用setTimeout确保在下一个事件循环中执行截图
+      setTimeout(async () => {
+        if (this.state === 'recording' && this.tabId) {
+          const screenshot = await chrome.tabs.captureVisibleTab(null, {
+            format: 'png',
+            quality: 85
+          });
+          
+          // 更新最新步骤的截图
+          if (this.currentSession.steps.length > 0) {
+            this.currentSession.steps[this.currentSession.steps.length - 1].screenshot = screenshot;
+          }
+        }
+      }, 0);
+    } catch (error) {
+      console.error('[RecordingManager] Failed to capture screenshot:', error);
+      // 继续执行，截图失败不影响步骤记录
     }
   }
 

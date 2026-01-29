@@ -452,6 +452,11 @@ ${stepsDesc}
   parseMarkdown(text) {
     if (!text) return '';
 
+    // 简单缓存机制：对于相同内容返回之前的结果
+    if (this.lastParsedText === text && this.lastParsedResult) {
+      return this.lastParsedResult;
+    }
+
     let html = text;
 
     // 转义HTML（防止XSS）
@@ -503,8 +508,7 @@ ${stepsDesc}
     // 链接 [text](url) - 添加rel="noopener"防止安全风险
     html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 
-    // 图片
-![alt](url) - 仅允许http/https协议
+    // 图片 ![alt](url) - 仅允许http/https协议
     html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, url) => {
       // 简单的URL验证
       if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/')) {
@@ -527,6 +531,10 @@ ${stepsDesc}
     html = html.replace(/(<\/ol>)<\/p>/g, '$1');
     html = html.replace(/<p>(<pre>)/g, '$1');
     html = html.replace(/(<\/pre>)<\/p>/g, '$1');
+
+    // 缓存结果
+    this.lastParsedText = text;
+    this.lastParsedResult = html;
 
     return html;
   }
