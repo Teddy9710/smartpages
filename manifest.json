@@ -1,14 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Smart Page Scribe - 智能网页文档助手",
-  "version": "1.0.0",
-  "description": "智能录制网页操作并自动生成文档的浏览器插件",
+  "version": "1.1.0",
+  "description": "智能录制网页操作并自动生成文档的浏览器插件，支持文档上传管理",
   "permissions": [
     "storage",
     "tabs",
     "notifications",
     "sidePanel",
-    "activeTab"
+    "activeTab",
+    "unlimitedStorage"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -44,8 +45,11 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["libs/*", "utils/*"],
+      "resources": ["libs/*", "utils/*", "docs/*", "upload/*"],
       "matches": ["<all_urls>"]
     }
-  ]
+  ],
+  "externally_connectable": {
+    "matches": ["<all_urls>"]
+  }
 }
