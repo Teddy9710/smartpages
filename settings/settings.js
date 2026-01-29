@@ -7,6 +7,8 @@ class SettingsManager {
       modelName: 'gpt-3.5-turbo',
       smartDescription: true
     };
+    this.uploader = new DocumentUploader();
+    this.api = new DocumentApi();
     this.init();
   }
 
@@ -15,10 +17,25 @@ class SettingsManager {
     await this.loadConfig();
 
     // 绑定事件（带DOM验证）
+    this.bindEvents();
+    
+    // 初始化文档管理功能
+    this.initDocumentManagement();
+    
+    // 填充表单
+    this.populateForm();
+  }
+
+  bindEvents() {
     const btnSave = document.getElementById('btn-save');
     const btnTest = document.getElementById('btn-test');
     const btnToggleKey = document.getElementById('btn-toggle-key');
     const smartDesc = document.getElementById('smart-description');
+    const browseBtn = document.getElementById('browse-btn');
+    const documentFile = document.getElementById('document-file');
+    const uploadArea = document.getElementById('upload-area');
+    const refreshBtn = document.getElementById('refresh-documents');
+    const searchInput = document.getElementById('search-documents');
 
     if (btnSave) btnSave.addEventListener('click', () => this.saveConfig());
     else console.error('[Settings] btnSave not found');
@@ -37,8 +54,23 @@ class SettingsManager {
       console.error('[Settings] smartDescription checkbox not found');
     }
 
-    // 填充表单
-    this.populateForm();
+    // 文档上传事件绑定
+    if (browseBtn) browseBtn.addEventListener('click', () => documentFile.click());
+    if (documentFile) documentFile.addEventListener('change', (e) => this.handleFileSelect(e));
+    if (uploadArea) {
+      uploadArea.addEventListener('click', () => documentFile.click());
+      uploadArea.addEventListener('dragover', (e) => this.handleDragOver(e));
+      uploadArea.addEventListener('dragleave', (e) => this.handleDragLeave(e));
+      uploadArea.addEventListener('drop', (e) => this.handleDrop(e));
+    }
+    
+    if (refreshBtn) refreshBtn.addEventListener('click', () => this.loadDocumentsList());
+    if (searchInput) searchInput.addEventListener('input', (e) => this.searchDocuments(e.target.value));
+  }
+
+  async initDocumentManagement() {
+    // 初始化文档列表
+    this.loadDocumentsList();
   }
 
   async loadConfig() {
@@ -261,9 +293,238 @@ class SettingsManager {
     resultDiv.textContent = message;
     resultDiv.className = `test-result ${type}`;
   }
+
+  // 文档管理功能
+  handleDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const uploadArea = document.getElementById('upload-area');
+    uploadArea.classList.add('dragover');
+  }
+
+  handleDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const uploadArea = document.getElementById('upload-area');
+    uploadArea.classList.remove('dragover');
+  }
+
+  async handleDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const uploadArea = document.getElementById('upload-area');
+    uploadArea.classList.remove('dragover');
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      await this.processFile(files[0]);
+    }
+  }
+
+  handleFileSelect(e) {
+    const files = e.target.files;
+    if (files.length > 0) {
+      this.processFile(files[0]);
+    }
+  }
+
+  async processFile(file) {
+    // 验证文件格式
+    if (!this.uploader.isSupportedFormat(file)) {
+      this.showUploadResult(`不支持的文件格式。支持的格式: ${this.uploader.supportedFormats.join(', ')}`, 'error');
+      return;
+    }
+
+    // 显示进度条
+    this.showProgress(0, '准备上传...');
+
+    try {
+      // 更新进度
+      this.showProgress(30, '正在读取文件...');
+      
+      // 上传文档
+      const result = await this.api.handleUploadRequest(file);
+      
+      if (result.success) {
+        this.showProgress(100, '上传完成！');
+        this.showUploadResult('文档上传成功！', 'success');
+        
+        // 刷新文档列表
+        setTimeout(() => {
+          this.loadDocumentsList();
+          this.hideProgress();
+        }, 1000);
+      } else {
+        this.showUploadResult(result.message, 'error');
+        this.hideProgress();
+      }
+    } catch (error) {
+      this.showUploadResult(`上传失败: ${error.message}`, 'error');
+      this.hideProgress();
+    }
+  }
+
+  showProgress(percent, text) {
+    const progressContainer = document.getElementById('upload-progress');
+    const progressBar = document.getElementById('progress-fill');
+    const progressText = document.getElementById('progress-text');
+    
+    progressContainer.classList.remove('hidden');
+    progressBar.style.width = percent + '%';
+    progressText.textContent = text || percent + '%';
+  }
+
+  hideProgress() {
+    const progressContainer = document.getElementById('upload-progress');
+    progressContainer.classList.add('hidden');
+  }
+
+  showUploadResult(message, type) {
+    const resultDiv = document.getElementById('upload-result');
+    resultDiv.textContent = message;
+    resultDiv.className = `upload-result ${type} ${type === 'success' ? 'success' : 'error'}`;
+    resultDiv.classList.remove('hidden');
+    
+    // 3秒后隐藏结果
+    setTimeout(() => {
+      resultDiv.classList.add('hidden');
+    }, 3000);
+  }
+
+  async loadDocumentsList(filter = '') {
+    const container = document.getElementById('documents-list');
+    container.innerHTML = '<div class="loading-placeholder">正在加载文档列表...</div>';
+
+    try {
+      const result = await this.api.getDocumentsList();
+      
+      if (result.success) {
+        const filteredDocs = filter ? 
+          result.documents.filter(doc => 
+            doc.name.toLowerCase().includes(filter.toLowerCase())
+          ) : 
+          result.documents;
+
+        if (filteredDocs.length > 0) {
+          container.innerHTML = '';
+          
+          filteredDocs.forEach(doc => {
+            const docElement = this.createDocumentItemElement(doc);
+            container.appendChild(docElement);
+          });
+        } else {
+          container.innerHTML = '<div class="no-documents">暂无文档</div>';
+        }
+      } else {
+        container.innerHTML = `<div class="no-documents">加载失败: ${result.message}</div>`;
+      }
+    } catch (error) {
+      container.innerHTML = `<div class="no-documents">加载失败: ${error.message}</div>`;
+    }
+  }
+
+  createDocumentItemElement(doc) {
+    const docItem = document.createElement('div');
+    docItem.className = 'doc-item';
+    
+    // 格式化文件大小
+    const formattedSize = this.formatFileSize(doc.size);
+    
+    // 格式化时间
+    const formattedTime = new Date(doc.uploadTime).toLocaleString('zh-CN');
+    
+    docItem.innerHTML = `
+      <div class="doc-info">
+        <div class="doc-name">${doc.name}</div>
+        <div class="doc-meta">
+          <span>大小: ${formattedSize}</span>
+          <span>类型: ${doc.type || 'unknown'}</span>
+          <span>上传时间: ${formattedTime}</span>
+        </div>
+      </div>
+      <div class="doc-actions">
+        <button class="doc-action-btn view" onclick="settingsManager.viewDocument('${doc.id}')">👁 查看</button>
+        <button class="doc-action-btn delete" onclick="settingsManager.deleteDocument('${doc.id}')">🗑 删除</button>
+      </div>
+    `;
+    
+    return docItem;
+  }
+
+  formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  async viewDocument(docId) {
+    try {
+      const result = await this.api.getDocumentContent(docId);
+      
+      if (result.success) {
+        // 在新标签页中打开文档内容
+        const contentWindow = window.open('', '_blank');
+        contentWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>${result.document.name}</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+              .header { background: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+              .content { white-space: pre-wrap; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>${result.document.name}</h1>
+              <p>大小: ${this.formatFileSize(result.document.size)} | 类型: ${result.document.type} | 上传时间: ${new Date(result.document.uploadTime).toLocaleString('zh-CN')}</p>
+            </div>
+            <div class="content">${this.escapeHtml(result.document.content)}</div>
+          </body>
+          </html>
+        `);
+      } else {
+        alert(`查看文档失败: ${result.message}`);
+      }
+    } catch (error) {
+      alert(`查看文档失败: ${error.message}`);
+    }
+  }
+
+  async deleteDocument(docId) {
+    if (confirm('确定要删除这个文档吗？此操作不可恢复。')) {
+      try {
+        const result = await this.api.deleteDocument(docId);
+        
+        if (result.success) {
+          alert('文档删除成功！');
+          this.loadDocumentsList(); // 重新加载列表
+        } else {
+          alert(`删除失败: ${result.message}`);
+        }
+      } catch (error) {
+        alert(`删除失败: ${error.message}`);
+      }
+    }
+  }
+
+  async searchDocuments(query) {
+    await this.loadDocumentsList(query);
+  }
+
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
 }
 
 // 初始化
+let settingsManager;
 document.addEventListener('DOMContentLoaded', () => {
-  new SettingsManager();
+  settingsManager = new SettingsManager();
 });

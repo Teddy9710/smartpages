@@ -10,51 +10,8 @@
   <div class="container">
     <header class="header">
       <h1>📝 智能文档助手</h1>
-      <div class="header-actions">
-        <button id="btn-documents" class="btn-icon" title="文档管理">📚</button>
-        <button id="btn-new" class="btn-icon" title="新建">📄</button>
-      </div>
+      <button id="btn-new" class="btn-icon" title="新建">📄</button>
     </header>
-
-    <!-- 文档管理面板 -->
-    <div id="documents-panel" class="state-view hidden">
-      <div class="panel-header">
-        <h2>📚 文档管理</h2>
-        <button id="btn-close-documents" class="btn-icon" title="关闭">×</button>
-      </div>
-      <div class="documents-content">
-        <div class="upload-section">
-          <h3>上传文档</h3>
-          <div class="upload-area" id="sidepanel-upload-area">
-            <div class="upload-content">
-              <span class="upload-icon">📄</span>
-              <p>拖拽文件到这里或点击选择文件</p>
-              <p class="upload-help">支持格式: PDF, DOCX, TXT</p>
-              <input type="file" id="sidepanel-document-file" accept=".pdf,.docx,.txt" style="display: none;">
-              <button id="sidepanel-browse-btn" class="btn btn-outline">浏览文件</button>
-            </div>
-          </div>
-          <div id="sidepanel-upload-progress" class="progress hidden">
-            <div class="progress-bar">
-              <div class="progress-fill" id="sidepanel-progress-fill"></div>
-            </div>
-            <span class="progress-text" id="sidepanel-progress-text">0%</span>
-          </div>
-          <div id="sidepanel-upload-result" class="upload-result hidden"></div>
-        </div>
-
-        <div class="documents-list-section">
-          <h3>已上传的文档</h3>
-          <div class="documents-actions">
-            <input type="text" id="sidepanel-search-documents" placeholder="搜索文档..." class="input input-small">
-            <button id="sidepanel-refresh-documents" class="btn btn-small btn-secondary">🔄 刷新</button>
-          </div>
-          <div id="sidepanel-documents-list" class="documents-list">
-            <div class="loading-placeholder">正在加载文档列表...</div>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- 加载状态 -->
     <div id="loading-state" class="state-view hidden">
@@ -140,9 +97,6 @@
     </div>
   </div>
 
-  <script src="../utils/documentUpload.js"></script>
-  <script src="../utils/documentApi.js"></script>
-  <script src="../utils/documentLinker.js"></script>
   <script src="sidepanel.js"></script>
 </body>
 </html>

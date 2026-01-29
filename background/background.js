@@ -235,42 +235,52 @@ if (!chrome.runtime.scribeMessageListener) {
     try {
       console.log('[Background] Received message:', message.type, message);
 
-      switch (message.type) {
-        case 'GET_RECORDING_STATE':
-          return recordingManager.getState();
+      // 处理录制相关消息
+      if (['GET_RECORDING_STATE', 'START_RECORDING', 'STOP_RECORDING', 'RESET_RECORDING', 'ADD_STEP', 'GET_SESSION'].includes(message.type)) {
+        switch (message.type) {
+          case 'GET_RECORDING_STATE':
+            return recordingManager.getState();
 
-        case 'START_RECORDING':
-          if (!message.tabId) {
-            return { error: 'Missing tabId parameter' };
-          }
-          return await recordingManager.startRecording(message.tabId);
-
-        case 'STOP_RECORDING':
-          return await recordingManager.stopRecording();
-
-        case 'RESET_RECORDING':
-          return await recordingManager.resetRecording();
-
-        case 'ADD_STEP':
-          if (!message.step) {
-            return { error: 'Missing step data' };
-          }
-          if (sender.tab) {
-            // 更新页面信息（每次都更新，以处理SPA导航）
-            if (recordingManager.currentSession) {
-              recordingManager.currentSession.pageUrl = sender.tab.url || '';
-              recordingManager.currentSession.pageTitle = sender.tab.title || '';
-              await recordingManager.addStep(message.step);
+          case 'START_RECORDING':
+            if (!message.tabId) {
+              return { error: 'Missing tabId parameter' };
             }
-          }
-          return { success: true };
+            return await recordingManager.startRecording(message.tabId);
 
-        case 'GET_SESSION':
-          return recordingManager.currentSession;
+          case 'STOP_RECORDING':
+            return await recordingManager.stopRecording();
 
-        default:
-          console.warn('[Background] Unknown message type:', message.type);
-          return { error: 'Unknown message type: ' + message.type };
+          case 'RESET_RECORDING':
+            return await recordingManager.resetRecording();
+
+          case 'ADD_STEP':
+            if (!message.step) {
+              return { error: 'Missing step data' };
+            }
+            if (sender.tab) {
+              // 更新页面信息（每次都更新，以处理SPA导航）
+              if (recordingManager.currentSession) {
+                recordingManager.currentSession.pageUrl = sender.tab.url || '';
+                recordingManager.currentSession.pageTitle = sender.tab.title || '';
+                await recordingManager.addStep(message.step);
+              }
+            }
+            return { success: true };
+
+          case 'GET_SESSION':
+            return recordingManager.currentSession;
+
+          default:
+            return { error: 'Unknown message type: ' + message.type };
+        }
+      } 
+      // 处理文档相关消息
+      else if (['GET_DOCUMENTS_LIST', 'SEARCH_DOCUMENTS', 'GET_DOCUMENT_CONTENT', 'DELETE_DOCUMENT', 'LINK_DOCUMENT_TO_CODE', 'GET_LINKED_CODES_FOR_DOCUMENT'].includes(message.type)) {
+        return await handleDocumentMessage(message, sendResponse);
+      } 
+      else {
+        console.warn('[Background] Unknown message type:', message.type);
+        return { error: 'Unknown message type: ' + message.type };
       }
     } catch (error) {
       console.error('[Background] Error handling message:', error);
@@ -308,3 +318,155 @@ chrome.notifications.onClicked.addListener((notificationId) => {
     chrome.runtime.openOptionsPage();
   }
 });
+
+// 文档上传相关的消息处理
+async function handleDocumentMessage(message, sendResponse) {
+  try {
+    switch (message.type) {
+      case 'GET_DOCUMENTS_LIST':
+        // 获取文档列表
+        const docsResult = await chrome.storage.local.get(['documents']);
+        const documents = docsResult.documents || [];
+        return {
+          success: true,
+          documents: documents.map(doc => ({
+            id: doc.id,
+            name: doc.name,
+            size: doc.size,
+            type: doc.type,
+            uploadTime: doc.uploadTime
+          }))
+        };
+
+      case 'SEARCH_DOCUMENTS':
+        // 搜索文档
+        const searchResult = await chrome.storage.local.get(['documents']);
+        const allDocs = searchResult.documents || [];
+        const searchTerm = message.query.toLowerCase();
+        
+        const matchedDocs = allDocs.filter(doc => 
+          doc.name.toLowerCase().includes(searchTerm) || 
+          (doc.content && doc.content.toLowerCase().includes(searchTerm))
+        );
+        
+        return {
+          success: true,
+          documents: matchedDocs
+        };
+
+      case 'GET_DOCUMENT_CONTENT':
+        // 获取特定文档内容
+        const contentResult = await chrome.storage.local.get(['documents']);
+        const allDocuments = contentResult.documents || [];
+        const document = allDocuments.find(doc => doc.id === message.docId);
+        
+        if (document) {
+          return {
+            success: true,
+            document: document
+          };
+        } else {
+          return {
+            success: false,
+            message: '文档不存在'
+          };
+        }
+
+      case 'DELETE_DOCUMENT':
+        // 删除文档
+        const deleteResult = await chrome.storage.local.get(['documents']);
+        const existingDocs = deleteResult.documents || [];
+        const updatedDocs = existingDocs.filter(doc => doc.id !== message.docId);
+        
+        await chrome.storage.local.set({ documents: updatedDocs });
+        
+        return {
+          success: true,
+          message: '文档删除成功'
+        };
+
+      case 'LINK_DOCUMENT_TO_CODE':
+        // 创建文档与代码的关联
+        const linkResult = await chrome.storage.local.get(['documentCodeLinks']);
+        const existingLinks = linkResult.documentCodeLinks || [];
+        
+        const newLink = {
+          id: Date.now().toString(36) + Math.random().toString(36).substr(2),
+          docId: message.docId,
+          codeContext: message.codeContext,
+          linkedAt: new Date().toISOString(),
+          metadata: {
+            codeType: message.codeContext.code ? detectCodeType(message.codeContext.code) : 'unknown',
+            functionName: message.codeContext.code ? extractFunctionName(message.codeContext.code) : 'unknown',
+            description: message.codeContext.description || ''
+          }
+        };
+        
+        existingLinks.push(newLink);
+        await chrome.storage.local.set({ documentCodeLinks: existingLinks });
+        
+        return {
+          success: true,
+          link: newLink
+        };
+
+      case 'GET_LINKED_CODES_FOR_DOCUMENT':
+        // 获取文档的关联代码
+        const linkResult = await chrome.storage.local.get(['documentCodeLinks']);
+        const allLinks = linkResult.documentCodeLinks || [];
+        const linkedCodes = allLinks.filter(link => link.docId === message.docId);
+        
+        return {
+          success: true,
+          links: linkedCodes
+        };
+
+      default:
+        return { error: 'Unknown document message type: ' + message.type };
+    }
+  } catch (error) {
+    console.error('[Background] Error handling document message:', error);
+    return { error: error.message };
+  }
+}
+
+// 辅助函数：检测代码类型
+function detectCodeType(code) {
+  if (code.includes('function') || code.includes('def ') || code.includes('var ') || code.includes('let ') || code.includes('const ')) {
+    return 'javascript';
+  } else if (code.includes('import') || code.includes('from') || code.includes('def ') || code.includes('class ')) {
+    return 'python';
+  } else if (code.includes('#include') || code.includes('#define') || code.includes('int main')) {
+    return 'c_cpp';
+  } else if (code.includes('public class') || code.includes('private') || code.includes('protected')) {
+    return 'java';
+  } else if (code.includes('<!DOCTYPE html>') || code.includes('<html>') || code.includes('<div')) {
+    return 'html';
+  } else if (code.includes('{') && code.includes('}')) {
+    return 'general';
+  }
+  return 'unknown';
+}
+
+// 辅助函数：提取函数名
+function extractFunctionName(code) {
+  // JavaScript/Python函数名提取
+  const funcMatch = code.match(/(?:function\s+)?([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/);
+  if (funcMatch && funcMatch[1]) {
+    return funcMatch[1];
+  }
+  
+  // Python def匹配
+  const pythonMatch = code.match(/def\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/);
+  if (pythonMatch && pythonMatch[1]) {
+    return pythonMatch[1];
+  }
+  
+  // Java方法名匹配
+  const javaMatch = code.match(/(?:public|private|protected)\s+\w+\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/);
+  if (javaMatch && javaMatch[1]) {
+    return javaMatch[1];
+  }
+  
+  return 'unknown_function';
+}
