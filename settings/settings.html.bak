@@ -65,44 +65,6 @@
         <div id="test-result" class="test-result hidden"></div>
       </section>
 
-      <!-- 文档管理部分 -->
-      <section class="section">
-        <h2>文档管理</h2>
-        <p class="section-desc">上传和管理您的文档，支持PDF、DOCX、TXT格式</p>
-
-        <div class="form-group">
-          <label for="document-upload">上传文档</label>
-          <div class="upload-area" id="upload-area">
-            <div class="upload-content">
-              <span class="upload-icon">📄</span>
-              <p>拖拽文件到这里或点击选择文件</p>
-              <p class="upload-help">支持格式: PDF, DOCX, TXT</p>
-              <input type="file" id="document-file" accept=".pdf,.docx,.txt" style="display: none;">
-              <button id="browse-btn" class="btn btn-outline">浏览文件</button>
-            </div>
-          </div>
-          <div id="upload-progress" class="progress hidden">
-            <div class="progress-bar">
-              <div class="progress-fill" id="progress-fill"></div>
-            </div>
-            <span class="progress-text" id="progress-text">0%</span>
-          </div>
-          <div id="upload-result" class="upload-result hidden"></div>
-        </div>
-
-        <div class="documents-list-container">
-          <h3>已上传的文档</h3>
-          <div class="documents-actions">
-            <input type="text" id="search-documents" placeholder="搜索文档..." class="input input-small">
-            <button id="refresh-documents" class="btn btn-small btn-secondary">🔄 刷新</button>
-          </div>
-          <div id="documents-list" class="documents-list">
-            <!-- 文档列表将动态加载 -->
-            <div class="loading-placeholder">正在加载文档列表...</div>
-          </div>
-        </div>
-      </section>
-
       <!-- 智能功能开关 -->
       <section class="section">
         <h2>智能功能</h2>
@@ -125,14 +87,11 @@
           <p><strong>Smart Page Scribe</strong></p>
           <p>版本 1.0.0</p>
           <p>智能录制网页操作并自动生成文档</p>
-          <p><strong>新增功能:</strong> 文档上传与管理</p>
         </div>
       </section>
     </div>
   </div>
 
-  <script src="../utils/documentUpload.js"></script>
-  <script src="../utils/documentApi.js"></script>
   <script src="settings.js"></script>
 </body>
 </html>

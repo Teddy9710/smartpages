@@ -1,0 +1,249 @@
+/* 上传面板样式 */
+.upload-container {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  background: #fff;
+  min-height: 100vh;
+}
+
+.upload-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e1e5e9;
+}
+
+.upload-header h1 {
+  margin: 0;
+  color: #202124;
+  font-size: 1.5rem;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+  padding: 5px;
+}
+
+.btn-close:hover {
+  color: #333;
+}
+
+.drop-zone {
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  padding: 40px;
+  text-align: center;
+  margin-bottom: 20px;
+  transition: border-color 0.3s ease;
+  background-color: #fafafa;
+}
+
+.drop-zone.dragover {
+  border-color: #4CAF50;
+  background-color: #f0f8f0;
+}
+
+.drop-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.upload-icon {
+  font-size: 3rem;
+  margin-bottom: 15px;
+}
+
+.drop-content p {
+  margin: 10px 0;
+  color: #666;
+}
+
+.file-types {
+  font-size: 0.9rem;
+  color: #888;
+}
+
+#file-input {
+  display: none;
+}
+
+.upload-options {
+  margin-bottom: 20px;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  color: #333;
+}
+
+.form-group input[type="text"],
+.form-group input[type="password"],
+.form-group textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.form-group textarea {
+  height: 80px;
+  resize: vertical;
+}
+
+.form-group input[type="radio"] {
+  margin-right: 8px;
+}
+
+.github-options {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 4px;
+  margin-top: 10px;
+}
+
+.github-options.hidden {
+  display: none;
+}
+
+.btn-primary {
+  background-color: #667eea;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  width: 100%;
+}
+
+.btn-primary:hover {
+  background-color: #5a6fd8;
+}
+
+.btn-primary:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  background-color: #5a6268;
+}
+
+.upload-progress {
+  margin: 20px 0;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 20px;
+  background-color: #e0e0e0;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: #4CAF50;
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  text-align: center;
+  font-size: 14px;
+  color: #666;
+}
+
+.upload-results, .upload-history {
+  margin-top: 20px;
+  padding: 20px;
+  border: 1px solid #e1e5e9;
+  border-radius: 8px;
+  background-color: #fafafa;
+}
+
+.results-item {
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.results-item.success {
+  background-color: #d4edda;
+  border: 1px solid #c3e6cb;
+  color: #155724;
+}
+
+.results-item.error {
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+}
+
+.results-item-info {
+  flex-grow: 1;
+}
+
+.results-item-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.history-item {
+  padding: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #e1e5e9;
+}
+
+.history-item:last-child {
+  border-bottom: none;
+}
+
+.hidden {
+  display: none;
+}
+
+/* 响应式设计 */
+@media (max-width: 600px) {
+  .upload-container {
+    padding: 10px;
+  }
+  
+  .upload-header h1 {
+    font-size: 1.2rem;
+  }
+  
+  .drop-zone {
+    padding: 20px;
+  }
+}

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>文档上传 - Smart Page Scribe</title>
+  <link rel="stylesheet" href="upload-panel.css">
+</head>
+<body>
+  <div class="upload-container">
+    <header class="upload-header">
+      <h1>📄 文档上传</h1>
+      <button id="close-btn" class="btn-close">&times;</button>
+    </header>
+
+    <div class="upload-area" id="upload-area">
+      <div class="drop-zone" id="drop-zone">
+        <div class="drop-content">
+          <div class="upload-icon">📁</div>
+          <p>拖拽文件到此处或点击选择文件</p>
+          <p class="file-types">支持格式: PDF, DOCX, TXT, MD, HTML, RTF</p>
+          <input type="file" id="file-input" multiple accept=".pdf,.docx,.txt,.md,.html,.rtf">
+        </div>
+      </div>
+      
+      <div class="upload-options">
+        <div class="form-group">
+          <label for="description">文档描述:</label>
+          <textarea id="description" placeholder="简要描述文档内容..."></textarea>
+        </div>
+        
+        <div class="form-group">
+          <label for="tags">标签 (用逗号分隔):</label>
+          <input type="text" id="tags" placeholder="标签1,标签2,标签3">
+        </div>
+        
+        <div class="form-group">
+          <label for="upload-type">
+            <input type="radio" name="upload-type" value="local" checked> 本地存储
+          </label>
+          <label for="upload-type">
+            <input type="radio" name="upload-type" value="github"> GitHub上传
+          </label>
+        </div>
+        
+        <div id="github-options" class="github-options hidden">
+          <div class="form-group">
+            <label for="github-token">GitHub Token:</label>
+            <input type="password" id="github-token" placeholder="输入GitHub Personal Access Token">
+          </div>
+          <div class="form-group">
+            <label for="github-repo">仓库名:</label>
+            <input type="text" id="github-repo" placeholder="用户名/仓库名">
+          </div>
+          <div class="form-group">
+            <label for="github-branch">分支名:</label>
+            <input type="text" id="github-branch" placeholder="main" value="main">
+          </div>
+        </div>
+      </div>
+      
+      <button id="upload-btn" class="btn-primary">上传文档</button>
+    </div>
+
+    <div class="upload-progress hidden" id="upload-progress">
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <div class="progress-text" id="progress-text">准备上传...</div>
+    </div>
+
+    <div class="upload-results hidden" id="upload-results">
+      <h3>上传结果</h3>
+      <div id="results-list"></div>
+      <button id="done-btn" class="btn-secondary">完成</button>
+    </div>
+
+    <div class="upload-history hidden" id="upload-history">
+      <h3>上传历史</h3>
+      <div id="history-list"></div>
+    </div>
+  </div>
+
+  <script src="upload-panel.js"></script>
+</body>
+</html>

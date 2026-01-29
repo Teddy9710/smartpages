@@ -197,12 +197,27 @@ class SettingsManager {
       return;
     }
 
+    // 验证API Key格式（基本检查）
+    if (apiKey.length < 10) {
+      this.showTestResult('API Key长度不足，请检查', 'error');
+      return;
+    }
+
     const btn = document.getElementById('btn-test');
+    if (!btn) {
+      console.error('[Settings] Test button not found');
+      return;
+    }
+    
     const originalText = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<span class="icon">⏳</span> 测试中...';
 
     try {
+      // 添加超时控制
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+
       const response = await fetch(`${baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -215,8 +230,11 @@ class SettingsManager {
             { role: 'user', content: 'Hi' }
           ],
           max_tokens: 5
-        })
+        }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         this.showTestResult('✅ 连接成功！API配置有效', 'success');
@@ -225,7 +243,13 @@ class SettingsManager {
         this.showTestResult(`连接失败：${errorData.error?.message || response.statusText}`, 'error');
       }
     } catch (error) {
-      this.showTestResult(`连接失败：${error.message}`, 'error');
+      clearTimeout(timeoutId);
+      
+      if (error.name === 'AbortError') {
+        this.showTestResult('连接超时（10秒），请检查网络连接或API地址', 'error');
+      } else {
+        this.showTestResult(`连接失败：${error.message}`, 'error');
+      }
     } finally {
       btn.disabled = false;
       btn.innerHTML = originalText;
