@@ -19,7 +19,7 @@ class WanxiangImageGenerator:
         Args:
             api_key: DashScope API密钥
         """
-        self.api_key = api_key or "sk-786b9385833b410b9736680623526755"
+        self.api_key = api_key or "sk-"
         self.base_url = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis"
         self.task_url = "https://dashscope.aliyuncs.com/api/v1/tasks/"
         
