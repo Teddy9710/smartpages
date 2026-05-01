@@ -48,7 +48,7 @@ class RecordingManager {
       this.notifyStateChanged();
       return { success: true };
     } catch (error) {
-      console.error('Failed to start recording:', error);
+      console.error('[Scribe:Background] Failed to start recording:', error);
 
       // 清理状态
       this.state = 'idle';
@@ -78,7 +78,7 @@ class RecordingManager {
         });
       }
     } catch (error) {
-      console.error('Failed to stop listening:', error);
+      console.error('[Scribe:Background] Failed to stop listening:', error);
     }
 
     this.notifyStateChanged();
@@ -107,12 +107,12 @@ class RecordingManager {
 
   async addStep(step) {
     if (this.state !== 'recording' || !this.currentSession) {
-      console.warn('[RecordingManager] Cannot add step: invalid state or no session');
+      console.warn('[Scribe:Background] Cannot add step: invalid state or no session');
       return;
     }
 
     if (!step || !step.type) {
-      console.warn('[RecordingManager] Invalid step data:', step);
+      console.warn('[Scribe:Background] Invalid step data:', step);
       return;
     }
 
@@ -170,12 +170,12 @@ class RecordingManager {
       const config = await this.loadConfig();
 
       if (!config.apiKey) {
-        console.warn('No API key configured, skipping AI analysis');
+        console.warn('[Scribe:Background] No API key configured, skipping AI analysis');
         return;
       }
 
       if (!config.smartDescription) {
-        console.log('[Background] Smart description is disabled, skipping AI analysis');
+        console.log('[Scribe:Background] Smart description is disabled, skipping AI analysis');
         return;
       }
 
@@ -191,10 +191,10 @@ class RecordingManager {
         config: config
       }).catch((error) => {
         // Sidepanel可能未打开，这是正常的，不影响录制功能
-        console.log('[Background] Sidepanel not open, message queued. User can open sidepanel manually.');
+        console.log('[Scribe:Background] Sidepanel not open, message queued. User can open sidepanel manually.');
       });
     } catch (error) {
-      console.error('Failed to trigger AI analysis:', error);
+      console.error('[Scribe:Background] Failed to trigger AI analysis:', error);
     }
   }
 
@@ -231,7 +231,7 @@ if (!chrome.runtime.scribeMessageListener) {
   chrome.runtime.scribeMessageListener = (message, sender, sendResponse) => {
   async function handleMessage() {
     try {
-      console.log('[Background] Received message:', message.type, message);
+      console.log('[Scribe:Background] Received message:', message.type, message);
 
       // 处理录制相关消息
       if (['GET_RECORDING_STATE', 'START_RECORDING', 'STOP_RECORDING', 'RESET_RECORDING', 'ADD_STEP', 'GET_SESSION'].includes(message.type)) {
@@ -277,20 +277,20 @@ if (!chrome.runtime.scribeMessageListener) {
         return await handleDocumentMessage(message, sendResponse);
       } 
       else {
-        console.warn('[Background] Unknown message type:', message.type);
+        console.warn('[Scribe:Background] Unknown message type:', message.type);
         return { error: 'Unknown message type: ' + message.type };
       }
     } catch (error) {
-      console.error('[Background] Error handling message:', error);
+      console.error('[Scribe:Background] Error handling message:', error);
       return { error: error.message };
     }
   }
 
   handleMessage().then(result => {
-    console.log('[Background] Sending response:', result);
+    console.log('[Scribe:Background] Sending response:', result);
     sendResponse(result);
   }).catch(error => {
-    console.error('[Background] Failed to send response:', error);
+    console.error('[Scribe:Background] Failed to send response:', error);
     sendResponse({ error: error.message });
   });
 
@@ -303,10 +303,10 @@ if (!chrome.runtime.scribeMessageListener) {
 // 插件安装/更新时
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
-    console.log('[Background] Smart Page Scribe installed');
+    console.log('[Scribe:Background] Smart Page Scribe installed');
     // 可以打开设置页面引导用户配置
   } else if (details.reason === 'update') {
-    console.log('[Background] Smart Page Scribe updated');
+    console.log('[Scribe:Background] Smart Page Scribe updated');
   }
 });
 
@@ -423,7 +423,7 @@ async function handleDocumentMessage(message, sendResponse) {
         return { error: 'Unknown document message type: ' + message.type };
     }
   } catch (error) {
-    console.error('[Background] Error handling document message:', error);
+    console.error('[Scribe:Background] Error handling document message:', error);
     return { error: error.message };
   }
 }

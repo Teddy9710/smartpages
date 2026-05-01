@@ -70,7 +70,7 @@ class SidePanelManager {
         this.showEmptyState();
       }
     } catch (error) {
-      console.error('Failed to get recording state:', error);
+      console.error('[Scribe:SidePanel] Failed to get recording state:', error);
       this.showEmptyState();
     }
   }
@@ -220,7 +220,7 @@ class SidePanelManager {
       this.updatePreview(content);
 
     } catch (error) {
-      console.error('生成文档失败:', error);
+      console.error('[Scribe:SidePanel] 生成文档失败:', error);
       this.showErrorState(error.message || '生成文档失败，请重试');
     }
   }
@@ -332,7 +332,7 @@ ${stepsText}
     navigator.clipboard.writeText(content).then(() => {
       alert('文档已复制到剪贴板！');
     }).catch(err => {
-      console.error('复制失败:', err);
+      console.error('[Scribe:SidePanel] 复制失败:', err);
       alert('复制失败，请手动选择文本');
     });
   }

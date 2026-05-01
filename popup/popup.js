@@ -22,13 +22,13 @@ class PopupManager {
         element.addEventListener('click', wrappedHandler);
         this.listeners.push({ element, event: 'click', handler: wrappedHandler });
       } else {
-        console.error(`[Popup] Button with id '${id}' not found in DOM`);
+        console.error(`[Scribe:Popup] Button with id '${id}' not found in DOM`);
       }
     }
 
     // 监听录制状态变化
     const messageListener = (message, sender, sendResponse) => {
-      console.log('[Popup] Received message:', message);
+      console.log('[Scribe:Popup] Received message:', message);
       if (message.type === 'RECORDING_STATE_CHANGED') {
         this.updateState(message.state);
       }
@@ -43,24 +43,24 @@ class PopupManager {
   async refreshState() {
     try {
       const response = await chrome.runtime.sendMessage({ type: 'GET_RECORDING_STATE' });
-      console.log('[Popup] Current state:', response);
+      console.log('[Scribe:Popup] Current state:', response);
       if (response && response.state) {
         this.updateState(response.state, response);
         if (response.state === 'recording' && response.stepCount !== undefined) {
           this.updateStepCount(response.stepCount);
         }
       } else {
-        console.warn('[Popup] Invalid response received:', response);
+        console.warn('[Scribe:Popup] Invalid response received:', response);
       }
     } catch (error) {
-      console.error('[Popup] Failed to get state:', error);
+      console.error('[Scribe:Popup] Failed to get state:', error);
       // 设置默认状态
       this.updateState('idle');
     }
   }
 
   updateState(state, response = null) {
-    console.log('[Popup] Updating state to:', state);
+    console.log('[Scribe:Popup] Updating state to:', state);
 
     // 隐藏所有状态
     document.querySelectorAll('.state').forEach(el => el.classList.remove('active'));
@@ -104,18 +104,18 @@ class PopupManager {
   }
 
   updateStepCount(count) {
-    console.log('[Popup] Step count:', count);
+    console.log('[Scribe:Popup] Step count:', count);
     this.currentStepCount = count;
     document.getElementById('step-count').textContent = count;
   }
 
   async startRecording() {
     try {
-      console.log('[Popup] Starting recording...');
+      console.log('[Scribe:Popup] Starting recording...');
       
       // 添加防抖机制
       if (this.isStartingRecording) {
-        console.log('[Popup] Start recording already in progress');
+        console.log('[Scribe:Popup] Start recording already in progress');
         return;
       }
       
@@ -128,7 +128,7 @@ class PopupManager {
         tabId: tab.id
       });
 
-      console.log('[Popup] Start recording response:', response);
+      console.log('[Scribe:Popup] Start recording response:', response);
 
       if (response && response.success) {
         // 等待状态更新
@@ -138,7 +138,7 @@ class PopupManager {
         alert('启动录制失败');
       }
     } catch (error) {
-      console.error('[Popup] Failed to start recording:', error);
+      console.error('[Scribe:Popup] Failed to start recording:', error);
       alert('启动录制失败，请重试');
     } finally {
       this.isStartingRecording = false;
@@ -147,11 +147,11 @@ class PopupManager {
 
   async stopRecording() {
     try {
-      console.log('[Popup] Stopping recording...');
+      console.log('[Scribe:Popup] Stopping recording...');
 
       // 添加防抖机制
       if (this.isStoppingRecording) {
-        console.log('[Popup] Stop recording already in progress');
+        console.log('[Scribe:Popup] Stop recording already in progress');
         return;
       }
       
@@ -166,7 +166,7 @@ class PopupManager {
 
       const response = await chrome.runtime.sendMessage({ type: 'STOP_RECORDING' });
 
-      console.log('[Popup] Stop recording response:', response);
+      console.log('[Scribe:Popup] Stop recording response:', response);
 
       if (response && response.success) {
         // 等待状态更新
@@ -177,7 +177,7 @@ class PopupManager {
         await this.refreshState();
       }
     } catch (error) {
-      console.error('[Popup] Failed to stop recording:', error);
+      console.error('[Scribe:Popup] Failed to stop recording:', error);
       alert('停止录制失败，请重试');
       await this.refreshState();
     } finally {
@@ -198,7 +198,7 @@ class PopupManager {
       await chrome.sidePanel.open({ windowId: currentWindow.id });
       window.close();
     } catch (error) {
-      console.error('Failed to open editor:', error);
+      console.error('[Scribe:Popup] Failed to open editor:', error);
     }
   }
 
@@ -207,7 +207,7 @@ class PopupManager {
       await chrome.runtime.sendMessage({ type: 'RESET_RECORDING' });
       await this.refreshState();
     } catch (error) {
-      console.error('Failed to reset recording:', error);
+      console.error('[Scribe:Popup] Failed to reset recording:', error);
     }
   }
 
@@ -232,14 +232,14 @@ class PopupManager {
     });
 
     this.listeners = [];
-    console.log('[Popup] Cleaned up listeners');
+    console.log('[Scribe:Popup] Cleaned up listeners');
   }
 }
 
 // 初始化
 let popupManager = null;
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('[Popup] Popup loaded');
+  console.log('[Scribe:Popup] Popup loaded');
   popupManager = new PopupManager();
 });
 

@@ -88,13 +88,13 @@
     
     // 防止重复记录同一元素的快速点击（防抖）
     if (event.target === lastElement && now - lastClickTime < DEBOUNCE_DELAY) {
-      console.log('[Smart Page Scribe] Click debounced (too fast)');
+      console.log('[Scribe:Content] Click debounced (too fast)');
       return;
     }
 
     // 节流：防止过于频繁的记录（即使是不同元素）
     if (now - lastRecordedAction < THROTTLE_DELAY) {
-      console.log('[Smart Page Scribe] Click throttled (too frequent)');
+      console.log('[Scribe:Content] Click throttled (too frequent)');
       return;
     }
 
@@ -120,7 +120,7 @@
       type: 'ADD_STEP',
       step: step
     }).catch(error => {
-      console.error('[Smart Page Scribe] Failed to send step:', error);
+      console.error('[Scribe:Content] Failed to send step:', error);
     });
 
     // 添加视觉反馈
@@ -184,7 +184,7 @@
       type: 'ADD_STEP',
       step: step
     }).catch(error => {
-      console.error('[Smart Page Scribe] Failed to send navigation step:', error);
+      console.error('[Scribe:Content] Failed to send navigation step:', error);
     });
   }
 
@@ -233,7 +233,7 @@
     // 监听URL变化
     observeUrlChanges();
 
-    console.log('[Smart Page Scribe] Recording started');
+    console.log('[Scribe:Content] Recording started');
   }
 
   // 停止监听
@@ -244,7 +244,7 @@
 
     document.removeEventListener('click', recordClick, true);
 
-    console.log('[Smart Page Scribe] Recording stopped');
+    console.log('[Scribe:Content] Recording stopped');
   }
 
   // 监听来自background的消息（使用单例模式避免重复监听）
@@ -278,9 +278,9 @@
   // 页面加载完成时通知background
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-      console.log('[Smart Page Scribe] Content script loaded');
+      console.log('[Scribe:Content] Content script loaded');
     });
   } else {
-    console.log('[Smart Page Scribe] Content script loaded');
+    console.log('[Scribe:Content] Content script loaded');
   }
 })();

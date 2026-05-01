@@ -38,20 +38,20 @@ class SettingsManager {
     const searchInput = document.getElementById('search-documents');
 
     if (btnSave) btnSave.addEventListener('click', () => this.saveConfig());
-    else console.error('[Settings] btnSave not found');
+    else console.error('[Scribe:Settings] btnSave not found');
 
     if (btnTest) btnTest.addEventListener('click', () => this.testConnection());
-    else console.error('[Settings] btnTest not found');
+    else console.error('[Scribe:Settings] btnTest not found');
 
     if (btnToggleKey) btnToggleKey.addEventListener('click', () => this.toggleApiKeyVisibility());
-    else console.error('[Settings] btnToggleKey not found');
+    else console.error('[Scribe:Settings] btnToggleKey not found');
 
     if (smartDesc) {
       smartDesc.addEventListener('change', (e) => {
         this.config.smartDescription = e.target.checked;
       });
     } else {
-      console.error('[Settings] smartDescription checkbox not found');
+      console.error('[Scribe:Settings] smartDescription checkbox not found');
     }
 
     // 文档上传事件绑定
@@ -95,7 +95,7 @@ class SettingsManager {
       if (result.modelName) this.config.modelName = result.modelName;
       if (result.smartDescription !== undefined) this.config.smartDescription = result.smartDescription;
     } catch (error) {
-      console.error('Failed to load config:', error);
+      console.error('[Scribe:Settings] Failed to load config:', error);
     }
   }
 
@@ -196,7 +196,7 @@ class SettingsManager {
         document.getElementById('test-result').classList.add('hidden');
       }, 3000);
     } catch (error) {
-      console.error('Failed to save config:', error);
+      console.error('[Scribe:Settings] Failed to save config:', error);
       this.showTestResult('保存失败：' + error.message, 'error');
     }
   }
@@ -237,7 +237,7 @@ class SettingsManager {
 
     const btn = document.getElementById('btn-test');
     if (!btn) {
-      console.error('[Settings] Test button not found');
+      console.error('[Scribe:Settings] Test button not found');
       return;
     }
     
