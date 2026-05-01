@@ -427,28 +427,44 @@ class SettingsManager {
   createDocumentItemElement(doc) {
     const docItem = document.createElement('div');
     docItem.className = 'doc-item';
-    
-    // 格式化文件大小
+
     const formattedSize = this.formatFileSize(doc.size);
-    
-    // 格式化时间
     const formattedTime = new Date(doc.uploadTime).toLocaleString('zh-CN');
-    
-    docItem.innerHTML = `
-      <div class="doc-info">
-        <div class="doc-name">${doc.name}</div>
-        <div class="doc-meta">
-          <span>大小: ${formattedSize}</span>
-          <span>类型: ${doc.type || 'unknown'}</span>
-          <span>上传时间: ${formattedTime}</span>
-        </div>
-      </div>
-      <div class="doc-actions">
-        <button class="doc-action-btn view" onclick="settingsManager.viewDocument('${doc.id}')">👁 查看</button>
-        <button class="doc-action-btn delete" onclick="settingsManager.deleteDocument('${doc.id}')">🗑 删除</button>
-      </div>
-    `;
-    
+
+    // 安全构建 DOM，防止 XSS
+    const docInfo = document.createElement('div');
+    docInfo.className = 'doc-info';
+
+    const docName = document.createElement('div');
+    docName.className = 'doc-name';
+    docName.textContent = doc.name;
+
+    const docMeta = document.createElement('div');
+    docMeta.className = 'doc-meta';
+    docMeta.innerHTML = `<span>大小: ${formattedSize}</span><span>类型: ${doc.type || 'unknown'}</span><span>上传时间: ${formattedTime}</span>`;
+
+    docInfo.appendChild(docName);
+    docInfo.appendChild(docMeta);
+
+    const docActions = document.createElement('div');
+    docActions.className = 'doc-actions';
+
+    const viewBtn = document.createElement('button');
+    viewBtn.className = 'doc-action-btn view';
+    viewBtn.textContent = '👁 查看';
+    viewBtn.addEventListener('click', () => this.viewDocument(doc.id));
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'doc-action-btn delete';
+    deleteBtn.textContent = '🗑 删除';
+    deleteBtn.addEventListener('click', () => this.deleteDocument(doc.id));
+
+    docActions.appendChild(viewBtn);
+    docActions.appendChild(deleteBtn);
+
+    docItem.appendChild(docInfo);
+    docItem.appendChild(docActions);
+
     return docItem;
   }
 
@@ -463,35 +479,30 @@ class SettingsManager {
   async viewDocument(docId) {
     try {
       const result = await this.api.getDocumentContent(docId);
-      
+
       if (result.success) {
-        // 在新标签页中打开文档内容
         const contentWindow = window.open('', '_blank');
-        contentWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>${result.document.name}</title>
-            <style>
-              body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
-              .header { background: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
-              .content { white-space: pre-wrap; }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h1>${result.document.name}</h1>
-              <p>大小: ${this.formatFileSize(result.document.size)} | 类型: ${result.document.type} | 上传时间: ${new Date(result.document.uploadTime).toLocaleString('zh-CN')}</p>
-            </div>
-            <div class="content">${this.escapeHtml(result.document.content)}</div>
-          </body>
-          </html>
-        `);
+        contentWindow.document.open();
+        contentWindow.document.write('<!DOCTYPE html><html><head><title></title>');
+        contentWindow.document.write('<style>body{font-family:Arial,sans-serif;margin:20px;line-height:1.6}.header{background:#f5f5f5;padding:15px;border-radius:5px;margin-bottom:20px}.content{white-space:pre-wrap}</style>');
+        contentWindow.document.write('</head><body>');
+        contentWindow.document.write('<div class="header">');
+        const h1 = contentWindow.document.createElement('h1');
+        h1.textContent = result.document.name;
+        contentWindow.document.body.querySelector('.header').appendChild(h1);
+        const p = contentWindow.document.createElement('p');
+        p.textContent = `大小: ${this.formatFileSize(result.document.size)} | 类型: ${result.document.type} | 上传时间: ${new Date(result.document.uploadTime).toLocaleString('zh-CN')}`;
+        contentWindow.document.body.querySelector('.header').appendChild(p);
+        contentWindow.document.write('<div class="content"></div></div>');
+        const contentDiv = contentWindow.document.querySelector('.content');
+        contentDiv.textContent = result.document.content;
+        contentWindow.document.write('</body></html>');
+        contentWindow.document.close();
       } else {
-        alert(`查看文档失败: ${result.message}`);
+        alert('查看文档失败: ' + result.message);
       }
     } catch (error) {
-      alert(`查看文档失败: ${error.message}`);
+      alert('查看文档失败: ' + error.message);
     }
   }
 

@@ -102,13 +102,21 @@ class UploadPanel {
     files.forEach(file => {
       const fileItem = document.createElement('div');
       fileItem.className = 'file-item';
-      fileItem.innerHTML = `
-        <div class="file-info">
-          <span class="file-icon">${this.uploadManager.getFileIcon(file.name.split('.').pop())}</span>
-          <span class="file-name">${file.name}</span>
-          <span class="file-size">(${this.formatFileSize(file.size)})</span>
-        </div>
-      `;
+      const fileInfo = document.createElement('div');
+      fileInfo.className = 'file-info';
+      const iconSpan = document.createElement('span');
+      iconSpan.className = 'file-icon';
+      iconSpan.textContent = this.uploadManager.getFileIcon(file.name.split('.').pop());
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'file-name';
+      nameSpan.textContent = file.name;
+      const sizeSpan = document.createElement('span');
+      sizeSpan.className = 'file-size';
+      sizeSpan.textContent = '(' + this.formatFileSize(file.size) + ')';
+      fileInfo.appendChild(iconSpan);
+      fileInfo.appendChild(nameSpan);
+      fileInfo.appendChild(sizeSpan);
+      fileItem.appendChild(fileInfo);
       fileList.appendChild(fileItem);
     });
     
@@ -260,28 +268,47 @@ class UploadPanel {
       const resultItem = document.createElement('div');
       resultItem.className = `results-item ${result.success ? 'success' : 'error'}`;
       
+      const infoDiv = document.createElement('div');
+      infoDiv.className = 'results-item-info';
+      const nameStrong = document.createElement('strong');
+      nameStrong.textContent = result.success ? result.filename : (result.filename || '未知文件');
+      infoDiv.appendChild(nameStrong);
+
       if (result.success) {
-        resultItem.innerHTML = `
-          <div class="results-item-info">
-            <strong>${result.filename}</strong> - 上传成功
-            ${result.url ? `<br><small><a href="${result.url}" target="_blank">查看文件</a></small>` : ''}
-          </div>
-          <div class="results-item-actions">
-            <button class="btn-secondary" onclick="navigator.clipboard.writeText('${result.url || result.filename}')">复制链接</button>
-          </div>
-        `;
+        infoDiv.appendChild(document.createTextNode(' - 上传成功'));
+        if (result.url) {
+          infoDiv.appendChild(document.createElement('br'));
+          const small = document.createElement('small');
+          const link = document.createElement('a');
+          link.href = result.url;
+          link.target = '_blank';
+          link.textContent = '查看文件';
+          small.appendChild(link);
+          infoDiv.appendChild(small);
+        }
       } else {
-        resultItem.innerHTML = `
-          <div class="results-item-info">
-            <strong>${result.filename || '未知文件'}</strong> - 上传失败<br>
-            <small>错误: ${result.error}</small>
-          </div>
-          <div class="results-item-actions">
-            <button class="btn-secondary" onclick="this.closest('.results-item').remove()">关闭</button>
-          </div>
-        `;
+        infoDiv.appendChild(document.createTextNode(' - 上传失败'));
+        infoDiv.appendChild(document.createElement('br'));
+        const small = document.createElement('small');
+        small.textContent = '错误: ' + (result.error || '未知错误');
+        infoDiv.appendChild(small);
       }
-      
+
+      const actionsDiv = document.createElement('div');
+      actionsDiv.className = 'results-item-actions';
+      const btn = document.createElement('button');
+      btn.className = 'btn-secondary';
+      if (result.success) {
+        btn.textContent = '复制链接';
+        btn.addEventListener('click', () => navigator.clipboard.writeText(result.url || result.filename));
+      } else {
+        btn.textContent = '关闭';
+        btn.addEventListener('click', () => resultItem.remove());
+      }
+      actionsDiv.appendChild(btn);
+
+      resultItem.appendChild(infoDiv);
+      resultItem.appendChild(actionsDiv);
       resultsList.appendChild(resultItem);
     });
   }
@@ -307,16 +334,25 @@ class UploadPanel {
           historyItem.className = 'history-item';
           
           const date = new Date(item.timestamp).toLocaleString('zh-CN');
-          
-          historyItem.innerHTML = `
-            <div><strong>${item.filename}</strong> (${this.formatFileSize(item.size)})</div>
-            <div class="history-meta">
-              <span class="status ${item.success ? 'success' : 'error'}">${item.success ? '✓ 成功' : '✗ 失败'}</span>
-              <span class="date">${date}</span>
-              <span class="type">${item.type === 'github' ? 'GitHub' : '本地'}</span>
-            </div>
-            ${item.error ? `<div class="error-msg">错误: ${item.error}</div>` : ''}
-          `;
+
+          const nameDiv = document.createElement('div');
+          const nameStrong = document.createElement('strong');
+          nameStrong.textContent = item.filename;
+          nameDiv.appendChild(nameStrong);
+          nameDiv.appendChild(document.createTextNode(' (' + this.formatFileSize(item.size) + ')'));
+
+          const metaDiv = document.createElement('div');
+          metaDiv.className = 'history-meta';
+          metaDiv.innerHTML = `<span class="status ${item.success ? 'success' : 'error'}">${item.success ? '✓ 成功' : '✗ 失败'}</span><span class="date">${date}</span><span class="type">${item.type === 'github' ? 'GitHub' : '本地'}</span>`;
+
+          historyItem.appendChild(nameDiv);
+          historyItem.appendChild(metaDiv);
+          if (item.error) {
+            const errDiv = document.createElement('div');
+            errDiv.className = 'error-msg';
+            errDiv.textContent = '错误: ' + item.error;
+            historyItem.appendChild(errDiv);
+          }
           
           historyList.appendChild(historyItem);
         });
