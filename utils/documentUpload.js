@@ -1,11 +1,11 @@
 /**
- * 文档上传模块
- * 处理PDF、DOCX、TXT格式文档的上传和解析
+ * 文档上传模块（统一版本）
+ * 处理多格式文档的上传和解析
  */
 
 class DocumentUploader {
   constructor() {
-    this.supportedFormats = ['pdf', 'docx', 'txt'];
+    this.supportedFormats = ['pdf', 'docx', 'txt', 'md', 'html', 'rtf', 'xlsx', 'pptx'];
     this.uploadDir = 'docs';
   }
 
@@ -13,35 +13,72 @@ class DocumentUploader {
    * 检查文件格式是否支持
    */
   isSupportedFormat(file) {
-    const fileName = file.name.toLowerCase();
-    const ext = fileName.split('.').pop();
-    return this.supportedFormats.includes(ext);
+    const extension = file.name.toLowerCase().split('.').pop();
+    return this.supportedFormats.includes(extension);
   }
 
   /**
-   * 读取文档内容
+   * 获取文件类型图标
+   */
+  getFileIcon(extension) {
+    const iconMap = {
+      'pdf': '📄',
+      'docx': '📝',
+      'txt': '📑',
+      'md': '📘',
+      'html': '🌐',
+      'rtf': '📜',
+      'xlsx': '📊',
+      'pptx': '📽️'
+    };
+    return iconMap[extension] || '📁';
+  }
+
+  /**
+   * 读取文件内容（用于简单文本预览）
+   */
+  async readFileContent(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = (error) => reject(error);
+
+      if (file.type.startsWith('text/') ||
+          file.name.toLowerCase().endsWith('.txt') ||
+          file.name.toLowerCase().endsWith('.md') ||
+          file.name.toLowerCase().endsWith('.html')) {
+        reader.readAsText(file);
+      } else {
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+
+  /**
+   * 读取文档内容（用于解析和存储）
    */
   async readDocumentContent(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      
+
       reader.onload = (e) => {
         const result = e.target.result;
         const ext = file.name.toLowerCase().split('.').pop();
-        
+
         try {
           let content = '';
-          
-          if (ext === 'txt') {
+
+          if (ext === 'txt' || ext === 'md' || ext === 'html' || ext === 'rtf') {
             content = result;
           } else if (ext === 'pdf') {
-            // 这里应该集成PDF.js或其他PDF解析库
-            content = this.parsePdf(result);
+            content = this._parsePdf(result);
           } else if (ext === 'docx') {
-            // 这里应该集成docx解析库
-            content = this.parseDocx(result);
+            content = this._parseDocx(result);
+          } else {
+            content = result;
           }
-          
+
           resolve({
             name: file.name,
             size: file.size,
@@ -50,16 +87,14 @@ class DocumentUploader {
             uploadTime: new Date().toISOString()
           });
         } catch (error) {
-          reject(new Error(`解析文档失败: ${error.message}`));
+          reject(new Error('解析文档失败: ' + error.message));
         }
       };
-      
-      reader.onerror = () => {
-        reject(new Error('读取文件失败'));
-      };
 
-      // 根据文件类型选择读取方式
-      if (file.type.startsWith('text/') || file.name.toLowerCase().endsWith('.txt')) {
+      reader.onerror = () => reject(new Error('读取文件失败'));
+
+      if (file.type.startsWith('text/') || file.name.toLowerCase().endsWith('.txt') ||
+          file.name.toLowerCase().endsWith('.md') || file.name.toLowerCase().endsWith('.html')) {
         reader.readAsText(file);
       } else {
         reader.readAsArrayBuffer(file);
@@ -68,47 +103,20 @@ class DocumentUploader {
   }
 
   /**
-   * 解析PDF内容（简化版，实际应使用PDF.js）
-   */
-  parsePdf(arrayBuffer) {
-    // 这里是一个简化的PDF解析方法
-    // 实际实现中应使用PDF.js库
-    console.warn('PDF解析需要PDF.js库支持，当前返回占位符');
-    return '[PDF内容 - 需要PDF.js库支持]';
-  }
-
-  /**
-   * 解析DOCX内容（简化版，实际应使用docx库）
-   */
-  parseDocx(arrayBuffer) {
-    // 这里是一个简化的DOCX解析方法
-    // 实际实现中应使用docx库
-    console.warn('DOCX解析需要docx库支持，当前返回占位符');
-    return '[DOCX内容 - 需要docx库支持]';
-  }
-
-  /**
    * 保存文档到本地存储
    */
   async saveDocument(documentData) {
     try {
-      // 获取现有文档列表
       const existingDocs = await this.getStoredDocuments();
-      
-      // 添加新文档
       const newDoc = {
         ...documentData,
-        id: this.generateId()
+        id: this._generateId()
       };
-      
       existingDocs.push(newDoc);
-      
-      // 保存到Chrome存储
       await chrome.storage.local.set({ documents: existingDocs });
-      
       return newDoc;
     } catch (error) {
-      throw new Error(`保存文档失败: ${error.message}`);
+      throw new Error('保存文档失败: ' + error.message);
     }
   }
 
@@ -132,23 +140,32 @@ class DocumentUploader {
     try {
       const existingDocs = await this.getStoredDocuments();
       const updatedDocs = existingDocs.filter(doc => doc.id !== docId);
-      
       await chrome.storage.local.set({ documents: updatedDocs });
       return true;
     } catch (error) {
-      throw new Error(`删除文档失败: ${error.message}`);
+      throw new Error('删除文档失败: ' + error.message);
     }
   }
 
-  /**
-   * 生成唯一ID
-   */
-  generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+  /** @private 解析PDF（需集成PDF.js） */
+  _parsePdf(arrayBuffer) {
+    console.warn('PDF解析需要PDF.js库支持');
+    return '[PDF内容 - 需要PDF.js库支持]';
+  }
+
+  /** @private 解析DOCX（需集成docx库） */
+  _parseDocx(arrayBuffer) {
+    console.warn('DOCX解析需要docx库支持');
+    return '[DOCX内容 - 需要docx库支持]';
+  }
+
+  /** @private 生成唯一ID */
+  _generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
   }
 }
 
-// 导出DocumentUploader类
+// 导出
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = DocumentUploader;
 } else {
