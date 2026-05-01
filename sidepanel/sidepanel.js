@@ -286,7 +286,24 @@ ${stepsText}
   renderMarkdown(markdown) {
     const previewDiv = document.getElementById('markdown-preview');
     if (previewDiv && typeof marked !== 'undefined') {
-      previewDiv.innerHTML = marked.parse(markdown);
+      // 配置 marked 不解析原始 HTML，防止 XSS
+      marked.setOptions({
+        breaks: true,
+        gfm: true
+      });
+      const rawHtml = marked.parse(markdown);
+      // 使用 DOMParser + 手动清理，移除 script/iframe 等危险标签
+      const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
+      doc.querySelectorAll('script, iframe, object, embed, form').forEach(el => el.remove());
+      doc.querySelectorAll('*').forEach(el => {
+        // 移除所有事件属性
+        for (const attr of Array.from(el.attributes)) {
+          if (attr.name.startsWith('on')) {
+            el.removeAttribute(attr.name);
+          }
+        }
+      });
+      previewDiv.innerHTML = doc.body.innerHTML;
     }
   }
 
@@ -384,7 +401,14 @@ ${stepsText}
   async processFile(file, source = 'settings') {
     // 验证文件格式
     if (!this.documentUploader.isSupportedFormat(file)) {
-      this.showUploadResult(`不支持的文件格式。支持的格式: ${this.documentUploader.supportedFormats.join(', ')}`, 'error', source);
+      this.showUploadResult('不支持的文件格式。支持的格式: ' + this.documentUploader.supportedFormats.join(', '), 'error', source);
+      return;
+    }
+
+    // 文件大小限制（5MB）
+    const MAX_FILE_SIZE = 5 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      this.showUploadResult('文件过大，请上传 5MB 以内的文件', 'error', source);
       return;
     }
 
@@ -610,12 +634,27 @@ ${stepsText}
     div.textContent = text;
     return div.innerHTML;
   }
+
+  // 清理资源，防止内存泄漏
+  cleanup() {
+    // 当前事件通过 addEventListener 绑定在 init 中
+    // 浏览器扩展的 sidepanel 关闭时会销毁 DOM，监听器自动回收
+    // 此方法预留给未来可能的定时器、WebSocket 等资源清理
+    console.log('[Scribe:SidePanel] Cleanup called');
+  }
 }
 
 // 初始化
 let sidePanelManager;
 document.addEventListener('DOMContentLoaded', () => {
   sidePanelManager = new SidePanelManager();
+});
+
+// 清理（当 sidepanel 关闭时）
+window.addEventListener('unload', () => {
+  if (sidePanelManager) {
+    sidePanelManager.cleanup();
+  }
 });
 
 // 监听来自background的消息

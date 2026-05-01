@@ -272,7 +272,8 @@ class SettingsManager {
         this.showTestResult('✅ 连接成功！API配置有效', 'success');
       } else {
         const errorData = await response.json().catch(() => ({}));
-        this.showTestResult(`连接失败：${errorData.error?.message || response.statusText}`, 'error');
+        const errMsg = errorData.error?.message || response.statusText || '未知错误';
+        this.showTestResult('连接失败：' + errMsg, 'error');
       }
     } catch (error) {
       clearTimeout(timeoutId);
@@ -280,7 +281,7 @@ class SettingsManager {
       if (error.name === 'AbortError') {
         this.showTestResult('连接超时（10秒），请检查网络连接或API地址', 'error');
       } else {
-        this.showTestResult(`连接失败：${error.message}`, 'error');
+        this.showTestResult('连接失败：' + error.message, 'error');
       }
     } finally {
       btn.disabled = false;
@@ -332,7 +333,14 @@ class SettingsManager {
   async processFile(file) {
     // 验证文件格式
     if (!this.uploader.isSupportedFormat(file)) {
-      this.showUploadResult(`不支持的文件格式。支持的格式: ${this.uploader.supportedFormats.join(', ')}`, 'error');
+      this.showUploadResult('不支持的文件格式。支持的格式: ' + this.uploader.supportedFormats.join(', '), 'error');
+      return;
+    }
+
+    // 文件大小限制（5MB）
+    const MAX_FILE_SIZE = 5 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      this.showUploadResult('文件过大，请上传 5MB 以内的文件', 'error');
       return;
     }
 

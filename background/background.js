@@ -117,38 +117,36 @@ class RecordingManager {
     }
 
     try {
-      // 添加步骤但暂不截图，避免阻塞主线程
+      // 添加步骤，记录当前索引以绑定截图
       this.currentSession.steps.push(step);
+      const stepIndex = this.currentSession.steps.length - 1;
 
-      // 异步截图，提高响应速度
-      this.captureScreenshotAsync();
+      // 异步截图，绑定到当前步骤索引，避免竞态
+      this.captureScreenshotForStep(stepIndex);
 
       this.notifyStateChanged();
     } catch (error) {
-      console.error('[RecordingManager] Failed to add step:', error);
+      console.error('[Scribe:Background] Failed to add step:', error);
     }
   }
 
-  // 异步截图方法，避免阻塞主线程
-  async captureScreenshotAsync() {
+  // 异步截图方法，绑定到指定步骤索引
+  async captureScreenshotForStep(stepIndex) {
     try {
-      // 使用setTimeout确保在下一个事件循环中执行截图
-      setTimeout(async () => {
-        if (this.state === 'recording' && this.tabId) {
-          const screenshot = await chrome.tabs.captureVisibleTab(null, {
-            format: 'png',
-            quality: 85
-          });
-          
-          // 更新最新步骤的截图
-          if (this.currentSession.steps.length > 0) {
-            this.currentSession.steps[this.currentSession.steps.length - 1].screenshot = screenshot;
-          }
+      if (this.state === 'recording' && this.tabId) {
+        const screenshot = await chrome.tabs.captureVisibleTab(null, {
+          format: 'png',
+          quality: 85
+        });
+
+        // 仅在步骤仍然存在时赋值（防止越界）
+        if (this.currentSession && this.currentSession.steps[stepIndex]) {
+          this.currentSession.steps[stepIndex].screenshot = screenshot;
         }
-      }, 0);
+      }
     } catch (error) {
-      console.error('[RecordingManager] Failed to capture screenshot:', error);
-      // 继续执行，截图失败不影响步骤记录
+      console.error('[Scribe:Background] Failed to capture screenshot for step', stepIndex, error);
+      // 截图失败不影响步骤记录
     }
   }
 
@@ -430,43 +428,20 @@ async function handleDocumentMessage(message, sendResponse) {
   }
 }
 
-// 辅助函数：检测代码类型
+// 辅助函数：检测代码类型（委托给 CodeUtils）
 function detectCodeType(code) {
-  if (code.includes('function') || code.includes('def ') || code.includes('var ') || code.includes('let ') || code.includes('const ')) {
-    return 'javascript';
-  } else if (code.includes('import') || code.includes('from') || code.includes('def ') || code.includes('class ')) {
-    return 'python';
-  } else if (code.includes('#include') || code.includes('#define') || code.includes('int main')) {
-    return 'c_cpp';
-  } else if (code.includes('public class') || code.includes('private') || code.includes('protected')) {
-    return 'java';
-  } else if (code.includes('<!DOCTYPE html>') || code.includes('<html>') || code.includes('<div')) {
-    return 'html';
-  } else if (code.includes('{') && code.includes('}')) {
-    return 'general';
-  }
+  if (typeof CodeUtils !== 'undefined') return CodeUtils.detectCodeType(code);
+  // 内联降级版本（service worker 无法加载外部 script 标签）
+  if (!code || typeof code !== 'string') return 'unknown';
+  if (code.includes('#include') || code.includes('#define')) return 'c_cpp';
+  if (code.includes('public class') || code.includes('private')) return 'java';
+  if (code.includes('function') || code.includes('const ')) return 'javascript';
   return 'unknown';
 }
 
-// 辅助函数：提取函数名
+// 辅助函数：提取函数名（委托给 CodeUtils）
 function extractFunctionName(code) {
-  // JavaScript/Python函数名提取
-  const funcMatch = code.match(/(?:function\s+)?([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/);
-  if (funcMatch && funcMatch[1]) {
-    return funcMatch[1];
-  }
-  
-  // Python def匹配
-  const pythonMatch = code.match(/def\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/);
-  if (pythonMatch && pythonMatch[1]) {
-    return pythonMatch[1];
-  }
-  
-  // Java方法名匹配
-  const javaMatch = code.match(/(?:public|private|protected)\s+\w+\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/);
-  if (javaMatch && javaMatch[1]) {
-    return javaMatch[1];
-  }
-  
-  return 'unknown_function';
+  if (typeof CodeUtils !== 'undefined') return CodeUtils.extractFunctionName(code);
+  const funcMatch = code?.match(/(?:function\s+)?([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/);
+  return funcMatch?.[1] || 'unknown_function';
 }
