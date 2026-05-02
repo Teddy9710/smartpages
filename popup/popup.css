@@ -1,3 +1,13 @@
+/**
+ * Smart Page Scribe - Popup Styles
+ */
+
+@import url('../styles/common.css');
+
+/* ============================================================================
+   RESET & BASE
+   ============================================================================ */
+
 * {
   margin: 0;
   padding: 0;
@@ -7,66 +17,73 @@
 body {
   width: 350px;
   min-height: 400px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  font-size: 14px;
-  color: #333;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
+  background: var(--gradient-primary);
 }
 
+/* ============================================================================
+   LAYOUT
+   ============================================================================ */
+
 .container {
-  background: white;
-  border-radius: 12px;
-  margin: 8px;
-  padding: 20px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-xl);
+  margin: var(--spacing-sm);
+  padding: var(--spacing-xl);
+  box-shadow: var(--shadow-lg);
 }
 
 .header {
   text-align: center;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: var(--spacing-lg);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--color-divider);
 }
 
 .header h1 {
-  font-size: 18px;
-  font-weight: 600;
-  color: #667eea;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-start);
 }
+
+/* ============================================================================
+   STATUS INDICATOR
+   ============================================================================ */
 
 .status-indicator {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: #f3f4f6;
-  border-radius: 8px;
-  margin-bottom: 16px;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--spacing-lg);
 }
 
 .status-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #9ca3af;
-  transition: background 0.3s;
+  background: var(--color-text-muted);
+  transition: background var(--transition-base);
 }
 
 .status-indicator.recording .status-dot {
-  background: #ef4444;
-  animation: pulse 1.5s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  background: var(--color-error);
+  animation: var(--animation-pulse);
 }
 
 #status-text {
-  font-size: 13px;
-  color: #6b7280;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-weight-medium);
 }
+
+/* ============================================================================
+   STATES
+   ============================================================================ */
 
 .state {
   display: none;
@@ -76,24 +93,28 @@ body {
   display: block;
 }
 
+/* ============================================================================
+   BUTTONS
+   ============================================================================ */
+
 .btn {
   width: 100%;
-  padding: 12px 16px;
+  padding: var(--btn-padding-md);
   border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-base);
+  font-weight: var(--btn-font-weight);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  transition: all 0.2s;
+  gap: var(--spacing-sm);
+  transition: all var(--transition-base);
 }
 
 .btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-md);
 }
 
 .btn:active {
@@ -101,101 +122,117 @@ body {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--gradient-primary);
   color: white;
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #5568d3 0%, #63408a 100%);
+  background: var(--gradient-primary-hover);
 }
 
 .btn-danger {
-  background: #ef4444;
+  background: var(--color-error);
   color: white;
 }
 
 .btn-danger:hover {
-  background: #dc2626;
+  background: var(--color-error-hover);
 }
 
 .btn-secondary {
-  background: #f3f4f6;
-  color: #374151;
-  margin-top: 8px;
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+  margin-top: var(--spacing-sm);
 }
 
 .btn-secondary:hover {
-  background: #e5e7eb;
+  background: var(--color-bg-hover);
 }
 
 .btn-text {
   background: none;
   border: none;
-  color: #6b7280;
+  color: var(--color-text-tertiary);
   cursor: pointer;
-  font-size: 13px;
-  padding: 4px 8px;
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
 }
 
 .btn-text:hover {
-  color: #667eea;
+  color: var(--color-primary-start);
 }
 
 .icon {
-  font-size: 16px;
+  font-size: var(--font-size-lg);
 }
+
+/* ============================================================================
+   HINTS & HELPERS
+   ============================================================================ */
 
 .hint {
   text-align: center;
-  color: #9ca3af;
-  font-size: 12px;
-  margin-top: 12px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  margin-top: var(--spacing-md);
 }
+
+/* ============================================================================
+   RECORDING INFO
+   ============================================================================ */
 
 .recording-info {
   text-align: center;
-  margin-bottom: 16px;
+  margin-bottom: var(--spacing-lg);
 }
 
 .recording-badge {
   display: inline-block;
   background: #fef2f2;
-  color: #dc2626;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 600;
-  margin-bottom: 8px;
+  color: var(--color-error);
+  padding: var(--badge-padding);
+  border-radius: var(--badge-radius);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--spacing-sm);
 }
 
 .step-count {
-  font-size: 14px;
-  color: #6b7280;
+  font-size: var(--font-size-base);
+  color: var(--color-text-tertiary);
 }
 
 .step-count #step-count {
-  font-size: 20px;
-  font-weight: 700;
-  color: #667eea;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary-start);
 }
+
+/* ============================================================================
+   SUCCESS MESSAGE
+   ============================================================================ */
 
 .success-message {
   text-align: center;
-  margin-bottom: 16px;
+  margin-bottom: var(--spacing-lg);
 }
 
 .success-message p {
-  margin: 4px 0;
+  margin: var(--spacing-xs) 0;
 }
 
 .step-info {
-  color: #6b7280;
-  font-size: 13px;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
 }
 
+/* ============================================================================
+   FOOTER
+   ============================================================================ */
+
 .footer {
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid #e5e7eb;
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-divider);
   text-align: center;
 }

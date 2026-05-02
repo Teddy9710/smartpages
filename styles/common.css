@@ -1,0 +1,246 @@
+/**
+ * Smart Page Scribe - Common CSS Variables
+ *
+ * This file contains shared CSS variables for consistent styling
+ * across all extension components.
+ */
+
+:root {
+  /* ============================================================================
+     COLORS - PRIMARY
+     ============================================================================ */
+
+  --color-primary-start: #667eea;
+  --color-primary-end: #764ba2;
+  --color-primary-hover-start: #5568d3;
+  --color-primary-hover-end: #63408a;
+  --color-primary-light: #ede9fe;
+
+  /* ============================================================================
+     COLORS - SEMANTIC
+     ============================================================================ */
+
+  --color-success-bg: #d1fae5;
+  --color-success-border: #6ee7b7;
+  --color-success-text: #065f46;
+
+  --color-error-bg: #fee2e2;
+  --color-error-border: #fca5a5;
+  --color-error-text: #991b1b;
+  --color-error: #ef4444;
+  --color-error-hover: #dc2626;
+
+  --color-warning-bg: #fef3c7;
+  --color-warning-border: #fcd34d;
+  --color-warning-text: #92400e;
+
+  --color-info-bg: #dbeafe;
+  --color-info-border: #93c5fd;
+  --color-info-text: #1e40af;
+
+  /* ============================================================================
+     COLORS - NEUTRAL
+     ============================================================================ */
+
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f9fafb;
+  --color-bg-tertiary: #f3f4f6;
+  --color-bg-hover: #e5e7eb;
+
+  --color-text-primary: #1f2937;
+  --color-text-secondary: #374151;
+  --color-text-tertiary: #6b7280;
+  --color-text-muted: #9ca3af;
+  --color-text-disabled: #d1d5db;
+
+  --color-border: #e5e7eb;
+  --color-border-hover: #d1d5db;
+  --color-divider: #e5e7eb;
+
+  /* ============================================================================
+     GRADIENTS
+     ============================================================================ */
+
+  --gradient-primary: linear-gradient(135deg, var(--color-primary-start) 0%, var(--color-primary-end) 100%);
+  --gradient-primary-hover: linear-gradient(135deg, var(--color-primary-hover-start) 0%, var(--color-primary-hover-end) 100%);
+  --gradient-progress: linear-gradient(90deg, var(--color-primary-start) 0%, var(--color-primary-end) 100%);
+
+  /* ============================================================================
+     SPACING
+     ============================================================================ */
+
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 20px;
+  --spacing-2xl: 24px;
+  --spacing-3xl: 32px;
+
+  /* ============================================================================
+     BORDER RADIUS
+     ============================================================================ */
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+
+  /* ============================================================================
+     SHADOWS
+     ============================================================================ */
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+
+  /* ============================================================================
+     TYPOGRAPHY
+     ============================================================================ */
+
+  --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  --font-family-mono: 'Monaco', 'Menlo', 'Courier New', monospace;
+
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 13px;
+  --font-size-base: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 20px;
+  --font-size-3xl: 24px;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+
+  /* ============================================================================
+     TRANSITIONS
+     ============================================================================ */
+
+  --transition-fast: 150ms ease-in-out;
+  --transition-base: 200ms ease-in-out;
+  --transition-slow: 300ms ease-in-out;
+
+  /* ============================================================================
+     Z-INDEX
+     ============================================================================ */
+
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-fixed: 1030;
+  --z-modal-backdrop: 1040;
+  --z-modal: 1050;
+  --z-popover: 1060;
+  --z-tooltip: 1070;
+
+  /* ============================================================================
+     COMPONENT SPECIFIC
+     ============================================================================ */
+
+  /* Button */
+  --btn-padding-sm: 6px 10px;
+  --btn-padding-md: 12px 16px;
+  --btn-padding-lg: 16px 20px;
+  --btn-font-weight: var(--font-weight-semibold);
+
+  /* Input */
+  --input-padding: 6px 8px;
+  --input-border-color: var(--color-border-hover);
+  --input-border-focus: var(--color-primary-start);
+  --input-bg: var(--color-bg-primary);
+
+  /* Card/Panel */
+  --card-bg: var(--color-bg-primary);
+  --card-border: var(--color-border);
+  --card-shadow: var(--shadow-md);
+  --card-radius: var(--radius-lg);
+
+  /* Badge */
+  --badge-padding: 4px 8px;
+  --badge-radius: var(--radius-full);
+  --badge-font-size: var(--font-size-xs);
+
+  /* Progress */
+  --progress-height: 6px;
+  --progress-radius: 3px;
+
+  /* Animations */
+  --animation-spin: spin 1s linear infinite;
+  --animation-pulse: pulse 1.5s infinite;
+  --animation-ripple: ripple 0.5s ease-out forwards;
+}
+
+/* ============================================================================
+   KEYFRAMES
+   ============================================================================ */
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* ============================================================================
+   UTILITY CLASSES
+   ============================================================================ */
+
+.hidden {
+  display: none !important;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ============================================================================
+   DARK MODE SUPPORT (Future)
+   ============================================================================ */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg-primary: #1f2937;
+    --color-bg-secondary: #111827;
+    --color-bg-tertiary: #374151;
+    --color-bg-hover: #4b5563;
+
+    --color-text-primary: #f9fafb;
+    --color-text-secondary: #e5e7eb;
+    --color-text-tertiary: #d1d5db;
+    --color-text-muted: #9ca3af;
+
+    --color-border: #374151;
+    --color-border-hover: #4b5563;
+    --color-divider: #374151;
+  }
+}

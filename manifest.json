@@ -8,12 +8,10 @@
     "tabs",
     "notifications",
     "sidePanel",
-    "activeTab",
-    "unlimitedStorage"
+    "activeTab"
   ],
   "host_permissions": [
-    "https://*/",
-    "http://*/"
+    "https://*/*"
   ],
   "action": {
     "default_popup": "popup/popup.html",
@@ -25,13 +23,15 @@
     }
   },
   "background": {
-    "service_worker": "background/background.js"
+    "service_worker": "background/background.js",
+    "type": "module"
   },
   "content_scripts": [
     {
       "matches": ["http://*/*", "https://*/*"],
       "js": ["content/recorder.js"],
-      "run_at": "document_end"
+      "run_at": "document_end",
+      "all_frames": false
     }
   ],
   "side_panel": {
@@ -46,8 +46,8 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["libs/*", "utils/*", "docs/*", "upload/*"],
-      "matches": ["http://*/*", "https://*/*"]
+      "resources": ["utils/*", "docs/*", "upload/*"],
+      "matches": ["<all_urls>"]
     }
   ]
 }

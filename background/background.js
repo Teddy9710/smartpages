@@ -1,102 +1,119 @@
-// 录制状态管理
+/**
+ * Smart Page Scribe - Background Service Worker
+ *
+ * This is the main background service worker that manages:
+ * - Recording state and sessions
+ * - Message routing between components
+ * - Document storage operations
+ * - AI analysis triggering
+ *
+ * @module background
+ */
+
+// Import common utilities (importScripts for service worker)
+importScripts('../utils/common.js');
+
+// ============================================================================
+// RECORDING STATE MANAGEMENT
+// ============================================================================
+
+/**
+ * Recording state enumeration
+ * @enum {string}
+ */
+const RecordingState = {
+  IDLE: 'idle',
+  RECORDING: 'recording',
+  STOPPED: 'stopped'
+};
+
+/**
+ * Manages the recording session lifecycle
+ * @class
+ */
 class RecordingManager {
   constructor() {
-    this.state = 'idle'; // idle, recording, stopped
+    /** @type {RecordingState} */
+    this.state = RecordingState.IDLE;
+
+    /** @type {Session|null} */
     this.currentSession = null;
+
+    /** @type {number|null} */
     this.tabId = null;
   }
 
+  /**
+   * Starts a new recording session
+   * @async
+   * @param {number} tabId - The tab ID to record
+   * @returns {Promise<{success: boolean, error?: string}>}
+   * @throws {ExtensionError} If recording is already in progress or tab is invalid
+   */
   async startRecording(tabId) {
-    if (this.state === 'recording') {
-      throw new Error('录制已在进行中');
+    if (this.state === RecordingState.RECORDING) {
+      throw new ExtensionError('录制已在进行中', 'RECORDING_IN_PROGRESS');
     }
 
-    // 验证tab是否可访问
-    try {
-      const tab = await chrome.tabs.get(tabId);
-      if (!tab || !tab.url) {
-        throw new Error('无法访问该页面');
-      }
+    // Validate tab accessibility
+    await this._validateTab(tabId);
 
-      // 检查是否是特殊页面（无法注入content script）
-      if (tab.url.startsWith('chrome://') ||
-          tab.url.startsWith('chrome-extension://') ||
-          tab.url.startsWith('edge://') ||
-          tab.url.startsWith('about:')) {
-        throw new Error('无法在系统页面录制。请在普通网页（如百度、谷歌等）上使用。');
-      }
-    } catch (error) {
-      throw new Error('页面不可访问：' + error.message);
-    }
-
-    this.state = 'recording';
+    // Initialize session
+    this.state = RecordingState.RECORDING;
     this.tabId = tabId;
-    this.currentSession = {
-      sessionId: this.generateSessionId(),
-      startTime: Date.now(),
-      steps: [],
-      pageUrl: '',
-      pageTitle: ''
-    };
+    this.currentSession = this._createSession();
 
-    // 发送消息到content script开始监听
-    try {
-      await chrome.tabs.sendMessage(tabId, {
-        type: 'START_LISTENING'
-      });
+    // Start content script listening
+    await this._startContentScriptListening(tabId);
 
-      this.notifyStateChanged();
-      return { success: true };
-    } catch (error) {
-      console.error('[Scribe:Background] Failed to start recording:', error);
-
-      // 清理状态
-      this.state = 'idle';
-
-      // 提供友好的错误提示
-      if (error.message.includes('Could not establish connection')) {
-        throw new Error('Content Script未注入。请刷新页面（按F5）后重试。');
-      }
-
-      throw error;
-    }
+    this._notifyStateChanged();
+    return { success: true };
   }
 
+  /**
+   * Stops the current recording session
+   * @async
+   * @returns {Promise<{success: boolean, session?: Session, error?: string}>}
+   * @throws {ExtensionError} If no recording is in progress
+   */
   async stopRecording() {
-    if (this.state !== 'recording') {
-      throw new Error('没有正在进行的录制');
+    if (this.state !== RecordingState.RECORDING) {
+      throw new ExtensionError('没有正在进行的录制', 'NO_RECORDING');
     }
 
-    this.state = 'stopped';
+    this.state = RecordingState.STOPPED;
     this.currentSession.endTime = Date.now();
 
-    // 停止content script监听
-    try {
-      if (this.tabId) {
-        await chrome.tabs.sendMessage(this.tabId, {
-          type: 'STOP_LISTENING'
-        });
-      }
-    } catch (error) {
-      console.error('[Scribe:Background] Failed to stop listening:', error);
-    }
+    // Stop content script listening
+    await this._stopContentScriptListening();
 
-    this.notifyStateChanged();
+    this._notifyStateChanged();
 
-    // 触发AI分析
-    this.triggerAIAnalysis();
+    // Trigger AI analysis asynchronously (non-blocking)
+    this._triggerAIAnalysis().catch(error => {
+      console.error('[Scribe:Background] AI analysis failed:', error);
+    });
 
     return { success: true, session: this.currentSession };
   }
 
+  /**
+   * Resets the recording state
+   * @async
+   * @returns {{success: boolean}}
+   */
   async resetRecording() {
-    this.state = 'idle';
+    this.state = RecordingState.IDLE;
     this.currentSession = null;
     this.tabId = null;
-    this.notifyStateChanged();
+    this._notifyStateChanged();
     return { success: true };
   }
 
+  /**
+   * Gets the current recording state
+   * @returns {{state: RecordingState, stepCount: number, session: Session|null}}
+   */
   getState() {
     return {
       state: this.state,
@@ -105,8 +122,14 @@ class RecordingManager {
     };
   }
 
+  /**
+   * Adds a step to the current session
+   * @async
+   * @param {Step} step - The step to add
+   * @returns {Promise<void>}
+   */
   async addStep(step) {
-    if (this.state !== 'recording' || !this.currentSession) {
+    if (this.state !== RecordingState.RECORDING || !this.currentSession) {
       console.warn('[Scribe:Background] Cannot add step: invalid state or no session');
       return;
     }
@@ -117,57 +140,152 @@ class RecordingManager {
     }
 
     try {
-      // 添加步骤，记录当前索引以绑定截图
+      // Add step with index for screenshot binding
       this.currentSession.steps.push(step);
       const stepIndex = this.currentSession.steps.length - 1;
 
-      // 异步截图，绑定到当前步骤索引，避免竞态
-      this.captureScreenshotForStep(stepIndex);
+      // Capture screenshot asynchronously (non-blocking)
+      this._captureScreenshotForStep(stepIndex).catch(error => {
+        console.error('[Scribe:Background] Screenshot capture failed:', error);
+      });
 
-      this.notifyStateChanged();
+      this._notifyStateChanged();
     } catch (error) {
       console.error('[Scribe:Background] Failed to add step:', error);
     }
   }
 
-  // 异步截图方法，绑定到指定步骤索引
-  async captureScreenshotForStep(stepIndex) {
+  // ========================================================================
+  // PRIVATE METHODS
+  // ========================================================================
+
+  /**
+   * Validates that a tab is accessible and can be recorded
+   * @private
+   * @async
+   * @param {number} tabId - Tab ID to validate
+   * @throws {ExtensionError} If tab is invalid or restricted
+   */
+  async _validateTab(tabId) {
     try {
-      if (this.state === 'recording' && this.tabId) {
+      const tab = await chrome.tabs.get(tabId);
+      if (!tab || !tab.url) {
+        throw new ExtensionError('无法访问该页面', 'TAB inaccessible');
+      }
+
+      // Check for restricted URLs
+      if (isRestrictedUrl(tab.url)) {
+        throw new ExtensionError(
+          '无法在系统页面录制。请在普通网页（如百度、谷歌等）上使用。',
+          'RESTRICTED_URL'
+        );
+      }
+    } catch (error) {
+      throw new ExtensionError('页面不可访问：' + error.message, 'TAB_ERROR');
+    }
+  }
+
+  /**
+   * Creates a new session object
+   * @private
+   * @returns {Session}
+   */
+  _createSession() {
+    return {
+      sessionId: generateSessionId(),
+      startTime: Date.now(),
+      steps: [],
+      pageUrl: '',
+      pageTitle: ''
+    };
+  }
+
+  /**
+   * Sends message to content script to start listening
+   * @private
+   * @async
+   * @param {number} tabId - Tab ID
+   * @throws {ExtensionError} If content script communication fails
+   */
+  async _startContentScriptListening(tabId) {
+    try {
+      await chrome.tabs.sendMessage(tabId, { type: 'START_LISTENING' });
+    } catch (error) {
+      this.state = RecordingState.IDLE;
+      this.currentSession = null;
+
+      if (error.message.includes('Could not establish connection')) {
+        throw new ExtensionError(
+          'Content Script未注入。请刷新页面（按F5）后重试。',
+          'CONTENT_SCRIPT_ERROR'
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Sends message to content script to stop listening
+   * @private
+   * @async
+   */
+  async _stopContentScriptListening() {
+    if (this.tabId) {
+      try {
+        await chrome.tabs.sendMessage(this.tabId, { type: 'STOP_LISTENING' });
+      } catch (error) {
+        console.error('[Scribe:Background] Failed to stop listening:', error);
+        // Continue anyway - stopping is not critical
+      }
+    }
+  }
+
+  /**
+   * Captures a screenshot for a specific step
+   * @private
+   * @async
+   * @param {number} stepIndex - Index of the step
+   */
+  async _captureScreenshotForStep(stepIndex) {
+    try {
+      if (this.state === RecordingState.RECORDING && this.tabId) {
         const screenshot = await chrome.tabs.captureVisibleTab(null, {
           format: 'png',
-          quality: 85
+          quality: SCREENSHOT_QUALITY
         });
 
-        // 仅在步骤仍然存在时赋值（防止越界）
-        if (this.currentSession && this.currentSession.steps[stepIndex]) {
+        // Only assign if step still exists (prevents race conditions)
+        if (this.currentSession?.steps?.[stepIndex]) {
           this.currentSession.steps[stepIndex].screenshot = screenshot;
         }
       }
     } catch (error) {
-      console.error('[Scribe:Background] Failed to capture screenshot for step', stepIndex, error);
-      // 截图失败不影响步骤记录
+      console.error('[Scribe:Background] Screenshot failed for step', stepIndex, error);
+      // Screenshot failure doesn't affect step recording
     }
   }
 
-  notifyStateChanged() {
-    // 通知popup更新状态
+  /**
+   * Notifies all listeners of state change
+   * @private
+   */
+  _notifyStateChanged() {
     chrome.runtime.sendMessage({
       type: 'RECORDING_STATE_CHANGED',
       state: this.getState()
     }).catch(() => {
-      // Popup可能未打开，忽略错误
+      // Popup may not be open - ignore
     });
   }
 
-  generateSessionId() {
-    return 'session_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-  }
-
-  async triggerAIAnalysis() {
+  /**
+   * Triggers AI analysis for the completed session
+   * @private
+   * @async
+   */
+  async _triggerAIAnalysis() {
     try {
-      // 加载配置
-      const config = await this.loadConfig();
+      const config = await this._loadConfig();
 
       if (!config.apiKey) {
         console.warn('[Scribe:Background] No API key configured, skipping AI analysis');
@@ -175,44 +293,36 @@ class RecordingManager {
       }
 
       if (!config.smartDescription) {
-        console.log('[Scribe:Background] Smart description is disabled, skipping AI analysis');
+        console.log('[Scribe:Background] Smart description is disabled');
         return;
       }
 
-      // 保存会话数据供sidepanel使用
+      // Attach config to session for sidepanel use
       this.currentSession.config = config;
 
-      // 发送消息到sidepanel处理AI分析
-      // 注意：如果sidepanel未打开，消息会失败，这是正常的
-      // 用户打开sidepanel时会自动检查会话状态并触发分析
+      // Notify sidepanel (may fail if not open - that's OK)
       chrome.runtime.sendMessage({
         type: 'START_AI_ANALYSIS',
         session: this.currentSession,
         config: config
-      }).catch((error) => {
-        // Sidepanel可能未打开，这是正常的，不影响录制功能
-        console.log('[Scribe:Background] Sidepanel not open, message queued. User can open sidepanel manually.');
+      }).catch(() => {
+        console.log('[Scribe:Background] Sidepanel not open - analysis queued');
       });
     } catch (error) {
-      console.error('[Scribe:Background] Failed to trigger AI analysis:', error);
+      console.error('[Scribe:Background] AI analysis trigger failed:', error);
     }
   }
 
-  async loadConfig() {
-    // 使用 Promise 包装 chrome.storage.local.get
-    const result = await new Promise((resolve, reject) => {
-      if (chrome && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.get(['apiKey', 'baseUrl', 'modelName', 'smartDescription'], (result) => {
-          if (chrome.runtime.lastError) {
-            reject(chrome.runtime.lastError);
-          } else {
-            resolve(result || {});
-          }
-        });
-      } else {
-        reject(new Error('chrome.storage is not available'));
-      }
-    });
+  /**
+   * Loads configuration from storage
+   * @private
+   * @async
+   * @returns {Promise<Config>}
+   */
+  async _loadConfig() {
+    const result = await storagePromise('local', 'get', [
+      'apiKey', 'baseUrl', 'modelName', 'smartDescription'
+    ]);
 
     return {
       apiKey: result.apiKey || '',
@@ -223,225 +333,376 @@ class RecordingManager {
   }
 }
 
-// 全局录制管理器
-const recordingManager = new RecordingManager();
+// ============================================================================
+// DOCUMENT STORAGE HANDLERS
+// ============================================================================
 
-// 消息监听（使用单例模式避免重复监听）
-if (!chrome.runtime.scribeMessageListener) {
-  chrome.runtime.scribeMessageListener = (message, sender, sendResponse) => {
-  async function handleMessage() {
-    try {
-      console.log('[Scribe:Background] Received message:', message.type, message);
-
-      // 处理录制相关消息
-      if (['GET_RECORDING_STATE', 'START_RECORDING', 'STOP_RECORDING', 'RESET_RECORDING', 'ADD_STEP', 'GET_SESSION'].includes(message.type)) {
-        switch (message.type) {
-          case 'GET_RECORDING_STATE':
-            return recordingManager.getState();
-
-          case 'START_RECORDING':
-            if (!message.tabId) {
-              return { error: 'Missing tabId parameter' };
-            }
-            return await recordingManager.startRecording(message.tabId);
-
-          case 'STOP_RECORDING':
-            return await recordingManager.stopRecording();
-
-          case 'RESET_RECORDING':
-            return await recordingManager.resetRecording();
-
-          case 'ADD_STEP':
-            if (!message.step) {
-              return { error: 'Missing step data' };
-            }
-            if (sender.tab) {
-              // 更新页面信息（每次都更新，以处理SPA导航）
-              if (recordingManager.currentSession) {
-                recordingManager.currentSession.pageUrl = sender.tab.url || '';
-                recordingManager.currentSession.pageTitle = sender.tab.title || '';
-                await recordingManager.addStep(message.step);
-              }
-            }
-            return { success: true };
-
-          case 'GET_SESSION':
-            return recordingManager.currentSession;
-
-          default:
-            return { error: 'Unknown message type: ' + message.type };
-        }
-      } 
-      // 处理文档相关消息
-      else if (['GET_DOCUMENTS_LIST', 'SEARCH_DOCUMENTS', 'GET_DOCUMENT_CONTENT', 'DELETE_DOCUMENT', 'LINK_DOCUMENT_TO_CODE', 'GET_LINKED_CODES_FOR_DOCUMENT'].includes(message.type)) {
-        return await handleDocumentMessage(message, sendResponse);
-      } 
-      else {
-        console.warn('[Scribe:Background] Unknown message type:', message.type);
-        return { error: 'Unknown message type: ' + message.type };
-      }
-    } catch (error) {
-      console.error('[Scribe:Background] Error handling message:', error);
-      return { error: error.message };
-    }
-  }
-
-  handleMessage().then(result => {
-    console.log('[Scribe:Background] Sending response:', result);
-    sendResponse(result);
-  }).catch(error => {
-    console.error('[Scribe:Background] Failed to send response:', error);
-    sendResponse({ error: error.message });
-  });
-
-  return true; // 保持消息通道开启以支持异步响应
-  };
-
-  chrome.runtime.onMessage.addListener(chrome.runtime.scribeMessageListener);
-}
-
-// 插件安装/更新时
-chrome.runtime.onInstalled.addListener((details) => {
-  if (details.reason === 'install') {
-    console.log('[Scribe:Background] Smart Page Scribe installed');
-    // 可以打开设置页面引导用户配置
-  } else if (details.reason === 'update') {
-    console.log('[Scribe:Background] Smart Page Scribe updated');
-  }
-});
-
-// 初始化通知
-chrome.notifications.onClicked.addListener((notificationId) => {
-  if (notificationId === 'open-settings') {
-    chrome.runtime.openOptionsPage();
-  }
-});
-
-// 文档上传相关的消息处理
-async function handleDocumentMessage(message, sendResponse) {
+/**
+ * Handles document-related messages
+ * @async
+ * @param {Object} message - Message object
+ * @param {string} message.type - Message type
+ * @returns {Promise<Object>} Response object
+ */
+async function handleDocumentMessage(message) {
   try {
     switch (message.type) {
       case 'GET_DOCUMENTS_LIST':
-        // 获取文档列表
-        const docsResult = await chrome.storage.local.get(['documents']);
-        const documents = docsResult.documents || [];
-        return {
-          success: true,
-          documents: documents.map(doc => ({
-            id: doc.id,
-            name: doc.name,
-            size: doc.size,
-            type: doc.type,
-            uploadTime: doc.uploadTime
-          }))
-        };
+        return await _getDocumentsList();
 
       case 'SEARCH_DOCUMENTS':
-        // 搜索文档
-        const searchResult = await chrome.storage.local.get(['documents']);
-        const allDocs = searchResult.documents || [];
-        const searchTerm = message.query.toLowerCase();
-        
-        const matchedDocs = allDocs.filter(doc => 
-          doc.name.toLowerCase().includes(searchTerm) || 
-          (doc.content && doc.content.toLowerCase().includes(searchTerm))
-        );
-        
-        return {
-          success: true,
-          documents: matchedDocs
-        };
+        return await _searchDocuments(message.query);
 
       case 'GET_DOCUMENT_CONTENT':
-        // 获取特定文档内容
-        const contentResult = await chrome.storage.local.get(['documents']);
-        const allDocuments = contentResult.documents || [];
-        const document = allDocuments.find(doc => doc.id === message.docId);
-        
-        if (document) {
-          return {
-            success: true,
-            document: document
-          };
-        } else {
-          return {
-            success: false,
-            message: '文档不存在'
-          };
-        }
+        return await _getDocumentContent(message.docId);
 
       case 'DELETE_DOCUMENT':
-        // 删除文档
-        const deleteResult = await chrome.storage.local.get(['documents']);
-        const existingDocs = deleteResult.documents || [];
-        const updatedDocs = existingDocs.filter(doc => doc.id !== message.docId);
-        
-        await chrome.storage.local.set({ documents: updatedDocs });
-        
-        return {
-          success: true,
-          message: '文档删除成功'
-        };
+        return await _deleteDocument(message.docId);
 
       case 'LINK_DOCUMENT_TO_CODE':
-        // 创建文档与代码的关联
-        const linkResult = await chrome.storage.local.get(['documentCodeLinks']);
-        const existingLinks = linkResult.documentCodeLinks || [];
-        
-        const newLink = {
-          id: Date.now().toString(36) + Math.random().toString(36).substr(2),
-          docId: message.docId,
-          codeContext: message.codeContext,
-          linkedAt: new Date().toISOString(),
-          metadata: {
-            codeType: message.codeContext.code ? detectCodeType(message.codeContext.code) : 'unknown',
-            functionName: message.codeContext.code ? extractFunctionName(message.codeContext.code) : 'unknown',
-            description: message.codeContext.description || ''
-          }
-        };
-        
-        existingLinks.push(newLink);
-        await chrome.storage.local.set({ documentCodeLinks: existingLinks });
-        
-        return {
-          success: true,
-          link: newLink
-        };
+        return await _linkDocumentToCode(message.docId, message.codeContext);
 
       case 'GET_LINKED_CODES_FOR_DOCUMENT':
-        // 获取文档的关联代码
-        const linkResult = await chrome.storage.local.get(['documentCodeLinks']);
-        const allLinks = linkResult.documentCodeLinks || [];
-        const linkedCodes = allLinks.filter(link => link.docId === message.docId);
-        
-        return {
-          success: true,
-          links: linkedCodes
-        };
+        return await _getLinkedCodesForDocument(message.docId);
 
       default:
         return { error: 'Unknown document message type: ' + message.type };
     }
   } catch (error) {
-    console.error('[Scribe:Background] Error handling document message:', error);
-    return { error: error.message };
+    console.error('[Scribe:Background] Document handler error:', error);
+    return { error: error.message || '操作失败' };
   }
 }
 
-// 辅助函数：检测代码类型（委托给 CodeUtils）
-function detectCodeType(code) {
-  if (typeof CodeUtils !== 'undefined') return CodeUtils.detectCodeType(code);
-  // 内联降级版本（service worker 无法加载外部 script 标签）
-  if (!code || typeof code !== 'string') return 'unknown';
-  if (code.includes('#include') || code.includes('#define')) return 'c_cpp';
-  if (code.includes('public class') || code.includes('private')) return 'java';
-  if (code.includes('function') || code.includes('const ')) return 'javascript';
-  return 'unknown';
+/**
+ * Gets list of all stored documents
+ * @private
+ * @async
+ * @returns {Promise<{success: boolean, documents: Array}>}
+ */
+async function _getDocumentsList() {
+  const result = await storagePromise('local', 'get', ['documents']);
+  const documents = result.documents || [];
+
+  return {
+    success: true,
+    documents: documents.map(doc => ({
+      id: doc.id,
+      name: doc.name,
+      size: doc.size,
+      type: doc.type,
+      uploadTime: doc.uploadTime
+    }))
+  };
 }
 
-// 辅助函数：提取函数名（委托给 CodeUtils）
-function extractFunctionName(code) {
-  if (typeof CodeUtils !== 'undefined') return CodeUtils.extractFunctionName(code);
-  const funcMatch = code?.match(/(?:function\s+)?([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/);
-  return funcMatch?.[1] || 'unknown_function';
+/**
+ * Searches documents by query
+ * @private
+ * @async
+ * @param {string} query - Search query
+ * @returns {Promise<{success: boolean, documents: Array}>}
+ */
+async function _searchDocuments(query) {
+  const result = await storagePromise('local', 'get', ['documents']);
+  const allDocs = result.documents || [];
+  const searchTerm = query.toLowerCase();
+
+  const matchedDocs = allDocs.filter(doc =>
+    doc.name.toLowerCase().includes(searchTerm) ||
+    (doc.content && doc.content.toLowerCase().includes(searchTerm))
+  );
+
+  return {
+    success: true,
+    documents: matchedDocs
+  };
 }
+
+/**
+ * Gets content of a specific document
+ * @private
+ * @async
+ * @param {string} docId - Document ID
+ * @returns {Promise<{success: boolean, document?: Object, message?: string}>}
+ */
+async function _getDocumentContent(docId) {
+  const result = await storagePromise('local', 'get', ['documents']);
+  const allDocuments = result.documents || [];
+  const document = allDocuments.find(doc => doc.id === docId);
+
+  if (document) {
+    return { success: true, document };
+  } else {
+    return { success: false, message: '文档不存在' };
+  }
+}
+
+/**
+ * Deletes a document
+ * @private
+ * @async
+ * @param {string} docId - Document ID
+ * @returns {Promise<{success: boolean, message?: string}>}
+ */
+async function _deleteDocument(docId) {
+  const result = await storagePromise('local', 'get', ['documents']);
+  const existingDocs = result.documents || [];
+  const updatedDocs = existingDocs.filter(doc => doc.id !== docId);
+
+  await storagePromise('local', 'set', { documents: updatedDocs });
+
+  return {
+    success: true,
+    message: '文档删除成功'
+  };
+}
+
+/**
+ * Creates a link between document and code
+ * @private
+ * @async
+ * @param {string} docId - Document ID
+ * @param {Object} codeContext - Code context information
+ * @returns {Promise<{success: boolean, link?: Object}>}
+ */
+async function _linkDocumentToCode(docId, codeContext) {
+  const result = await storagePromise('local', 'get', ['documentCodeLinks']);
+  const existingLinks = result.documentCodeLinks || [];
+
+  const newLink = {
+    id: generateDocumentId(),
+    docId,
+    codeContext,
+    linkedAt: new Date().toISOString(),
+    metadata: {
+      codeType: codeContext.code ? detectCodeType(codeContext.code) : 'unknown',
+      functionName: codeContext.code ? extractFunctionName(codeContext.code) : 'unknown',
+      description: codeContext.description || ''
+    }
+  };
+
+  existingLinks.push(newLink);
+  await storagePromise('local', 'set', { documentCodeLinks: existingLinks });
+
+  return {
+    success: true,
+    link: newLink
+  };
+}
+
+/**
+ * Gets all code links for a document
+ * @private
+ * @async
+ * @param {string} docId - Document ID
+ * @returns {Promise<{success: boolean, links: Array}>}
+ */
+async function _getLinkedCodesForDocument(docId) {
+  const result = await storagePromise('local', 'get', ['documentCodeLinks']);
+  const allLinks = result.documentCodeLinks || [];
+  const linkedCodes = allLinks.filter(link => link.docId === docId);
+
+  return {
+    success: true,
+    links: linkedCodes
+  };
+}
+
+// ============================================================================
+// MESSAGE ROUTING
+// ============================================================================
+
+/**
+ * Global recording manager instance
+ * @type {RecordingManager}
+ */
+const recordingManager = new RecordingManager();
+
+/**
+ * Recording-related message types
+ * @constant {string[]}
+ */
+const RECORDING_MESSAGE_TYPES = [
+  'GET_RECORDING_STATE',
+  'START_RECORDING',
+  'STOP_RECORDING',
+  'RESET_RECORDING',
+  'ADD_STEP',
+  'GET_SESSION'
+];
+
+/**
+ * Document-related message types
+ * @constant {string[]}
+ */
+const DOCUMENT_MESSAGE_TYPES = [
+  'GET_DOCUMENTS_LIST',
+  'SEARCH_DOCUMENTS',
+  'GET_DOCUMENT_CONTENT',
+  'DELETE_DOCUMENT',
+  'LINK_DOCUMENT_TO_CODE',
+  'GET_LINKED_CODES_FOR_DOCUMENT'
+];
+
+/**
+ * Main message handler (singleton pattern to prevent duplicate listeners)
+ * @param {Object} message - Message object
+ * @param {chrome.runtime.MessageSender} sender - Message sender
+ * @param {function} sendResponse - Response callback
+ * @returns {boolean} True to keep message channel open for async response
+ */
+function messageHandler(message, sender, sendResponse) {
+  // Handle async response
+  (async () => {
+    try {
+      console.log('[Scribe:Background] Received:', message.type);
+
+      if (RECORDING_MESSAGE_TYPES.includes(message.type)) {
+        return await handleRecordingMessage(message, sender);
+      } else if (DOCUMENT_MESSAGE_TYPES.includes(message.type)) {
+        return await handleDocumentMessage(message);
+      } else {
+        console.warn('[Scribe:Background] Unknown message type:', message.type);
+        return { error: 'Unknown message type: ' + message.type };
+      }
+    } catch (error) {
+      console.error('[Scribe:Background] Handler error:', error);
+      return { error: error.message || '操作失败' };
+    }
+  })().then(result => {
+    console.log('[Scribe:Background] Sending response:', result);
+    sendResponse(result);
+  }).catch(error => {
+    console.error('[Scribe:Background] Response error:', error);
+    sendResponse({ error: error.message || '响应失败' });
+  });
+
+  return true; // Keep message channel open
+}
+
+/**
+ * Handles recording-related messages
+ * @private
+ * @async
+ * @param {Object} message - Message object
+ * @param {chrome.runtime.MessageSender} sender - Message sender
+ * @returns {Promise<Object>} Response object
+ */
+async function handleRecordingMessage(message, sender) {
+  switch (message.type) {
+    case 'GET_RECORDING_STATE':
+      return recordingManager.getState();
+
+    case 'START_RECORDING':
+      if (!message.tabId) {
+        return { error: 'Missing tabId parameter' };
+      }
+      return await recordingManager.startRecording(message.tabId);
+
+    case 'STOP_RECORDING':
+      return await recordingManager.stopRecording();
+
+    case 'RESET_RECORDING':
+      return await recordingManager.resetRecording();
+
+    case 'ADD_STEP':
+      if (!message.step) {
+        return { error: 'Missing step data' };
+      }
+      if (sender.tab && recordingManager.currentSession) {
+        // Update page info for each step (handles SPA navigation)
+        recordingManager.currentSession.pageUrl = sender.tab.url || '';
+        recordingManager.currentSession.pageTitle = sender.tab.title || '';
+        await recordingManager.addStep(message.step);
+      }
+      return { success: true };
+
+    case 'GET_SESSION':
+      return recordingManager.currentSession;
+
+    default:
+      return { error: 'Unknown recording message type: ' + message.type };
+  }
+}
+
+// Register message handler (singleton)
+if (!chrome.runtime.scribeMessageListener) {
+  chrome.runtime.scribeMessageListener = messageHandler;
+  chrome.runtime.onMessage.addListener(messageHandler);
+}
+
+// ============================================================================
+// SERVICE WORKER LIFECYCLE
+// ============================================================================
+
+/**
+ * Handles extension install/update events
+ */
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === 'install') {
+    console.log('[Scribe:Background] Smart Page Scribe installed');
+    // Could open setup page or show welcome notification
+    showNotification(
+      'Smart Page Scribe',
+      '安装成功！点击扩展图标开始录制您的操作流程。'
+    );
+  } else if (details.reason === 'update') {
+    console.log('[Scribe:Background] Smart Page Scribe updated to', chrome.runtime.getManifest().version);
+  }
+});
+
+/**
+ * Handles notification click events
+ */
+chrome.notifications.onClicked.addListener((notificationId) => {
+  if (notificationId.startsWith('scribe-')) {
+    chrome.runtime.openOptionsPage();
+  }
+});
+
+/**
+ * Service worker activation (MV3 best practice)
+ */
+self.addEventListener('activate', (event) => {
+  console.log('[Scribe:Background] Service worker activated');
+  // Claim clients to ensure control immediately
+  event.waitUntil(self.clients.claim());
+});
+
+// ============================================================================
+// TYPE DEFINITIONS (JSDoc Reference)
+// ============================================================================
+
+/**
+ * @typedef {Object} Session
+ * @property {string} sessionId - Unique session identifier
+ * @property {number} startTime - Session start timestamp
+ * @property {number} [endTime] - Session end timestamp
+ * @property {Step[]} steps - Array of recorded steps
+ * @property {string} pageUrl - Current page URL
+ * @property {string} pageTitle - Current page title
+ * @property {Config} [config] - AI configuration attached after recording
+ */
+
+/**
+ * @typedef {Object} Step
+ * @property {string} type - Step type ('click', 'navigate', etc.)
+ * @property {number} timestamp - Step timestamp
+ * @property {string} [selector] - Element selector
+ * @property {string} [tagName] - Element tag name
+ * @property {string} [text] - Element text content
+ * @property {number} [x] - Click X coordinate
+ * @property {number} [y] - Click Y coordinate
+ * @property {string} [screenshot] - Base64 screenshot data
+ * @property {string} [from] - Navigation source URL
+ * @property {string} [to] - Navigation destination URL
+ */
+
+/**
+ * @typedef {Object} Config
+ * @property {string} apiKey - OpenAI API key
+ * @property {string} baseUrl - API base URL
+ * @property {string} modelName - Model name to use
+ * @property {boolean} smartDescription - Whether smart description is enabled
+ */

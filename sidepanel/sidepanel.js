@@ -1,88 +1,192 @@
-// 侧边栏管理器
+/**
+ * Smart Page Scribe - Side Panel Manager
+ *
+ * Manages the side panel UI for document generation and editing.
+ * Handles document management, AI-powered content generation, and markdown editing.
+ *
+ * @module sidepanel
+ */
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+/** @constant {Object} StateViews - Available state views */
+const StateViews = {
+  EMPTY: 'empty',
+  LOADING: 'loading',
+  DESCRIPTION: 'description',
+  EDITOR: 'document-editor',
+  ERROR: 'error',
+  DOCUMENTS: 'documents'
+};
+
+/** @constant {Object} DefaultDescriptions - Default document descriptions */
+const DefaultDescriptions = [
+  { value: 'user-guide', label: '用户操作指南', description: '生成一份详细的用户操作指南' },
+  { value: 'tutorial', label: '教程文档', description: '生成一份新手教程文档' },
+  { value: 'testing', label: '测试用例', description: '生成测试用例文档' },
+  { value: 'bug-report', label: '问题报告', description: '生成问题报告文档' }
+];
+
+// ============================================================================
+// SIDEPANEL MANAGER CLASS
+// ============================================================================
+
+/**
+ * Manages the side panel UI and functionality
+ * @class
+ */
 class SidePanelManager {
   constructor() {
-    this.currentState = 'empty'; // empty, loading, selector, editor, error, documents
+    /** @type {string} */
+    this.currentState = StateViews.EMPTY;
+
+    /** @type {Session|null} */
     this.session = null;
+
+    /** @type {Config|null} */
     this.config = null;
+
+    /** @type {DocumentUploader} */
     this.documentUploader = new DocumentUploader();
+
+    /** @type {DocumentApi} */
     this.documentApi = new DocumentApi();
-    
+
+    /** @type {Array<Function>} Array of cleanup functions */
+    this.cleanupFunctions = [];
+
     this.init();
   }
 
+  /**
+   * Initializes the side panel manager
+   * @async
+   */
   async init() {
-    this.bindEvents();
-    this.checkForPendingSession();
+    this._bindEvents();
+    await this._checkForPendingSession();
   }
 
-  bindEvents() {
-    // 基础功能事件
-    document.getElementById('btn-new')?.addEventListener('click', () => this.newDocument());
-    document.getElementById('btn-start-here')?.addEventListener('click', () => this.startRecordingHere());
-    document.getElementById('btn-generate')?.addEventListener('click', () => this.generateDocument());
-    document.getElementById('btn-retry')?.addEventListener('click', () => this.retry());
-    document.getElementById('btn-preview')?.addEventListener('click', () => this.switchToPreview());
-    document.getElementById('btn-edit')?.addEventListener('click', () => this.switchToEdit());
-    document.getElementById('btn-copy')?.addEventListener('click', () => this.copyDocument());
-    document.getElementById('btn-download')?.addEventListener('click', () => this.downloadDocument());
+  // ========================================================================
+  // EVENT BINDING
+  // ========================================================================
 
-    // 文档管理事件
-    document.getElementById('btn-documents')?.addEventListener('click', () => this.showDocumentsPanel());
-    document.getElementById('btn-close-documents')?.addEventListener('click', () => this.hideDocumentsPanel());
-    this.bindDocumentEvents();
+  /**
+   * Binds all UI events
+   * @private
+   */
+  _bindEvents() {
+    // Main action buttons
+    this._bindButton('btn-new', () => this.newDocument());
+    this._bindButton('btn-start-here', () => this.startRecordingHere());
+    this._bindButton('btn-generate', () => this.generateDocument());
+    this._bindButton('btn-retry', () => this.retry());
+    this._bindButton('btn-preview', () => this.switchToPreview());
+    this._bindButton('btn-edit', () => this.switchToEdit());
+    this._bindButton('btn-copy', () => this.copyDocument());
+    this._bindButton('btn-download', () => this.downloadDocument());
+
+    // Document management buttons
+    this._bindButton('btn-documents', () => this.showDocumentsPanel());
+    this._bindButton('btn-close-documents', () => this.hideDocumentsPanel());
+
+    // Document upload events
+    this._bindDocumentUploadEvents('sidepanel');
   }
 
-  bindDocumentEvents() {
-    // 侧边栏文档上传事件
-    const browseBtn = document.getElementById('sidepanel-browse-btn');
-    const documentFile = document.getElementById('sidepanel-document-file');
-    const uploadArea = document.getElementById('sidepanel-upload-area');
-    const refreshBtn = document.getElementById('sidepanel-refresh-documents');
-    const searchInput = document.getElementById('sidepanel-search-documents');
-
-    if (browseBtn) browseBtn.addEventListener('click', () => documentFile.click());
-    if (documentFile) documentFile.addEventListener('change', (e) => this.handleFileSelect(e, 'sidepanel'));
-    if (uploadArea) {
-      uploadArea.addEventListener('click', () => documentFile.click());
-      uploadArea.addEventListener('dragover', (e) => this.handleDragOver(e, 'sidepanel'));
-      uploadArea.addEventListener('dragleave', (e) => this.handleDragLeave(e, 'sidepanel'));
-      uploadArea.addEventListener('drop', (e) => this.handleDrop(e, 'sidepanel'));
-    }
-    
-    if (refreshBtn) refreshBtn.addEventListener('click', () => this.loadDocumentsList('sidepanel'));
-    if (searchInput) searchInput.addEventListener('input', (e) => this.searchDocuments(e.target.value, 'sidepanel'));
-  }
-
-  async checkForPendingSession() {
-    try {
-      // 尝试获取当前录制状态
-      const response = await chrome.runtime.sendMessage({
-        type: 'GET_RECORDING_STATE'
+  /**
+   * Binds a button click event
+   * @private
+   * @param {string} buttonId - Button element ID
+   * @param {Function} handler - Click handler
+   */
+  _bindButton(buttonId, handler) {
+    const button = document.getElementById(buttonId);
+    if (button) {
+      const wrappedHandler = handler.bind(this);
+      button.addEventListener('click', wrappedHandler);
+      this.cleanupFunctions.push(() => {
+        button.removeEventListener('click', wrappedHandler);
       });
+    } else {
+      console.warn(`[Scribe:SidePanel] Button '${buttonId}' not found`);
+    }
+  }
 
-      if (response.state && response.state.state === 'stopped' && response.session) {
+  /**
+   * Binds document upload events for a specific source
+   * @private
+   * @param {string} source - Source identifier ('sidepanel' or 'settings')
+   */
+  _bindDocumentUploadEvents(source) {
+    const browseBtn = document.getElementById(`${source}-browse-btn`);
+    const fileInput = document.getElementById(`${source}-document-file`);
+    const uploadArea = document.getElementById(`${source}-upload-area`);
+    const refreshBtn = document.getElementById(`${source}-refresh-documents`);
+    const searchInput = document.getElementById(`${source}-search-documents`);
+
+    if (browseBtn && fileInput) {
+      browseBtn.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', (e) => this._handleFileSelect(e, source));
+    }
+
+    if (uploadArea) {
+      uploadArea.addEventListener('click', () => fileInput?.click());
+      uploadArea.addEventListener('dragover', (e) => this._handleDragOver(e, source));
+      uploadArea.addEventListener('dragleave', (e) => this._handleDragLeave(e, source));
+      uploadArea.addEventListener('drop', (e) => this._handleDrop(e, source));
+    }
+
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', () => this.loadDocumentsList(source));
+    }
+
+    if (searchInput) {
+      searchInput.addEventListener('input', debounce((e) => {
+        this.searchDocuments(e.target.value, source);
+      }));
+    }
+  }
+
+  // ========================================================================
+  // STATE MANAGEMENT
+  // ========================================================================
+
+  /**
+   * Checks for a pending session on load
+   * @private
+   * @async
+   */
+  async _checkForPendingSession() {
+    try {
+      const response = await sendMessage({ type: 'GET_RECORDING_STATE' });
+
+      if (response?.state?.state === 'stopped' && response?.session) {
         this.session = response.session;
-        this.showDescriptionSelector();
-      } else if (response.state && response.state.state === 'recording') {
-        // 如果正在录制，显示空状态等待停止
-        this.showEmptyState();
+        this._showDescriptionSelector();
       } else {
-        this.showEmptyState();
+        this._showEmptyState();
       }
     } catch (error) {
       console.error('[Scribe:SidePanel] Failed to get recording state:', error);
-      this.showEmptyState();
+      this._showEmptyState();
     }
   }
 
+  /**
+   * Sets the current state view
+   * @param {string} newState - New state
+   */
   setState(newState) {
-    // 隐藏所有状态视图
+    // Hide all state views
     document.querySelectorAll('.state-view').forEach(view => {
       view.classList.remove('active');
       view.classList.add('hidden');
     });
 
-    // 显示新状态视图
+    // Show new state view
     const newStateElement = document.getElementById(`${newState}-state`);
     if (newStateElement) {
       newStateElement.classList.remove('hidden');
@@ -92,144 +196,210 @@ class SidePanelManager {
     this.currentState = newState;
   }
 
+  /**
+   * Shows the empty state
+   * @private
+   */
+  _showEmptyState() {
+    this.setState(StateViews.EMPTY);
+  }
+
+  /**
+   * Shows the loading state
+   * @param {string} [text='正在处理...'] - Loading text
+   */
   showLoadingState(text = '正在处理...') {
-    document.getElementById('loading-text').textContent = text;
-    this.setState('loading');
+    const loadingText = document.getElementById('loading-text');
+    if (loadingText) {
+      loadingText.textContent = text;
+    }
+    this.setState(StateViews.LOADING);
   }
 
-  showDescriptionSelector() {
-    this.setState('description');
+  /**
+   * Shows the description selector
+   * @private
+   */
+  _showDescriptionSelector() {
+    this.setState(StateViews.DESCRIPTION);
+    this._renderDescriptionOptions();
   }
 
-  showEditor() {
-    this.setState('document-editor');
-  }
-
-  showEmptyState() {
-    this.setState('empty');
-  }
-
+  /**
+   * Shows the error state
+   * @param {string} message - Error message
+   */
   showErrorState(message) {
-    document.getElementById('error-message').textContent = message;
-    this.setState('error');
+    const errorMessageEl = document.getElementById('error-message');
+    if (errorMessageEl) {
+      errorMessageEl.textContent = message;
+    }
+    this.setState(StateViews.ERROR);
   }
 
+  /**
+   * Shows the editor
+   */
+  showEditor() {
+    this.setState(StateViews.EDITOR);
+  }
+
+  /**
+   * Shows the documents panel
+   */
   showDocumentsPanel() {
-    this.setState('documents');
+    this.setState(StateViews.DOCUMENTS);
     this.loadDocumentsList('sidepanel');
   }
 
+  /**
+   * Hides the documents panel
+   */
   hideDocumentsPanel() {
-    this.showEmptyState();
+    this._showEmptyState();
   }
 
-  newDocument() {
-    this.session = null;
-    this.showEmptyState();
+  // ========================================================================
+  // DESCRIPTION OPTIONS
+  // ========================================================================
+
+  /**
+   * Renders the description options
+   * @private
+   */
+  _renderDescriptionOptions() {
+    const container = document.getElementById('description-list');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    DefaultDescriptions.forEach(desc => {
+      const option = createElement('div', { className: 'description-option' }, [
+        createElement('input', {
+          type: 'radio',
+          name: 'description',
+          value: desc.value,
+          id: `desc-${desc.value}`,
+          checked: desc === DefaultDescriptions[0]
+        }),
+        createElement('label', {
+          htmlFor: `desc-${desc.value}`,
+          textContent: desc.label
+        })
+      ]);
+
+      container.appendChild(option);
+    });
   }
 
+  // ========================================================================
+  // ACTIONS
+  // ========================================================================
+
+  /**
+   * Starts a new recording from the side panel
+   * @async
+   */
   async startRecordingHere() {
     try {
-      // 获取当前活动标签页
-      const [tab] = await chrome.tabs.query({
-        active: true,
-        currentWindow: true
-      });
+      const [tab] = await queryTabs({ active: true, currentWindow: true });
 
       if (!tab) {
-        throw new Error('无法获取当前标签页');
+        throw new ExtensionError('无法获取当前标签页', 'TAB_ERROR');
       }
 
-      // 启动录制
-      const response = await chrome.runtime.sendMessage({
+      const response = await sendMessage({
         type: 'START_RECORDING',
         tabId: tab.id
       });
 
-      if (response.error) {
-        throw new Error(response.error);
+      if (response?.error) {
+        throw new ExtensionError(response.error, 'RECORDING_ERROR');
       }
 
-      // 通知popup更新状态
-      chrome.runtime.sendMessage({
-        type: 'START_RECORDING_SUCCESS',
-        tabId: tab.id
-      });
-
-      // 关闭侧边栏
       window.close();
     } catch (error) {
-      alert('启动录制失败: ' + error.message);
+      this._showError('启动录制失败: ' + error.message);
     }
   }
 
+  /**
+   * Generates a document from the recorded session
+   * @async
+   */
   async generateDocument() {
     try {
       const selectedValue = document.querySelector('input[name="description"]:checked')?.value;
       let description = '';
 
       if (selectedValue === 'custom') {
-        description = document.getElementById('custom-description').value.trim();
+        description = document.getElementById('custom-description')?.value?.trim();
         if (!description) {
-          alert('请输入自定义描述');
+          this._showError('请输入自定义描述');
           return;
         }
       } else {
-        description = selectedValue;
+        const selectedDesc = DefaultDescriptions.find(d => d.value === selectedValue);
+        description = selectedDesc?.description || '';
       }
 
       this.showLoadingState('正在生成文档...');
 
-      // 加载配置
-      const config = await this.loadConfig();
+      const config = await this._loadConfig();
       if (!config.apiKey) {
-        throw new Error('请先在设置中配置API密钥');
+        throw new ExtensionError('请先在设置中配置API密钥', 'CONFIG_ERROR');
       }
 
-      // 构建提示词
-      const prompt = this.buildGenerationPrompt(description);
+      const prompt = this._buildGenerationPrompt(description);
 
-      // 调用API
-      const response = await fetch(config.baseUrl + '/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${config.apiKey}`
-        },
-        body: JSON.stringify({
-          model: config.modelName,
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.7,
-          max_tokens: 2000
-        })
-      });
+      const response = await fetchWithTimeout(
+        config.baseUrl + '/chat/completions',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.apiKey}`
+          },
+          body: JSON.stringify({
+            model: config.modelName,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.7,
+            max_tokens: 2000
+          })
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(`API调用失败: ${errorData.error?.message || response.statusText}`);
+        throw new ExtensionError(
+          `API调用失败: ${errorData.error?.message || response.statusText}`,
+          'API_ERROR'
+        );
       }
 
       const data = await response.json();
       const content = data.choices[0].message.content.trim();
 
-      // 显示编辑器
       this.showEditor();
-
-      // 设置内容
-      document.getElementById('markdown-editor').value = content;
-      this.updatePreview(content);
+      this._setEditorContent(content);
 
     } catch (error) {
-      console.error('[Scribe:SidePanel] 生成文档失败:', error);
+      console.error('[Scribe:SidePanel] Generation failed:', error);
       this.showErrorState(error.message || '生成文档失败，请重试');
     }
   }
 
-  buildGenerationPrompt(description) {
+  /**
+   * Builds the AI generation prompt
+   * @private
+   * @param {string} description - User's description
+   * @returns {string} Generated prompt
+   */
+  _buildGenerationPrompt(description) {
     let stepsText = '';
-    if (this.session?.steps && this.session.steps.length > 0) {
-      stepsText = this.session.steps.map((step, index) => 
-        `${index + 1}. ${step.type}: ${step.action || step.element || '未知操作'}`
+    if (this.session?.steps?.length > 0) {
+      stepsText = this.session.steps.map((step, index) =>
+        `${index + 1}. ${step.type}: ${step.action || step.element || step.text || '未知操作'}`
       ).join('\n');
     }
 
@@ -252,12 +422,481 @@ ${stepsText}
 - 适合非技术人员阅读`;
   }
 
-  async loadConfig() {
-    const result = await chrome.storage.local.get([
-      'apiKey', 
-      'baseUrl', 
-      'modelName', 
-      'smartDescription'
+  /**
+   * Sets the editor content and updates preview
+   * @private
+   * @param {string} content - Markdown content
+   */
+  _setEditorContent(content) {
+    const editor = document.getElementById('markdown-editor');
+    if (editor) {
+      editor.value = content;
+      this._updatePreview(content);
+    }
+  }
+
+  /**
+   * Updates the markdown preview
+   * @private
+   * @param {string} markdown - Markdown content
+   */
+  _updatePreview(markdown) {
+    // Load marked.js if needed
+    if (typeof marked === 'undefined') {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/marked/marked.min.js';
+      script.onload = () => this._renderMarkdown(markdown);
+      document.head.appendChild(script);
+    } else {
+      this._renderMarkdown(markdown);
+    }
+  }
+
+  /**
+   * Renders markdown to HTML (with XSS protection)
+   * @private
+   * @param {string} markdown - Markdown content
+   */
+  _renderMarkdown(markdown) {
+    const previewDiv = document.getElementById('markdown-preview');
+    if (previewDiv && typeof marked !== 'undefined') {
+      marked.setOptions({ breaks: true, gfm: true });
+      const rawHtml = marked.parse(markdown);
+
+      // Use safe HTML setting
+      safeSetInnerHTML(previewDiv, rawHtml, true);
+    }
+  }
+
+  /**
+   * Switches to preview mode
+   */
+  switchToPreview() {
+    this._togglePane('preview-pane', 'btn-preview');
+    const editorContent = document.getElementById('markdown-editor')?.value;
+    if (editorContent) {
+      this._updatePreview(editorContent);
+    }
+  }
+
+  /**
+   * Switches to edit mode
+   */
+  switchToEdit() {
+    this._togglePane('edit-pane', 'btn-edit');
+  }
+
+  /**
+   * Toggles between editor panes
+   * @private
+   * @param {string} paneId - Pane element ID
+   * @param {string} buttonId - Button element ID
+   */
+  _togglePane(paneId, buttonId) {
+    document.getElementById('preview-pane')?.classList.remove('active');
+    document.getElementById('edit-pane')?.classList.remove('active');
+    document.getElementById('btn-preview')?.classList.remove('active');
+    document.getElementById('btn-edit')?.classList.remove('active');
+
+    document.getElementById(paneId)?.classList.add('active');
+    document.getElementById(buttonId)?.classList.add('active');
+  }
+
+  /**
+   * Copies document to clipboard
+   */
+  async copyDocument() {
+    const content = document.getElementById('markdown-editor')?.value;
+    if (!content) return;
+
+    try {
+      await navigator.clipboard.writeText(content);
+      this._showNotification('文档已复制到剪贴板！', 'success');
+    } catch (error) {
+      console.error('[Scribe:SidePanel] Copy failed:', error);
+      this._showNotification('复制失败，请手动选择文本', 'error');
+    }
+  }
+
+  /**
+   * Downloads document as markdown file
+   */
+  downloadDocument() {
+    const content = document.getElementById('markdown-editor')?.value;
+    if (!content) return;
+
+    const blob = new Blob([content], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+
+    const a = createElement('a', {
+      href: url,
+      download: `document_${Date.now()}.md`
+    });
+
+    document.body.appendChild(a);
+    a.click();
+
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
+  }
+
+  /**
+   * Creates a new document (resets state)
+   */
+  newDocument() {
+    this.session = null;
+    this._showEmptyState();
+  }
+
+  /**
+   * Retries the last operation
+   */
+  retry() {
+    if (this.session) {
+      this._showDescriptionSelector();
+    } else {
+      this._showEmptyState();
+    }
+  }
+
+  // ========================================================================
+  // DOCUMENT MANAGEMENT
+  // ========================================================================
+
+  /**
+   * Handles file selection
+   * @private
+   * @param {Event} event - File input change event
+   * @param {string} source - Source identifier
+   */
+  _handleFileSelect(event, source) {
+    const files = event.target.files;
+    if (files.length > 0) {
+      this._processFile(files[0], source);
+    }
+  }
+
+  /**
+   * Handles drag over event
+   * @private
+   * @param {DragEvent} event - Drag event
+   * @param {string} source - Source identifier
+   */
+  _handleDragOver(event, source) {
+    event.preventDefault();
+    event.stopPropagation();
+    document.getElementById(`${source}-upload-area`)?.classList.add('dragover');
+  }
+
+  /**
+   * Handles drag leave event
+   * @private
+   * @param {DragEvent} event - Drag event
+   * @param {string} source - Source identifier
+   */
+  _handleDragLeave(event, source) {
+    event.preventDefault();
+    event.stopPropagation();
+    document.getElementById(`${source}-upload-area`)?.classList.remove('dragover');
+  }
+
+  /**
+   * Handles drop event
+   * @private
+   * @param {DragEvent} event - Drop event
+   * @param {string} source - Source identifier
+   */
+  async _handleDrop(event, source) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    document.getElementById(`${source}-upload-area`)?.classList.remove('dragover');
+
+    const files = event.dataTransfer.files;
+    if (files.length > 0) {
+      await this._processFile(files[0], source);
+    }
+  }
+
+  /**
+   * Processes an uploaded file
+   * @private
+   * @param {File} file - File to process
+   * @param {string} source - Source identifier
+   */
+  async _processFile(file, source) {
+    if (!isSupportedFileFormat(file)) {
+      this._showUploadResult('不支持的文件格式。支持的格式: ' + SUPPORTED_FILE_FORMATS.join(', '), 'error', source);
+      return;
+    }
+
+    if (!isValidFileSize(file)) {
+      this._showUploadResult('文件过大，请上传 5MB 以内的文件', 'error', source);
+      return;
+    }
+
+    this._showProgress(0, '准备上传...', source);
+
+    try {
+      this._showProgress(30, '正在读取文件...', source);
+
+      const result = await this.documentApi.handleUploadRequest(file);
+
+      if (result.success) {
+        this._showProgress(100, '上传完成！', source);
+        this._showUploadResult('文档上传成功！', 'success', source);
+
+        setTimeout(() => {
+          this.loadDocumentsList(source);
+          this._hideProgress(source);
+        }, 1000);
+      } else {
+        this._showUploadResult(result.message, 'error', source);
+        this._hideProgress(source);
+      }
+    } catch (error) {
+      this._showUploadResult(`上传失败: ${error.message}`, 'error', source);
+      this._hideProgress(source);
+    }
+  }
+
+  /**
+   * Shows upload progress
+   * @private
+   * @param {number} percent - Progress percentage
+   * @param {string} text - Progress text
+   * @param {string} source - Source identifier
+   */
+  _showProgress(percent, text, source) {
+    const container = document.getElementById(`${source}-upload-progress`);
+    const bar = document.getElementById(`${source}-progress-fill`);
+    const textEl = document.getElementById(`${source}-progress-text`);
+
+    if (container) container.classList.remove('hidden');
+    if (bar) bar.style.width = percent + '%';
+    if (textEl) textEl.textContent = text || percent + '%';
+  }
+
+  /**
+   * Hides upload progress
+   * @private
+   * @param {string} source - Source identifier
+   */
+  _hideProgress(source) {
+    document.getElementById(`${source}-upload-progress`)?.classList.add('hidden');
+  }
+
+  /**
+   * Shows upload result message
+   * @private
+   * @param {string} message - Result message
+   * @param {string} type - Message type ('success' or 'error')
+   * @param {string} source - Source identifier
+   */
+  _showUploadResult(message, type, source) {
+    const resultDiv = document.getElementById(`${source}-upload-result`);
+    if (resultDiv) {
+      resultDiv.textContent = message;
+      resultDiv.className = `upload-result ${type}`;
+      resultDiv.classList.remove('hidden');
+
+      setTimeout(() => {
+        resultDiv.classList.add('hidden');
+      }, 3000);
+    }
+  }
+
+  /**
+   * Loads the documents list
+   * @param {string} [source='sidepanel'] - Source identifier
+   */
+  async loadDocumentsList(source = 'sidepanel') {
+    const container = document.getElementById(`${source}-documents-list`);
+    if (!container) return;
+
+    container.innerHTML = '<div class="loading-placeholder">正在加载文档列表...</div>';
+
+    try {
+      const result = await this.documentApi.getDocumentsList();
+
+      if (result.success) {
+        if (result.documents.length > 0) {
+          container.innerHTML = '';
+          result.documents.forEach(doc => {
+            container.appendChild(this._createDocumentItemElement(doc, source));
+          });
+        } else {
+          container.innerHTML = '<div class="no-documents">暂无文档</div>';
+        }
+      } else {
+        container.innerHTML = `<div class="no-documents">加载失败: ${result.message}</div>`;
+      }
+    } catch (error) {
+      container.innerHTML = `<div class="no-documents">加载失败: ${error.message}</div>`;
+    }
+  }
+
+  /**
+   * Creates a document item element
+   * @private
+   * @param {Object} doc - Document data
+   * @param {string} source - Source identifier
+   * @returns {HTMLElement} Document item element
+   */
+  _createDocumentItemElement(doc, source) {
+    const docItem = createElement('div', { className: 'doc-item' });
+
+    const docInfo = createElement('div', { className: 'doc-info' }, [
+      createElement('div', {
+        className: 'doc-name',
+        textContent: doc.name
+      }),
+      createElement('div', {
+        className: 'doc-meta',
+        innerHTML: `<span>大小: ${formatFileSize(doc.size)}</span>` +
+                  `<span>类型: ${doc.type || 'unknown'}</span>` +
+                  `<span>上传时间: ${formatDate(doc.uploadTime)}</span>`
+      })
+    ]);
+
+    const docActions = createElement('div', { className: 'doc-actions' }, [
+      createElement('button', {
+        className: 'doc-action-btn view',
+        textContent: '👁 查看',
+        onclick: () => this._viewDocument(doc.id, source)
+      }),
+      createElement('button', {
+        className: 'doc-action-btn delete',
+        textContent: '🗑 删除',
+        onclick: () => this._deleteDocument(doc.id, source)
+      })
+    ]);
+
+    docItem.appendChild(docInfo);
+    docItem.appendChild(docActions);
+
+    return docItem;
+  }
+
+  /**
+   * Views a document
+   * @private
+   * @param {string} docId - Document ID
+   * @param {string} source - Source identifier
+   */
+  async _viewDocument(docId, source) {
+    try {
+      const result = await this.documentApi.getDocumentContent(docId);
+
+      if (result.success) {
+        const contentWindow = window.open('', '_blank');
+        if (!contentWindow) {
+          this._showNotification('无法打开新窗口，请检查弹出窗口设置', 'error');
+          return;
+        }
+
+        contentWindow.document.open();
+        contentWindow.document.write('<!DOCTYPE html><html><head><title></title>');
+        contentWindow.document.write('<style>body{font-family:Arial,sans-serif;margin:20px;line-height:1.6}.header{background:#f5f5f5;padding:15px;border-radius:5px;margin-bottom:20px}.content{white-space:pre-wrap}</style>');
+        contentWindow.document.write('</head><body>');
+
+        const headerDiv = contentWindow.document.createElement('div');
+        headerDiv.className = 'header';
+        headerDiv.appendChild(contentWindow.document.createElement('h1'))
+          .textContent = result.document.name;
+
+        const metaP = contentWindow.document.createElement('p');
+        metaP.textContent = `大小: ${formatFileSize(result.document.size)} | ` +
+                           `类型: ${result.document.type} | ` +
+                           `上传时间: ${formatDate(result.document.uploadTime)}`;
+        headerDiv.appendChild(metaP);
+
+        contentWindow.document.body.appendChild(headerDiv);
+
+        const contentDiv = contentWindow.document.createElement('div');
+        contentDiv.className = 'content';
+        contentDiv.textContent = result.document.content;
+        contentWindow.document.body.appendChild(contentDiv);
+
+        contentWindow.document.write('</body></html>');
+        contentWindow.document.close();
+      } else {
+        this._showNotification('查看文档失败: ' + result.message, 'error');
+      }
+    } catch (error) {
+      this._showNotification('查看文档失败: ' + error.message, 'error');
+    }
+  }
+
+  /**
+   * Deletes a document
+   * @private
+   * @param {string} docId - Document ID
+   * @param {string} source - Source identifier
+   */
+  async _deleteDocument(docId, source) {
+    if (confirm('确定要删除这个文档吗？此操作不可恢复。')) {
+      try {
+        const result = await this.documentApi.deleteDocument(docId);
+
+        if (result.success) {
+          this._showNotification('文档删除成功！', 'success');
+          this.loadDocumentsList(source);
+        } else {
+          this._showNotification(`删除失败: ${result.message}`, 'error');
+        }
+      } catch (error) {
+        this._showNotification(`删除失败: ${error.message}`, 'error');
+      }
+    }
+  }
+
+  /**
+   * Searches documents
+   * @param {string} query - Search query
+   * @param {string} [source='sidepanel'] - Source identifier
+   */
+  async searchDocuments(query, source = 'sidepanel') {
+    const container = document.getElementById(`${source}-documents-list`);
+    if (!container) return;
+
+    container.innerHTML = '<div class="loading-placeholder">正在搜索文档...</div>';
+
+    try {
+      const result = await this.documentApi.searchDocuments(query);
+
+      if (result.success) {
+        if (result.documents.length > 0) {
+          container.innerHTML = '';
+          result.documents.forEach(doc => {
+            container.appendChild(this._createDocumentItemElement(doc, source));
+          });
+        } else {
+          container.innerHTML = '<div class="no-documents">未找到匹配的文档</div>';
+        }
+      } else {
+        container.innerHTML = `<div class="no-documents">搜索失败: ${result.message}</div>`;
+      }
+    } catch (error) {
+      container.innerHTML = `<div class="no-documents">搜索失败: ${error.message}</div>`;
+    }
+  }
+
+  // ========================================================================
+  // UTILITY METHODS
+  // ========================================================================
+
+  /**
+   * Loads configuration from storage
+   * @private
+   * @async
+   * @returns {Promise<Config>} Configuration object
+   */
+  async _loadConfig() {
+    const result = await storagePromise('local', 'get', [
+      'apiKey', 'baseUrl', 'modelName', 'smartDescription'
     ]);
 
     return {
@@ -268,402 +907,66 @@ ${stepsText}
     };
   }
 
-  updatePreview(markdown) {
-    // 动态加载marked.js（如果尚未加载）
-    if (typeof marked === 'undefined') {
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/marked/marked.min.js';
-      document.head.appendChild(script);
-      
-      script.onload = () => {
-        this.renderMarkdown(markdown);
-      };
-    } else {
-      this.renderMarkdown(markdown);
-    }
+  /**
+   * Shows an error message
+   * @private
+   * @param {string} message - Error message
+   */
+  _showError(message) {
+    alert(message);
   }
 
-  renderMarkdown(markdown) {
-    const previewDiv = document.getElementById('markdown-preview');
-    if (previewDiv && typeof marked !== 'undefined') {
-      // 配置 marked 不解析原始 HTML，防止 XSS
-      marked.setOptions({
-        breaks: true,
-        gfm: true
-      });
-      const rawHtml = marked.parse(markdown);
-      // 使用 DOMParser + 手动清理，移除 script/iframe 等危险标签
-      const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
-      doc.querySelectorAll('script, iframe, object, embed, form').forEach(el => el.remove());
-      doc.querySelectorAll('*').forEach(el => {
-        // 移除所有事件属性
-        for (const attr of Array.from(el.attributes)) {
-          if (attr.name.startsWith('on')) {
-            el.removeAttribute(attr.name);
-          }
-        }
-      });
-      previewDiv.innerHTML = doc.body.innerHTML;
-    }
+  /**
+   * Shows a notification message
+   * @private
+   * @param {string} message - Notification message
+   * @param {string} type - Message type
+   */
+  _showNotification(message, type) {
+    // Could implement a toast notification here
+    alert(message);
   }
 
-  switchToPreview() {
-    document.getElementById('preview-pane').classList.add('active');
-    document.getElementById('edit-pane').classList.remove('active');
-    
-    document.getElementById('btn-preview').classList.add('active');
-    document.getElementById('btn-edit').classList.remove('active');
-    
-    // 更新预览内容
-    const editorContent = document.getElementById('markdown-editor').value;
-    this.updatePreview(editorContent);
-  }
-
-  switchToEdit() {
-    document.getElementById('preview-pane').classList.remove('active');
-    document.getElementById('edit-pane').classList.add('active');
-    
-    document.getElementById('btn-preview').classList.remove('active');
-    document.getElementById('btn-edit').classList.add('active');
-  }
-
-  copyDocument() {
-    const content = document.getElementById('markdown-editor').value;
-    navigator.clipboard.writeText(content).then(() => {
-      alert('文档已复制到剪贴板！');
-    }).catch(err => {
-      console.error('[Scribe:SidePanel] 复制失败:', err);
-      alert('复制失败，请手动选择文本');
-    });
-  }
-
-  downloadDocument() {
-    const content = document.getElementById('markdown-editor').value;
-    const blob = new Blob([content], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `document_${Date.now()}.md`;
-    document.body.appendChild(a);
-    a.click();
-    
-    // 清理
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 100);
-  }
-
-  retry() {
-    if (this.session) {
-      this.showDescriptionSelector();
-    } else {
-      this.showEmptyState();
-    }
-  }
-
-  // 文档管理功能
-  handleDragOver(e, source = 'settings') {
-    e.preventDefault();
-    e.stopPropagation();
-    const uploadArea = document.getElementById(`${source}-upload-area`);
-    uploadArea.classList.add('dragover');
-  }
-
-  handleDragLeave(e, source = 'settings') {
-    e.preventDefault();
-    e.stopPropagation();
-    const uploadArea = document.getElementById(`${source}-upload-area`);
-    uploadArea.classList.remove('dragover');
-  }
-
-  async handleDrop(e, source = 'settings') {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    const uploadArea = document.getElementById(`${source}-upload-area`);
-    uploadArea.classList.remove('dragover');
-
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      await this.processFile(files[0], source);
-    }
-  }
-
-  handleFileSelect(e, source = 'settings') {
-    const files = e.target.files;
-    if (files.length > 0) {
-      this.processFile(files[0], source);
-    }
-  }
-
-  async processFile(file, source = 'settings') {
-    // 验证文件格式
-    if (!this.documentUploader.isSupportedFormat(file)) {
-      this.showUploadResult('不支持的文件格式。支持的格式: ' + this.documentUploader.supportedFormats.join(', '), 'error', source);
-      return;
-    }
-
-    // 文件大小限制（5MB）
-    const MAX_FILE_SIZE = 5 * 1024 * 1024;
-    if (file.size > MAX_FILE_SIZE) {
-      this.showUploadResult('文件过大，请上传 5MB 以内的文件', 'error', source);
-      return;
-    }
-
-    // 显示进度条
-    this.showProgress(0, '准备上传...', source);
-
-    try {
-      // 更新进度
-      this.showProgress(30, '正在读取文件...', source);
-      
-      // 上传文档
-      const result = await this.documentApi.handleUploadRequest(file);
-      
-      if (result.success) {
-        this.showProgress(100, '上传完成！', source);
-        this.showUploadResult('文档上传成功！', 'success', source);
-        
-        // 刷新文档列表
-        setTimeout(() => {
-          this.loadDocumentsList(source);
-          this.hideProgress(source);
-        }, 1000);
-      } else {
-        this.showUploadResult(result.message, 'error', source);
-        this.hideProgress(source);
-      }
-    } catch (error) {
-      this.showUploadResult(`上传失败: ${error.message}`, 'error', source);
-      this.hideProgress(source);
-    }
-  }
-
-  showProgress(percent, text, source = 'settings') {
-    const progressContainer = document.getElementById(`${source}-upload-progress`);
-    const progressBar = document.getElementById(`${source}-progress-fill`);
-    const progressText = document.getElementById(`${source}-progress-text`);
-    
-    if (progressContainer && progressBar && progressText) {
-      progressContainer.classList.remove('hidden');
-      progressBar.style.width = percent + '%';
-      progressText.textContent = text || percent + '%';
-    }
-  }
-
-  hideProgress(source = 'settings') {
-    const progressContainer = document.getElementById(`${source}-upload-progress`);
-    if (progressContainer) {
-      progressContainer.classList.add('hidden');
-    }
-  }
-
-  showUploadResult(message, type, source = 'settings') {
-    const resultDiv = document.getElementById(`${source}-upload-result`);
-    if (resultDiv) {
-      resultDiv.textContent = message;
-      resultDiv.className = `upload-result ${type} ${type === 'success' ? 'success' : 'error'}`;
-      resultDiv.classList.remove('hidden');
-      
-      // 3秒后隐藏结果
-      setTimeout(() => {
-        resultDiv.classList.add('hidden');
-      }, 3000);
-    }
-  }
-
-  async loadDocumentsList(source = 'settings') {
-    const container = document.getElementById(`${source}-documents-list`);
-    if (container) {
-      container.innerHTML = '<div class="loading-placeholder">正在加载文档列表...</div>';
-
-      try {
-        const result = await this.documentApi.getDocumentsList();
-        
-        if (result.success) {
-          if (result.documents.length > 0) {
-            container.innerHTML = '';
-            
-            result.documents.forEach(doc => {
-              const docElement = this.createDocumentItemElement(doc, source);
-              container.appendChild(docElement);
-            });
-          } else {
-            container.innerHTML = '<div class="no-documents">暂无文档</div>';
-          }
-        } else {
-          container.innerHTML = `<div class="no-documents">加载失败: ${result.message}</div>`;
-        }
-      } catch (error) {
-        container.innerHTML = `<div class="no-documents">加载失败: ${error.message}</div>`;
-      }
-    }
-  }
-
-  createDocumentItemElement(doc, source = 'settings') {
-    const docItem = document.createElement('div');
-    docItem.className = 'doc-item';
-
-    const formattedSize = this.formatFileSize(doc.size);
-    const formattedTime = new Date(doc.uploadTime).toLocaleString('zh-CN');
-
-    // 安全构建 DOM，防止 XSS
-    const docInfo = document.createElement('div');
-    docInfo.className = 'doc-info';
-
-    const docName = document.createElement('div');
-    docName.className = 'doc-name';
-    docName.textContent = doc.name;
-
-    const docMeta = document.createElement('div');
-    docMeta.className = 'doc-meta';
-    docMeta.innerHTML = `<span>大小: ${formattedSize}</span><span>类型: ${doc.type || 'unknown'}</span><span>上传时间: ${formattedTime}</span>`;
-
-    docInfo.appendChild(docName);
-    docInfo.appendChild(docMeta);
-
-    const docActions = document.createElement('div');
-    docActions.className = 'doc-actions';
-
-    const viewBtn = document.createElement('button');
-    viewBtn.className = 'doc-action-btn view';
-    viewBtn.textContent = '👁 查看';
-    viewBtn.addEventListener('click', () => this.viewDocument(doc.id, source));
-
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'doc-action-btn delete';
-    deleteBtn.textContent = '🗑 删除';
-    deleteBtn.addEventListener('click', () => this.deleteDocument(doc.id, source));
-
-    docActions.appendChild(viewBtn);
-    docActions.appendChild(deleteBtn);
-
-    docItem.appendChild(docInfo);
-    docItem.appendChild(docActions);
-
-    return docItem;
-  }
-
-  formatFileSize(bytes) {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  }
-
-  async viewDocument(docId, source = 'settings') {
-    try {
-      const result = await this.documentApi.getDocumentContent(docId);
-
-      if (result.success) {
-        const contentWindow = window.open('', '_blank');
-        contentWindow.document.open();
-        contentWindow.document.write('<!DOCTYPE html><html><head><title></title>');
-        contentWindow.document.write('<style>body{font-family:Arial,sans-serif;margin:20px;line-height:1.6}.header{background:#f5f5f5;padding:15px;border-radius:5px;margin-bottom:20px}.content{white-space:pre-wrap}</style>');
-        contentWindow.document.write('</head><body>');
-        contentWindow.document.write('<div class="header"></div>');
-        const headerDiv = contentWindow.document.querySelector('.header');
-        const h1 = contentWindow.document.createElement('h1');
-        h1.textContent = result.document.name;
-        headerDiv.appendChild(h1);
-        const p = contentWindow.document.createElement('p');
-        p.textContent = `大小: ${this.formatFileSize(result.document.size)} | 类型: ${result.document.type} | 上传时间: ${new Date(result.document.uploadTime).toLocaleString('zh-CN')}`;
-        headerDiv.appendChild(p);
-        contentWindow.document.write('<div class="content"></div>');
-        contentWindow.document.querySelector('.content').textContent = result.document.content;
-        contentWindow.document.write('</body></html>');
-        contentWindow.document.close();
-      } else {
-        alert('查看文档失败: ' + result.message);
-      }
-    } catch (error) {
-      alert('查看文档失败: ' + error.message);
-    }
-  }
-
-  async deleteDocument(docId, source = 'settings') {
-    if (confirm('确定要删除这个文档吗？此操作不可恢复。')) {
-      try {
-        const result = await this.documentApi.deleteDocument(docId);
-        
-        if (result.success) {
-          alert('文档删除成功！');
-          this.loadDocumentsList(source); // 重新加载列表
-        } else {
-          alert(`删除失败: ${result.message}`);
-        }
-      } catch (error) {
-        alert(`删除失败: ${error.message}`);
-      }
-    }
-  }
-
-  async searchDocuments(query, source = 'settings') {
-    const container = document.getElementById(`${source}-documents-list`);
-    if (container) {
-      container.innerHTML = '<div class="loading-placeholder">正在搜索文档...</div>';
-
-      try {
-        const result = await this.documentApi.searchDocuments(query);
-        
-        if (result.success) {
-          if (result.documents.length > 0) {
-            container.innerHTML = '';
-            
-            result.documents.forEach(doc => {
-              const docElement = this.createDocumentItemElement(doc, source);
-              container.appendChild(docElement);
-            });
-          } else {
-            container.innerHTML = '<div class="no-documents">未找到匹配的文档</div>';
-          }
-        } else {
-          container.innerHTML = `<div class="no-documents">搜索失败: ${result.message}</div>`;
-        }
-      } catch (error) {
-        container.innerHTML = `<div class="no-documents">搜索失败: ${error.message}</div>`;
-      }
-    }
-  }
-
-  escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
-  // 清理资源，防止内存泄漏
+  /**
+   * Cleans up resources
+   */
   cleanup() {
-    // 当前事件通过 addEventListener 绑定在 init 中
-    // 浏览器扩展的 sidepanel 关闭时会销毁 DOM，监听器自动回收
-    // 此方法预留给未来可能的定时器、WebSocket 等资源清理
-    console.log('[Scribe:SidePanel] Cleanup called');
+    this.cleanupFunctions.forEach(fn => fn());
+    this.cleanupFunctions = [];
+    console.log('[Scribe:SidePanel] Cleanup completed');
   }
 }
 
-// 初始化
-let sidePanelManager;
+// ============================================================================
+// INITIALIZATION
+// ============================================================================
+
+/** @type {SidePanelManager|null} */
+let sidePanelManager = null;
+
+/**
+ * Initializes the side panel when DOM is ready
+ */
 document.addEventListener('DOMContentLoaded', () => {
   sidePanelManager = new SidePanelManager();
 });
 
-// 清理（当 sidepanel 关闭时）
+/**
+ * Cleans up when side panel is closed
+ */
 window.addEventListener('unload', () => {
   if (sidePanelManager) {
     sidePanelManager.cleanup();
   }
 });
 
-// 监听来自background的消息
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'START_AI_ANALYSIS') {
-    if (sidePanelManager) {
-      sidePanelManager.session = message.session;
-      sidePanelManager.config = message.config;
-      sidePanelManager.showDescriptionSelector();
-    }
+/**
+ * Handles messages from background script
+ */
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === 'START_AI_ANALYSIS' && sidePanelManager) {
+    sidePanelManager.session = message.session;
+    sidePanelManager.config = message.config;
+    sidePanelManager._showDescriptionSelector();
   }
 });
