@@ -441,15 +441,8 @@ ${stepsText}
    * @param {string} markdown - Markdown content
    */
   _updatePreview(markdown) {
-    // Load marked.js if needed
-    if (typeof marked === 'undefined') {
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/marked/marked.min.js';
-      script.onload = () => this._renderMarkdown(markdown);
-      document.head.appendChild(script);
-    } else {
-      this._renderMarkdown(markdown);
-    }
+    // marked.js is now bundled locally via sidepanel.html
+    this._renderMarkdown(markdown);
   }
 
   /**
