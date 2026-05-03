@@ -3,8 +3,12 @@
   "version": "1.0.0",
   "description": "智能网页文档助手浏览器插件",
   "scripts": {
-    "build": "echo 'Building extension...' && echo 'Build complete. Load the dist folder in Chrome.'",
-    "dev": "echo 'Development mode. Load the current folder in Chrome.'"
+    "dev": "vite build --watch",
+    "build": "vite build && rm -f dist/_unused_entry.js",
+    "preview": "vite preview",
+    "lint": "eslint '*/**/*.js' --ignore-pattern node_modules/ --ignore-pattern dist/",
+    "lint:fix": "eslint '*/**/*.js' --ignore-pattern node_modules/ --ignore-pattern dist/ --fix",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [
     "chrome-extension",
@@ -13,5 +17,23 @@
     "ai"
   ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "main": "diagnostic-tool.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Teddy9710/smartpages.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Teddy9710/smartpages/issues"
+  },
+  "homepage": "https://github.com/Teddy9710/smartpages#readme",
+  "devDependencies": {
+    "@types/chrome": "^0.1.40",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.10",
+    "vite-plugin-static-copy": "^4.1.0"
+  }
 }

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+build/
+*.log
+__pycache__/
+.claude/
+skills/**/__pycache__/
+@types/
+types-out/

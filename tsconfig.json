@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "ignoreDeprecations": "6.0",
+    "allowJs": true,
+    "checkJs": false,
+    "strict": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "outDir": "./types-out",
+    "typeRoots": ["./node_modules/@types", "./@types"]
+  },
+  "include": ["**/*.js", "@types/**/*.d.ts"],
+  "exclude": ["node_modules", "dist", "skills/**/__pycache__"]
+}

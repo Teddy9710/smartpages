@@ -9,6 +9,7 @@ yarn.lock
 # Build output
 dist/
 build/
+types-out/
 *.log
 
 # System files
