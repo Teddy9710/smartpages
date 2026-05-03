@@ -248,6 +248,14 @@ class RecordingManager {
    */
   async _captureScreenshotForStep(stepIndex) {
     try {
+      // Check storage space before capturing
+      const usage = await chrome.storage.local.getBytesInUse();
+      if (usage > STORAGE_WARNING_THRESHOLD) {
+        console.warn('[Scribe:Background] Storage space running low:', (usage / 1024 / 1024).toFixed(2), 'MB');
+        showNotification('存储空间不足', '录制数据接近存储上限，请及时保存并清理旧数据');
+        return;
+      }
+
       if (this.state === RecordingState.RECORDING && this.tabId) {
         const screenshot = await chrome.tabs.captureVisibleTab(null, {
           format: 'png',

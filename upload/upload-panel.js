@@ -343,7 +343,18 @@ class UploadPanel {
 
           const metaDiv = document.createElement('div');
           metaDiv.className = 'history-meta';
-          metaDiv.innerHTML = `<span class="status ${item.success ? 'success' : 'error'}">${item.success ? '✓ 成功' : '✗ 失败'}</span><span class="date">${date}</span><span class="type">${item.type === 'github' ? 'GitHub' : '本地'}</span>`;
+          const statusSpan = document.createElement('span');
+          statusSpan.className = `status ${item.success ? 'success' : 'error'}`;
+          statusSpan.textContent = item.success ? '✓ 成功' : '✗ 失败';
+          const dateSpan = document.createElement('span');
+          dateSpan.className = 'date';
+          dateSpan.textContent = date;
+          const typeSpan = document.createElement('span');
+          typeSpan.className = 'type';
+          typeSpan.textContent = item.type === 'github' ? 'GitHub' : '本地';
+          metaDiv.appendChild(statusSpan);
+          metaDiv.appendChild(dateSpan);
+          metaDiv.appendChild(typeSpan);
 
           historyItem.appendChild(nameDiv);
           historyItem.appendChild(metaDiv);

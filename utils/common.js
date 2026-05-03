@@ -15,6 +15,9 @@ const DEFAULT_API_TIMEOUT = 10000;
 /** @constant {number} MAX_FILE_SIZE - Maximum file upload size in bytes (5MB) */
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
+/** @constant {number} STORAGE_WARNING_THRESHOLD - Warn when storage exceeds this (8MB) */
+const STORAGE_WARNING_THRESHOLD = 8 * 1024 * 1024;
+
 /** @constant {string[]} SUPPORTED_FILE_FORMATS - Supported document formats for upload */
 const SUPPORTED_FILE_FORMATS = ['.pdf', '.docx', '.txt'];
 
@@ -26,6 +29,9 @@ const DEBOUNCE_DELAY = 500;
 
 /** @constant {number} THROTTLE_DELAY - Default throttle delay in milliseconds */
 const THROTTLE_DELAY = 200;
+
+/** @constant {number} DEFAULT_MAX_TOKENS - Default max tokens for LLM responses */
+const DEFAULT_MAX_TOKENS = 2000;
 
 // ============================================================================
 // ERROR HANDLING
@@ -582,9 +588,11 @@ if (typeof module !== 'undefined' && module.exports) {
     // Constants
     DEFAULT_API_TIMEOUT,
     MAX_FILE_SIZE,
+    STORAGE_WARNING_THRESHOLD,
     SUPPORTED_FILE_FORMATS,
     SCREENSHOT_QUALITY,
     DEBOUNCE_DELAY,
-    THROTTLE_DELAY
+    THROTTLE_DELAY,
+    DEFAULT_MAX_TOKENS
   };
 }

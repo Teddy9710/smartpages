@@ -46,8 +46,11 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["utils/*", "docs/*", "upload/*"],
+      "resources": ["utils/*", "docs/*", "upload/*", "libs/*"],
       "matches": ["<all_urls>"]
     }
-  ]
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self';"
+  }
 }

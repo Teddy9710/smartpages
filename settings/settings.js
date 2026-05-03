@@ -543,7 +543,8 @@ class SettingsManager {
     const container = document.getElementById('documents-list');
     if (!container) return;
 
-    container.innerHTML = '<div class="loading-placeholder">正在加载文档列表...</div>';
+    container.innerHTML = '';
+    container.appendChild(createElement('div', { className: 'loading-placeholder' }, '正在加载文档列表...'));
 
     try {
       const result = await this.api.getDocumentsList();
@@ -561,13 +562,16 @@ class SettingsManager {
             container.appendChild(this._createDocumentItemElement(doc));
           });
         } else {
-          container.innerHTML = '<div class="no-documents">暂无文档</div>';
+          container.innerHTML = '';
+          container.appendChild(createElement('div', { className: 'no-documents' }, '暂无文档'));
         }
       } else {
-        container.innerHTML = `<div class="no-documents">加载失败: ${result.message}</div>`;
+        container.innerHTML = '';
+        container.appendChild(createElement('div', { className: 'no-documents' }, `加载失败: ${result.message}`));
       }
     } catch (error) {
-      container.innerHTML = `<div class="no-documents">加载失败: ${error.message}</div>`;
+      container.innerHTML = '';
+      container.appendChild(createElement('div', { className: 'no-documents' }, `加载失败: ${error.message}`));
     }
   }
 
@@ -585,12 +589,11 @@ class SettingsManager {
         className: 'doc-name',
         textContent: doc.name
       }),
-      createElement('div', {
-        className: 'doc-meta',
-        innerHTML: `<span>大小: ${formatFileSize(doc.size)}</span>` +
-                  `<span>类型: ${doc.type || 'unknown'}</span>` +
-                  `<span>上传时间: ${formatDate(doc.uploadTime)}</span>`
-      })
+      createElement('div', { className: 'doc-meta' }, [
+        createElement('span', {}, `大小: ${formatFileSize(doc.size)}`),
+        createElement('span', {}, `类型: ${doc.type || 'unknown'}`),
+        createElement('span', {}, `上传时间: ${formatDate(doc.uploadTime)}`)
+      ])
     ]);
 
     const docActions = createElement('div', { className: 'doc-actions' }, [
