@@ -90,6 +90,10 @@ $RECYCLE.BIN/
 
 # Project specific
 .claude/
+skills/
+project-architect/
+project-architect.skill
+__pycache__/
 temp/
 tmp/
 *.crx
