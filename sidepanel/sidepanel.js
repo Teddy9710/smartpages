@@ -163,7 +163,7 @@ class SidePanelManager {
     try {
       const response = await sendMessage({ type: 'GET_RECORDING_STATE' });
 
-      if (response?.state?.state === 'stopped' && response?.session) {
+      if (response?.state === 'stopped' && response?.session) {
         this.session = response.session;
         this._showDescriptionSelector();
       } else {
@@ -350,7 +350,7 @@ class SidePanelManager {
         throw new ExtensionError('请先在设置中配置API密钥', 'CONFIG_ERROR');
       }
 
-      const prompt = this._buildGenerationPrompt(description);
+      const prompt = this._buildGenerationPrompt(description, selectedValue);
 
       const response = await fetchWithTimeout(
         config.baseUrl + '/chat/completions',
@@ -378,7 +378,8 @@ class SidePanelManager {
       }
 
       const data = await response.json();
-      const content = data.choices[0].message.content.trim();
+      const markdown = data.choices[0].message.content.trim();
+      const content = this._injectScreenshots(markdown);
 
       this.showEditor();
       this._setEditorContent(content);
@@ -395,31 +396,57 @@ class SidePanelManager {
    * @param {string} description - User's description
    * @returns {string} Generated prompt
    */
-  _buildGenerationPrompt(description) {
-    let stepsText = '';
+_buildGenerationPrompt(description, docType) {
+    var stepsText = '';
     if (this.session?.steps?.length > 0) {
-      stepsText = this.session.steps.map((step, index) =>
-        `${index + 1}. ${step.type}: ${step.action || step.element || step.text || '未知操作'}`
-      ).join('\n');
+      stepsText = this.session.steps.map(function(step, index) {
+        var num = index + 1;
+        if (step.type === 'navigate') {
+          return num + '. 页面跳转: ' + (step.from || '当前页') + ' → ' + (step.to || '新页面');
+        }
+        var desc = step.action || step.text || '未知操作';
+        var extra = step.tagName ? ' (' + step.tagName + ')' : '';
+        return num + '. ' + desc + extra;
+      }).join('\n');
     }
 
-    return `根据以下网页操作步骤生成一份详细的文档：
+    var basePrompt = '根据以下网页操作步骤生成文档：\n\n' + stepsText + '\n\n每个步骤都附有对应的操作截图。请在每个步骤说明后使用 [截图N] 标记截图位置（N 为步骤编号）。\n\n任务描述：' + description;
 
-${stepsText}
+    // Tailor the prompt by document type
+    if (docType === 'user-guide') {
+      return basePrompt + '\n\n请生成一份简洁的用户操作指南，只包含：\n1. 操作步骤（每个步骤一句话描述 + [截图N]）\n2. 预期结果\n\n不要添加注意事项、常见问题等额外章节。语言简洁直接。';
+    } else if (docType === 'tutorial') {
+      return basePrompt + '\n\n请生成一份教程文档，包含：\n1. 简短的学习目标\n2. 操作步骤（每步附 [截图N] 和简要说明）\n3. 小结\n\n语言友好，适合新手。';
+    } else if (docType === 'testing') {
+      return basePrompt + '\n\n请生成测试用例文档，包含：\n1. 测试场景\n2. 前置条件\n3. 测试步骤列表（每步附预期结果和 [截图N]）\n4. 测试结论';
+    } else if (docType === 'bug-report') {
+      return basePrompt + '\n\n请生成问题报告，包含：\n1. 问题描述\n2. 复现步骤（每步附 [截图N]）\n3. 预期行为 vs 实际行为\n4. 环境信息';
+    } else {
+      // Custom or unknown: comprehensive format
+      return basePrompt + '\n\n请生成一份结构清晰、内容详实的Markdown格式文档，包含：\n1. 操作概述\n2. 详细步骤说明\n3. 注意事项\n4. 可能遇到的问题及解决方案\n\n要求：\n- 使用标准Markdown格式\n- 结构清晰，层次分明\n- 语言简洁明了\n- 适合非技术人员阅读';
+    }
+  }
+  }
 
-任务描述：${description}
+  /**
+   * Injects screenshots from recorded steps into the markdown content.
+   * Replaces [截图N] placeholders with actual base64 screenshots.
+   * @param {string} markdown - AI-generated markdown content
+   * @returns {string} Markdown with screenshots injected
+   */
+  _injectScreenshots(markdown) {
+    if (!this.session?.steps?.length) return markdown;
 
-请生成一份结构清晰、内容详实的Markdown格式文档，包含：
-1. 操作概述
-2. 详细步骤说明
-3. 注意事项
-4. 可能遇到的问题及解决方案
+    var result = markdown;
+    this.session.steps.forEach(function(step, index) {
+      var placeholder = '[' + '截图' + (index + 1) + ']';
+      if (step.screenshot) {
+        var imgTag = '!' + '[' + '步骤' + (index + 1) + '截图' + '](' + step.screenshot + ')';
+        result = result.split(placeholder).join(imgTag);
+      }
+    });
 
-要求：
-- 使用标准Markdown格式
-- 结构清晰，层次分明
-- 语言简洁明了
-- 适合非技术人员阅读`;
+    return result;
   }
 
   /**

@@ -462,7 +462,7 @@ body {
    DOCUMENTS PANEL
    ============================================================================ */
 
-#documents-panel .panel-header {
+#documents-state .panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -471,7 +471,7 @@ body {
   border-bottom: 1px solid var(--color-divider);
 }
 
-#documents-panel .panel-header h2 {
+#documents-state .panel-header h2 {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);

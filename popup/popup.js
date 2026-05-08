@@ -99,7 +99,7 @@ class PopupManager {
     const messageListener = (message) => {
       console.log('[Scribe:Popup] Received message:', message);
       if (message.type === 'RECORDING_STATE_CHANGED') {
-        this._updateState(message.state);
+        this._updateState(message.state?.state, message.state);
       }
     };
 

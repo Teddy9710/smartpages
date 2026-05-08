@@ -237,6 +237,12 @@
       return element.value || element.placeholder || '';
     }
 
+    // Try aria-label or title first (more descriptive for icons)
+    const ariaLabel = element.getAttribute('aria-label');
+    if (ariaLabel && ariaLabel.trim()) return ariaLabel.trim().substring(0, MAX_TEXT_LENGTH);
+    const titleAttr = element.getAttribute('title');
+    if (titleAttr && titleAttr.trim()) return titleAttr.trim().substring(0, MAX_TEXT_LENGTH);
+
     // Get text content, limited to prevent large strings
     const text = element.textContent?.trim() || '';
     return text.substring(0, MAX_TEXT_LENGTH);
@@ -252,6 +258,38 @@
       x: event.clientX || 0,
       y: event.clientY || 0
     };
+  }
+
+  /**
+   * Builds a human-readable action description from a clicked element
+   * @param {Element} element
+   * @param {string} text
+   * @returns {string}
+   */
+  function buildActionDescription(element, text) {
+    var tag = element.tagName ? element.tagName.toLowerCase() : '';
+    var type = (element.getAttribute('type') || '').toLowerCase();
+    var role = element.getAttribute('role') || '';
+    if (tag === 'a') {
+      var href = element.getAttribute('href') || '';
+      return text ? '点击了链接「' + text + '」(' + href + ')' : '点击了链接 ' + href;
+    }
+    if (tag === 'button' || role === 'button' || type === 'button' || type === 'submit') {
+      return text ? '点击了「' + text + '」按钮' : '点击了按钮';
+    }
+    if (tag === 'input') {
+      var itype = type || 'text';
+      var ph = element.getAttribute('placeholder') || '';
+      if (ph) return '点击了' + itype + '输入框「' + ph + '」';
+      return text ? '点击了' + itype + '输入框「' + text + '」' : '点击了' + itype + '输入框';
+    }
+    if (tag === 'textarea') return text ? '点击了文本域「' + text + '」' : '点击了文本域';
+    if (tag === 'select') return text ? '点击了下拉框「' + text + '」' : '点击了下拉框';
+    if (type === 'checkbox') return text ? '点击了复选框「' + text + '」' : '点击了复选框';
+    if (type === 'radio') return text ? '点击了单选框「' + text + '」' : '点击了单选框';
+    if (tag === 'nav' || role === 'navigation') return '点击了导航区域';
+    if (text) return '点击了「' + text + '」';
+    return '点击了 <' + tag + '> 元素';
   }
 
   // ==========================================================================
@@ -337,13 +375,17 @@
     const target = event.target;
     const coords = getEventCoordinates(event);
 
+    const elementText = getElementText(target);
+    const action = buildActionDescription(target, elementText);
+
     // Build step object
     const step = {
       type: 'click',
       timestamp: now,
       selector: generateSelector(target),
       tagName: target.tagName?.toLowerCase() || 'unknown',
-      text: getElementText(target),
+      text: elementText,
+      action: action,
       x: coords.x,
       y: coords.y
     };
