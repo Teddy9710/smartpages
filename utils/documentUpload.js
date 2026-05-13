@@ -126,6 +126,11 @@ class DocumentUploader {
   async getStoredDocuments() {
     try {
       const result = await chrome.storage.local.get(['documents']);
+      // Maintain index for O(1) lookups
+      if (result.documents) {
+        this._docIndex = new Map();
+        result.documents.forEach((doc, i) => this._docIndex.set(doc.id, i));
+      }
       return result.documents || [];
     } catch (error) {
       console.error('获取文档列表失败:', error);
@@ -157,6 +162,30 @@ class DocumentUploader {
   _parseDocx(arrayBuffer) {
     console.warn('DOCX解析需要docx库支持');
     return '[DOCX内容 - 需要docx库支持]';
+  }
+
+  /**
+   * O(1) 获取单文档（使用内存索引）
+   */
+  async getDocumentById(docId) {
+    const docs = await this.getStoredDocuments();
+    if (this._docIndex?.has(docId)) {
+      return docs[this._docIndex.get(docId)] || null;
+    }
+    return docs.find(doc => doc.id === docId) || null;
+  }
+
+  /**
+   * 原地更新文档列表（避免全量重写）
+   * @private
+   */
+  async _updateDocs(transformFn) {
+    const docs = await this.getStoredDocuments();
+    const updated = transformFn(docs);
+    if (updated !== docs) {
+      await chrome.storage.local.set({ documents: updated });
+    }
+    return updated;
   }
 
   /** @private 生成唯一ID */

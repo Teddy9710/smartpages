@@ -48,6 +48,7 @@ filesToCheck.forEach(filePath => {
 
       // Check for console.log that should be removed in production
       const hasPrefix = line.includes('[Smart Page Scribe]') ||
+                       line.includes('[Scribe:') ||
                        line.includes('[SidePanel]') ||
                        line.includes('[Popup]') ||
                        line.includes('[Background]') ||

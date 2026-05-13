@@ -22,7 +22,7 @@ const STORAGE_WARNING_THRESHOLD = 8 * 1024 * 1024;
 const SUPPORTED_FILE_FORMATS = ['.pdf', '.docx', '.txt'];
 
 /** @constant {number} SCREENSHOT_QUALITY - Default screenshot quality (0-100) */
-const SCREENSHOT_QUALITY = 85;
+const SCREENSHOT_QUALITY = 60;
 
 /** @constant {number} DEBOUNCE_DELAY - Default debounce delay in milliseconds */
 const DEBOUNCE_DELAY = 500;
@@ -32,6 +32,15 @@ const THROTTLE_DELAY = 200;
 
 /** @constant {number} DEFAULT_MAX_TOKENS - Default max tokens for LLM responses */
 const DEFAULT_MAX_TOKENS = 2000;
+
+/** @constant {number} DOC_GEN_TIMEOUT - Timeout for document generation (120s) */
+const DOC_GEN_TIMEOUT = 120000;
+
+/** @constant {number} API_TEST_TIMEOUT - Timeout for API test calls (15s) */
+const API_TEST_TIMEOUT = 15000;
+
+/** @constant {boolean} DEBUG - Debug logging flag */
+const DEBUG = false;
 
 // ============================================================================
 // ERROR HANDLING
@@ -554,6 +563,27 @@ function extractFunctionName(code) {
 }
 
 // ============================================================================
+// CONFIG UTILITIES
+// ============================================================================
+
+/**
+ * Loads AI configuration from chrome.storage.local
+ * @async
+ * @returns {Promise<{apiKey: string, baseUrl: string, modelName: string, smartDescription: boolean}>}
+ */
+async function loadConfig() {
+  const result = await storagePromise('local', 'get', [
+    'apiKey', 'baseUrl', 'modelName', 'smartDescription'
+  ]);
+  return {
+    apiKey: result.apiKey || '',
+    baseUrl: result.baseUrl || 'https://api.openai.com/v1',
+    modelName: result.modelName || 'gpt-3.5-turbo',
+    smartDescription: result.smartDescription !== undefined ? result.smartDescription : true
+  };
+}
+
+// ============================================================================
 // EXPORTS
 // ============================================================================
 
@@ -577,6 +607,7 @@ if (typeof module !== 'undefined' && module.exports) {
     createElement,
     debounce,
     throttle,
+    loadConfig,
     fetchWithTimeout,
     validateUrl,
     sendMessage,
@@ -589,6 +620,8 @@ if (typeof module !== 'undefined' && module.exports) {
     DEFAULT_API_TIMEOUT,
     MAX_FILE_SIZE,
     STORAGE_WARNING_THRESHOLD,
+    DOC_GEN_TIMEOUT,
+    API_TEST_TIMEOUT,
     SUPPORTED_FILE_FORMATS,
     SCREENSHOT_QUALITY,
     DEBOUNCE_DELAY,

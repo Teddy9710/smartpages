@@ -293,7 +293,7 @@ class RecordingManager {
    */
   async _triggerAIAnalysis() {
     try {
-      const config = await this._loadConfig();
+      const config = await loadConfig();
 
       if (!config.apiKey) {
         console.warn('[Scribe:Background] No API key configured, skipping AI analysis');
@@ -319,25 +319,6 @@ class RecordingManager {
     } catch (error) {
       console.error('[Scribe:Background] AI analysis trigger failed:', error);
     }
-  }
-
-  /**
-   * Loads configuration from storage
-   * @private
-   * @async
-   * @returns {Promise<Config>}
-   */
-  async _loadConfig() {
-    const result = await storagePromise('local', 'get', [
-      'apiKey', 'baseUrl', 'modelName', 'smartDescription'
-    ]);
-
-    return {
-      apiKey: result.apiKey || '',
-      baseUrl: result.baseUrl || 'https://api.openai.com/v1',
-      modelName: result.modelName || 'gpt-3.5-turbo',
-      smartDescription: result.smartDescription !== undefined ? result.smartDescription : true
-    };
   }
 }
 
@@ -676,6 +657,15 @@ self.addEventListener('activate', (event) => {
   console.log('[Scribe:Background] Service worker activated');
   // Claim clients to ensure control immediately
   event.waitUntil(self.clients.claim());
+});
+
+/**
+ * Global unhandled rejection handler
+ */
+self.addEventListener('unhandledrejection', (event) => {
+  console.error('[Scribe:Background] Unhandled rejection:', event.reason);
+  // Prevent default (which would log to console anyway in SW)
+  event.preventDefault();
 });
 
 // ============================================================================

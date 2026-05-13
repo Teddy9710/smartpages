@@ -170,12 +170,14 @@ class PopupManager {
         if (statusText) statusText.textContent = '已停止';
 
         // Update total steps
-        const stepCount = response?.stepCount ?? this.currentStepCount;
-        if (stepCount !== undefined) {
-          this.currentStepCount = stepCount;
-          const totalStepsEl = document.getElementById('total-steps');
-          if (totalStepsEl) {
-            totalStepsEl.textContent = stepCount;
+        {
+          const stepCount = response?.stepCount ?? this.currentStepCount;
+          if (stepCount !== undefined) {
+            this.currentStepCount = stepCount;
+            const totalStepsEl = document.getElementById('total-steps');
+            if (totalStepsEl) {
+              totalStepsEl.textContent = stepCount;
+            }
           }
         }
         break;

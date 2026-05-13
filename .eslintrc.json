@@ -2,7 +2,8 @@
   "env": {
     "browser": true,
     "es2022": true,
-    "webextensions": true
+    "webextensions": true,
+    "node": true
   },
   "extends": "eslint:recommended",
   "parserOptions": {
@@ -11,9 +12,10 @@
   },
   "rules": {
     "no-unused-vars": "warn",
+    "no-undef": "warn",
     "no-inner-declarations": "off",
     "prefer-const": "warn",
-    "no-var": "error"
+    "no-var": "warn"
   },
   "globals": {
     "chrome": "readonly"

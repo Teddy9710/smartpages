@@ -67,13 +67,9 @@ class DocumentApi {
    */
   async getDocumentContent(docId) {
     try {
-      const documents = await this.uploader.getStoredDocuments();
-      const document = documents.find(doc => doc.id === docId);
-      
-      if (!document) {
-        throw new Error('文档不存在');
-      }
-
+      // O(1) indexed lookup instead of full-scan .find()
+      const document = await this.uploader.getDocumentById(docId);
+      if (!document) throw new Error('文档不存在');
       return {
         success: true,
         document: {

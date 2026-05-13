@@ -4,10 +4,10 @@
   "description": "智能网页文档助手浏览器插件",
   "scripts": {
     "dev": "vite build --watch",
-    "build": "vite build && rm -f dist/_unused_entry.js",
+    "build": "vite build && node scripts/remove-build-artifact.js",
     "preview": "vite preview",
-    "lint": "eslint '*/**/*.js' --ignore-pattern node_modules/ --ignore-pattern dist/",
-    "lint:fix": "eslint '*/**/*.js' --ignore-pattern node_modules/ --ignore-pattern dist/ --fix",
+    "lint": "eslint \"**/*.js\" --ignore-pattern node_modules/ --ignore-pattern dist/ --ignore-pattern libs/",
+    "lint:fix": "eslint \"**/*.js\" --ignore-pattern node_modules/ --ignore-pattern dist/ --ignore-pattern libs/ --fix",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [
@@ -32,6 +32,7 @@
   "homepage": "https://github.com/Teddy9710/smartpages#readme",
   "devDependencies": {
     "@types/chrome": "^0.1.40",
+    "eslint": "^8.57.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.10",
     "vite-plugin-static-copy": "^4.1.0"
