@@ -20,7 +20,16 @@ const MIN_API_KEY_LENGTH = 10;
 
 class SettingsManager {
   constructor() {
-    this.config = { apiKey: '', baseUrl: '', modelName: 'gpt-3.5-turbo', smartDescription: true };
+    this.config = {
+      apiKey: '',
+      baseUrl: '',
+      modelName: 'gpt-3.5-turbo',
+      smartDescription: true,
+      maxTokens: DEFAULT_MAX_TOKENS,
+      promptMode: DEFAULT_PROMPT_MODE,
+      promptAppend: '',
+      customPrompt: DEFAULT_PROMPT_TEMPLATE
+    };
     this.api = new DocumentApi();
     this.docUI = new DocUIHelper({
       api: this.api,
@@ -47,6 +56,13 @@ class SettingsManager {
     this._bindButton('btn-save', () => this.saveConfig());
     this._bindButton('btn-test', () => this.testConnection());
     this._bindButton('btn-toggle-key', () => this._toggleApiKeyVisibility());
+
+    const promptModeSelect = document.getElementById('prompt-mode');
+    if (promptModeSelect) {
+      const handler = () => this._syncPromptModeVisibility();
+      promptModeSelect.addEventListener('change', handler);
+      this.cleanupFunctions.push(() => promptModeSelect.removeEventListener('change', handler));
+    }
 
     const smartDescCheckbox = document.getElementById('smart-description');
     if (smartDescCheckbox) {
@@ -96,6 +112,11 @@ class SettingsManager {
     const baseUrlInput = document.getElementById('base-url');
     const modelNameInput = document.getElementById('model-name');
     const smartDescCheckbox = document.getElementById('smart-description');
+    const maxTokensInput = document.getElementById('max-tokens');
+    const promptModeSelect = document.getElementById('prompt-mode');
+    const defaultPromptPreview = document.getElementById('default-prompt-preview');
+    const promptAppendInput = document.getElementById('prompt-append');
+    const customPromptInput = document.getElementById('custom-prompt');
 
     if (apiKeyInput && this.config.apiKey) {
       apiKeyInput.value = maskApiKey(this.config.apiKey);
@@ -104,6 +125,21 @@ class SettingsManager {
     if (baseUrlInput) baseUrlInput.value = this.config.baseUrl || '';
     if (modelNameInput) modelNameInput.value = this.config.modelName;
     if (smartDescCheckbox) smartDescCheckbox.checked = this.config.smartDescription;
+    if (maxTokensInput) maxTokensInput.value = this.config.maxTokens || DEFAULT_MAX_TOKENS;
+    if (promptModeSelect) promptModeSelect.value = this.config.promptMode || DEFAULT_PROMPT_MODE;
+    if (defaultPromptPreview) defaultPromptPreview.value = DEFAULT_PROMPT_TEMPLATE;
+    if (promptAppendInput) promptAppendInput.value = this.config.promptAppend || '';
+    if (customPromptInput) customPromptInput.value = this.config.customPrompt || DEFAULT_PROMPT_TEMPLATE;
+    this._syncPromptModeVisibility();
+  }
+
+  _syncPromptModeVisibility() {
+    const promptMode = document.getElementById('prompt-mode')?.value || DEFAULT_PROMPT_MODE;
+    const appendGroup = document.getElementById('prompt-append-group');
+    const customGroup = document.getElementById('custom-prompt-group');
+
+    appendGroup?.classList.toggle('hidden', promptMode !== 'append');
+    customGroup?.classList.toggle('hidden', promptMode !== 'custom');
   }
 
   _toggleApiKeyVisibility() {
@@ -119,6 +155,10 @@ class SettingsManager {
     const baseUrlInput = document.getElementById('base-url');
     const modelNameInput = document.getElementById('model-name');
     const smartDescCheckbox = document.getElementById('smart-description');
+    const maxTokensInput = document.getElementById('max-tokens');
+    const promptModeSelect = document.getElementById('prompt-mode');
+    const promptAppendInput = document.getElementById('prompt-append');
+    const customPromptInput = document.getElementById('custom-prompt');
 
     let apiKey = apiKeyInput?.dataset.fullKey || apiKeyInput?.value || '';
     const inputKeyValue = apiKeyInput?.value || '';
@@ -126,18 +166,39 @@ class SettingsManager {
 
     if (!apiKey) { this._showTestResult('请输入API Key', 'error'); return; }
     if (apiKey.length < MIN_API_KEY_LENGTH) { this._showTestResult('API Key长度不足，请检查', 'error'); return; }
+    const maxTokens = this._parseMaxTokens(maxTokensInput?.value);
+    if (!maxTokens) {
+      this._showTestResult(`最大输出 Token 需要在 ${MIN_MAX_TOKENS}-${MAX_MAX_TOKENS} 之间`, 'error');
+      return;
+    }
+
+    const promptMode = promptModeSelect?.value || DEFAULT_PROMPT_MODE;
+    const customPrompt = customPromptInput?.value.trim() || DEFAULT_PROMPT_TEMPLATE;
+    if (promptMode === 'custom' && !customPrompt) {
+      this._showTestResult('请输入自定义提示词，或切换为追加模式', 'error');
+      return;
+    }
 
     this.config = {
       apiKey,
       baseUrl: baseUrlInput?.value.trim() || '',
       modelName: modelNameInput?.value.trim() || 'gpt-3.5-turbo',
-      smartDescription: smartDescCheckbox?.checked ?? true
+      smartDescription: smartDescCheckbox?.checked ?? true,
+      maxTokens,
+      promptMode,
+      promptAppend: promptAppendInput?.value.trim() || '',
+      customPrompt
     };
 
     try {
       await storagePromise('local', 'set', {
         apiKey: this.config.apiKey, baseUrl: this.config.baseUrl,
-        modelName: this.config.modelName, smartDescription: this.config.smartDescription
+        modelName: this.config.modelName,
+        smartDescription: this.config.smartDescription,
+        maxTokens: this.config.maxTokens,
+        promptMode: this.config.promptMode,
+        promptAppend: this.config.promptAppend,
+        customPrompt: this.config.customPrompt
       });
       if (apiKeyInput) { apiKeyInput.dataset.fullKey = this.config.apiKey; apiKeyInput.value = maskApiKey(this.config.apiKey); }
       this._showTestResult('✅ 配置已保存', 'success');
@@ -145,6 +206,13 @@ class SettingsManager {
     } catch (error) {
       this._showTestResult('保存失败：' + error.message, 'error');
     }
+  }
+
+  _parseMaxTokens(value) {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed)) return DEFAULT_MAX_TOKENS;
+    if (parsed < MIN_MAX_TOKENS || parsed > MAX_MAX_TOKENS) return null;
+    return parsed;
   }
 
   async testConnection() {

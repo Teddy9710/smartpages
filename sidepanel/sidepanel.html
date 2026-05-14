@@ -95,11 +95,20 @@
           <span class="icon">✏</span> 编辑
         </button>
         <div class="toolbar-spacer"></div>
+        <button id="btn-ai-optimize" class="btn-tool btn-tool-primary" title="AI优化文档">
+          <span class="icon">AI</span> 优化
+        </button>
+        <button id="btn-revert-optimization" class="btn-tool hidden" title="回退到优化前版本">
+          <span class="icon">↶</span> 回退
+        </button>
         <button id="btn-copy" class="btn-tool" title="复制Markdown">
           <span class="icon">📋</span> 复制
         </button>
         <button id="btn-download" class="btn-tool" title="下载文件">
           <span class="icon">💾</span> 下载
+        </button>
+        <button id="btn-export-html" class="btn-tool" title="导出HTML文件">
+          <span class="icon">HTML</span> HTML
         </button>
       </div>
       <div class="editor-content">
@@ -113,6 +122,29 @@
     </div>
 
     <!-- 空状态 -->
+    <div id="optimize-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="optimize-title">
+      <div class="modal-backdrop"></div>
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h2 id="optimize-title">AI 优化文档</h2>
+          <button id="btn-close-optimize" class="btn-icon" title="关闭">×</button>
+        </div>
+        <div class="modal-body">
+          <label for="optimize-instruction">优化要求</label>
+          <textarea
+            id="optimize-instruction"
+            class="textarea optimize-textarea"
+            placeholder="例如：补充更多背景说明；语气更正式；把步骤改成表格；增加常见问题；保留所有截图。"
+          ></textarea>
+          <p id="optimize-status" class="optimize-status hidden"></p>
+        </div>
+        <div class="modal-actions">
+          <button id="btn-cancel-optimize" class="btn btn-secondary">取消</button>
+          <button id="btn-run-optimize" class="btn btn-primary">开始优化</button>
+        </div>
+      </div>
+    </div>
+
     <div id="empty-state" class="state-view active">
       <div class="empty-content">
         <div class="empty-icon">📝</div>

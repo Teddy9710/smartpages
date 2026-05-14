@@ -31,7 +31,40 @@ const DEBOUNCE_DELAY = 500;
 const THROTTLE_DELAY = 200;
 
 /** @constant {number} DEFAULT_MAX_TOKENS - Default max tokens for LLM responses */
-const DEFAULT_MAX_TOKENS = 2000;
+const DEFAULT_MAX_TOKENS = 4000;
+
+/** @constant {number} MIN_MAX_TOKENS - Minimum configurable output tokens */
+const MIN_MAX_TOKENS = 500;
+
+/** @constant {number} MAX_MAX_TOKENS - Maximum configurable output tokens */
+const MAX_MAX_TOKENS = 12000;
+
+/** @constant {string} DEFAULT_PROMPT_MODE - Default prompt customization mode */
+const DEFAULT_PROMPT_MODE = 'append';
+
+/** @constant {string} DEFAULT_PROMPT_TEMPLATE - Default document generation prompt template */
+const DEFAULT_PROMPT_TEMPLATE = `你是一名资深产品文档工程师和 QA 分析师。请根据录制到的网页操作，生成一份可直接交付给业务、测试或普通用户阅读的 Markdown 文档。
+
+任务描述：
+{{taskDescription}}
+
+录制上下文：
+{{sessionInfo}}
+
+操作步骤原始记录：
+{{steps}}
+
+写作要求：
+- 输出必须是标准 Markdown，不要输出解释性前言。
+- 内容要充足，不要只复述按钮名称；需要补全操作目的、用户意图、页面反馈、预期结果和注意事项。
+- 不确定的信息可以基于步骤合理推断，但不要编造具体账号、金额、订单号、接口返回值等事实。
+- 每个录制步骤都必须在对应说明附近保留 [截图N] 占位符，N 与步骤编号一致。
+- 每个关键步骤至少写 2-4 句话：说明“做什么、为什么、看到什么、下一步如何判断是否成功”。
+- 对连续的细碎点击可以合并为一个小节，但不能遗漏截图占位。
+- 语言使用简体中文，面向非技术人员，表达清楚、完整、可执行。
+
+文档类型要求：
+{{documentTypeInstructions}}`;
 
 /** @constant {number} DOC_GEN_TIMEOUT - Timeout for document generation (120s) */
 const DOC_GEN_TIMEOUT = 120000;
@@ -573,13 +606,29 @@ function extractFunctionName(code) {
  */
 async function loadConfig() {
   const result = await storagePromise('local', 'get', [
-    'apiKey', 'baseUrl', 'modelName', 'smartDescription'
+    'apiKey',
+    'baseUrl',
+    'modelName',
+    'smartDescription',
+    'maxTokens',
+    'promptMode',
+    'promptAppend',
+    'customPrompt'
   ]);
+  const parsedMaxTokens = Number.parseInt(result.maxTokens, 10);
+  const maxTokens = Number.isFinite(parsedMaxTokens)
+    ? Math.min(Math.max(parsedMaxTokens, MIN_MAX_TOKENS), MAX_MAX_TOKENS)
+    : DEFAULT_MAX_TOKENS;
+
   return {
     apiKey: result.apiKey || '',
     baseUrl: result.baseUrl || 'https://api.openai.com/v1',
     modelName: result.modelName || 'gpt-3.5-turbo',
-    smartDescription: result.smartDescription !== undefined ? result.smartDescription : true
+    smartDescription: result.smartDescription !== undefined ? result.smartDescription : true,
+    maxTokens,
+    promptMode: result.promptMode || DEFAULT_PROMPT_MODE,
+    promptAppend: result.promptAppend || '',
+    customPrompt: result.customPrompt || DEFAULT_PROMPT_TEMPLATE
   };
 }
 
@@ -622,6 +671,10 @@ if (typeof module !== 'undefined' && module.exports) {
     STORAGE_WARNING_THRESHOLD,
     DOC_GEN_TIMEOUT,
     API_TEST_TIMEOUT,
+    MIN_MAX_TOKENS,
+    MAX_MAX_TOKENS,
+    DEFAULT_PROMPT_MODE,
+    DEFAULT_PROMPT_TEMPLATE,
     SUPPORTED_FILE_FORMATS,
     SCREENSHOT_QUALITY,
     DEBOUNCE_DELAY,

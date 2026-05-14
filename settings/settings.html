@@ -51,6 +51,57 @@
           <p class="help-text">默认使用 gpt-3.5-turbo</p>
         </div>
 
+        <div class="form-group">
+          <label for="max-tokens">最大输出 Token</label>
+          <input
+            type="number"
+            id="max-tokens"
+            class="input"
+            min="500"
+            max="12000"
+            step="500"
+            placeholder="4000"
+          >
+          <p class="help-text">控制生成文档的最长输出。建议 3000-6000，太小会导致文档被截断。</p>
+        </div>
+
+        <div class="form-group">
+          <label for="prompt-mode">提示词模式</label>
+          <select id="prompt-mode" class="input">
+            <option value="append">使用默认提示词，并追加我的要求</option>
+            <option value="custom">使用自定义提示词</option>
+          </select>
+          <p class="help-text">默认提示词会自动插入录制步骤、页面上下文和截图占位。</p>
+        </div>
+
+        <div class="form-group">
+          <label for="default-prompt-preview">默认提示词</label>
+          <textarea
+            id="default-prompt-preview"
+            class="textarea prompt-textarea"
+            readonly
+          ></textarea>
+          <p class="help-text">可用占位符：{{taskDescription}}、{{sessionInfo}}、{{steps}}、{{documentTypeInstructions}}</p>
+        </div>
+
+        <div class="form-group" id="prompt-append-group">
+          <label for="prompt-append">追加要求</label>
+          <textarea
+            id="prompt-append"
+            class="textarea prompt-textarea"
+            placeholder="例如：请增加故障排查章节；每个步骤都写清楚页面反馈；语气更正式。"
+          ></textarea>
+        </div>
+
+        <div class="form-group hidden" id="custom-prompt-group">
+          <label for="custom-prompt">自定义提示词</label>
+          <textarea
+            id="custom-prompt"
+            class="textarea prompt-textarea prompt-textarea-large"
+          ></textarea>
+          <p class="help-text">如果缺少占位符，系统会自动把录制上下文和步骤附加到提示词末尾。</p>
+        </div>
+
         <div class="button-group">
           <button id="btn-test" class="btn btn-secondary">
             <span class="icon">🔍</span>

@@ -211,17 +211,43 @@ class RecordingManager {
     try {
       await chrome.tabs.sendMessage(tabId, { type: 'START_LISTENING' });
     } catch (error) {
+      if (this._isContentScriptConnectionError(error)) {
+        try {
+          await this._injectContentScript(tabId);
+          await chrome.tabs.sendMessage(tabId, { type: 'START_LISTENING' });
+          return;
+        } catch (injectError) {
+          this.state = RecordingState.IDLE;
+          this.currentSession = null;
+          throw new ExtensionError(
+            '无法注入录制脚本。请确认当前页面不是浏览器系统页，并刷新后重试。' + (injectError?.message ? ` (${injectError.message})` : ''),
+            'CONTENT_SCRIPT_ERROR'
+          );
+        }
+      }
+
       this.state = RecordingState.IDLE;
       this.currentSession = null;
-
-      if (error.message.includes('Could not establish connection')) {
-        throw new ExtensionError(
-          'Content Script未注入。请刷新页面（按F5）后重试。',
-          'CONTENT_SCRIPT_ERROR'
-        );
-      }
       throw error;
     }
+  }
+
+  _isContentScriptConnectionError(error) {
+    const message = error?.message || '';
+    return message.includes('Could not establish connection') ||
+      message.includes('Receiving end does not exist') ||
+      message.includes('The message port closed before a response was received');
+  }
+
+  async _injectContentScript(tabId) {
+    if (!chrome.scripting?.executeScript) {
+      throw new ExtensionError('chrome.scripting API 不可用', 'SCRIPTING_UNAVAILABLE');
+    }
+
+    await chrome.scripting.executeScript({
+      target: { tabId, allFrames: false },
+      files: ['content/recorder.js']
+    });
   }
 
   /**

@@ -85,6 +85,44 @@ body {
   color: #9ca3af;
 }
 
+.textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+  transition: border-color 0.2s;
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.textarea[readonly] {
+  background: #f9fafb;
+  color: #4b5563;
+}
+
+.prompt-textarea {
+  min-height: 160px;
+  font-family: Consolas, 'SFMono-Regular', monospace;
+  font-size: 13px;
+}
+
+.prompt-textarea-large {
+  min-height: 260px;
+}
+
+.hidden {
+  display: none !important;
+}
+
 .input-small {
   max-width: 300px;
 }
