@@ -9,7 +9,11 @@
 <body>
   <div class="container">
     <header class="header">
-      <h1>⚙️ 设置</h1>
+      <div class="brand-mark" aria-hidden="true"></div>
+      <div>
+        <h1>设置</h1>
+        <p>模型、提示词与文档资源管理</p>
+      </div>
     </header>
 
     <div class="content">
@@ -19,6 +23,20 @@
         <p class="section-desc">配置您的大模型API凭证以使用AI功能</p>
 
         <div class="form-group">
+          <label for="api-provider">模型服务商</label>
+          <select id="api-provider" class="input">
+            <option value="openai">OpenAI</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="kimi">Kimi / Moonshot</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="siliconflow">SiliconFlow</option>
+            <option value="dashscope">阿里云百炼 DashScope</option>
+            <option value="custom">自定义 OpenAI-compatible API</option>
+          </select>
+          <p class="help-text">选择服务商会自动填入 Base URL 和推荐模型；仍可手动修改。</p>
+        </div>
+
+        <div class="form-group">
           <label for="api-key">API Key</label>
           <input
             type="password"
@@ -26,7 +44,8 @@
             class="input"
             placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
           >
-          <button id="btn-toggle-key" class="btn-toggle">👁 显示</button>
+          <button id="btn-toggle-key" class="btn-toggle">显示</button>
+          <p id="api-key-help" class="help-text key-help"></p>
         </div>
 
         <div class="form-group">
@@ -81,7 +100,7 @@
             class="textarea prompt-textarea"
             readonly
           ></textarea>
-          <p class="help-text">可用占位符：{{taskDescription}}、{{sessionInfo}}、{{steps}}、{{documentTypeInstructions}}</p>
+          <p class="help-text">可用占位符：{{taskDescription}}、{{sessionInfo}}、{{steps}}、{{documentTypeInstructions}}、{{styleGuide}}、{{documentExample}}</p>
         </div>
 
         <div class="form-group" id="prompt-append-group">
@@ -102,13 +121,46 @@
           <p class="help-text">如果缺少占位符，系统会自动把录制上下文和步骤附加到提示词末尾。</p>
         </div>
 
+        <div class="form-group">
+          <label for="style-guide">风格指南</label>
+          <textarea
+            id="style-guide"
+            class="textarea prompt-textarea"
+            placeholder="例如：使用简体中文；标题不超过 18 个字；步骤用动宾短语；语气专业、简洁；避免营销话术；所有截图占位必须保留。"
+          ></textarea>
+          <p class="help-text">用于控制所有生成文档的语气、措辞、标题、段落、表格和截图占位规则。</p>
+        </div>
+
+        <div class="form-group">
+          <label>示例文档</label>
+          <div class="example-grid">
+            <div class="example-card">
+              <label for="example-user-guide">用户操作指南示例</label>
+              <textarea id="example-user-guide" class="textarea example-textarea" placeholder="粘贴一份用户操作指南示例 Markdown"></textarea>
+            </div>
+            <div class="example-card">
+              <label for="example-tutorial">教程文档示例</label>
+              <textarea id="example-tutorial" class="textarea example-textarea" placeholder="粘贴一份教程文档示例 Markdown"></textarea>
+            </div>
+            <div class="example-card">
+              <label for="example-testing">测试用例示例</label>
+              <textarea id="example-testing" class="textarea example-textarea" placeholder="粘贴一份测试用例示例 Markdown"></textarea>
+            </div>
+            <div class="example-card">
+              <label for="example-bug-report">问题报告示例</label>
+              <textarea id="example-bug-report" class="textarea example-textarea" placeholder="粘贴一份问题报告示例 Markdown"></textarea>
+            </div>
+          </div>
+          <p class="help-text">生成时会优先使用当前文档类型对应的示例；示例只用于学习结构、语气和颗粒度，不会照抄事实内容。</p>
+        </div>
+
         <div class="button-group">
           <button id="btn-test" class="btn btn-secondary">
-            <span class="icon">🔍</span>
+            <span class="icon icon-test" aria-hidden="true"></span>
             测试连接
           </button>
           <button id="btn-save" class="btn btn-primary">
-            <span class="icon">💾</span>
+            <span class="icon icon-save" aria-hidden="true"></span>
             保存配置
           </button>
         </div>
@@ -125,7 +177,7 @@
           <label for="document-upload">上传文档</label>
           <div class="upload-area" id="upload-area">
             <div class="upload-content">
-              <span class="upload-icon">📄</span>
+              <span class="upload-icon" aria-hidden="true"></span>
               <p>拖拽文件到这里或点击选择文件</p>
               <p class="upload-help">支持格式: PDF, DOCX, TXT</p>
               <input type="file" id="document-file" accept=".pdf,.docx,.txt" style="display: none;">
@@ -145,7 +197,7 @@
           <h3>已上传的文档</h3>
           <div class="documents-actions">
             <input type="text" id="search-documents" placeholder="搜索文档..." class="input input-small">
-            <button id="refresh-documents" class="btn btn-small btn-secondary">🔄 刷新</button>
+            <button id="refresh-documents" class="btn btn-small btn-secondary"><span class="icon icon-refresh" aria-hidden="true"></span>刷新</button>
           </div>
           <div id="documents-list" class="documents-list">
             <!-- 文档列表将动态加载 -->

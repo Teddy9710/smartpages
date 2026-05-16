@@ -9,25 +9,29 @@
 <body>
   <div class="container">
     <header class="header">
-      <h1>📝 智能文档助手</h1>
+      <div class="brand-mark" aria-hidden="true"></div>
+      <div class="header-title">
+        <h1>智能文档助手</h1>
+        <p>录制流程转化为可交付文档</p>
+      </div>
       <div class="header-actions">
-        <button id="btn-documents" class="btn-icon" title="文档管理">📚</button>
-        <button id="btn-new" class="btn-icon" title="新建">📄</button>
+        <button id="btn-documents" class="btn-icon icon-docs" title="文档管理" aria-label="文档管理"></button>
+        <button id="btn-new" class="btn-icon icon-new" title="新建" aria-label="新建"></button>
       </div>
     </header>
 
     <!-- 文档管理面板 -->
     <div id="documents-state" class="state-view hidden">
       <div class="panel-header">
-        <h2>📚 文档管理</h2>
-        <button id="btn-close-documents" class="btn-icon" title="关闭">×</button>
+        <h2>文档管理</h2>
+        <button id="btn-close-documents" class="btn-icon icon-close" title="关闭" aria-label="关闭"></button>
       </div>
       <div class="documents-content">
         <div class="upload-section">
           <h3>上传文档</h3>
           <div class="upload-area" id="sidepanel-upload-area">
             <div class="upload-content">
-              <span class="upload-icon">📄</span>
+              <span class="upload-icon" aria-hidden="true"></span>
               <p>拖拽文件到这里或点击选择文件</p>
               <p class="upload-help">支持格式: PDF, DOCX, TXT</p>
               <input type="file" id="sidepanel-document-file" accept=".pdf,.docx,.txt" style="display: none;">
@@ -47,7 +51,7 @@
           <h3>已上传的文档</h3>
           <div class="documents-actions">
             <input type="text" id="sidepanel-search-documents" placeholder="搜索文档..." class="input input-small">
-            <button id="sidepanel-refresh-documents" class="btn btn-small btn-secondary">🔄 刷新</button>
+            <button id="sidepanel-refresh-documents" class="btn btn-small btn-secondary"><span class="icon icon-retry" aria-hidden="true"></span>刷新</button>
           </div>
           <div id="sidepanel-documents-list" class="documents-list">
             <div class="loading-placeholder">正在加载文档列表...</div>
@@ -79,7 +83,7 @@
           <textarea id="custom-description" class="textarea" placeholder="请输入您想要的文档描述..."></textarea>
         </div>
         <button id="btn-generate" class="btn btn-primary">
-          <span class="icon">✨</span>
+          <span class="icon icon-ai" aria-hidden="true">AI</span>
           生成文档
         </button>
       </div>
@@ -89,31 +93,31 @@
     <div id="document-editor-state" class="state-view hidden">
       <div class="editor-toolbar">
         <button id="btn-preview" class="btn-tool active" title="预览模式">
-          <span class="icon">👁</span> 预览
+          <span class="icon icon-preview" aria-hidden="true"></span> 预览
         </button>
         <button id="btn-edit" class="btn-tool" title="编辑模式">
-          <span class="icon">✏</span> 编辑
+          <span class="icon icon-edit" aria-hidden="true"></span> 编辑
         </button>
         <div class="toolbar-spacer"></div>
         <button id="btn-ai-optimize" class="btn-tool btn-tool-primary" title="AI优化文档">
-          <span class="icon">AI</span> 优化
+          <span class="icon icon-ai" aria-hidden="true">AI</span> 优化
         </button>
         <button id="btn-revert-optimization" class="btn-tool hidden" title="回退到优化前版本">
-          <span class="icon">↶</span> 回退
+          <span class="icon icon-revert" aria-hidden="true"></span> 回退
         </button>
         <button id="btn-copy" class="btn-tool" title="复制Markdown">
-          <span class="icon">📋</span> 复制
+          <span class="icon icon-copy" aria-hidden="true"></span> 复制
         </button>
         <button id="btn-download" class="btn-tool" title="下载文件">
-          <span class="icon">💾</span> 下载
+          <span class="icon icon-download" aria-hidden="true"></span> 下载
         </button>
         <button id="btn-export-html" class="btn-tool" title="导出HTML文件">
-          <span class="icon">HTML</span> HTML
+          <span class="icon icon-html" aria-hidden="true">HTML</span> HTML
         </button>
       </div>
       <div class="editor-content">
         <div id="preview-pane" class="pane active">
-          <div id="markdown-preview" class="markdown-preview"></div>
+          <div id="markdown-preview" class="markdown-preview" contenteditable="true" spellcheck="true" aria-label="直接编辑文档预览"></div>
         </div>
         <div id="edit-pane" class="pane">
           <textarea id="markdown-editor" class="markdown-editor" placeholder="在此编辑Markdown内容..."></textarea>
@@ -127,7 +131,7 @@
       <div class="modal-panel">
         <div class="modal-header">
           <h2 id="optimize-title">AI 优化文档</h2>
-          <button id="btn-close-optimize" class="btn-icon" title="关闭">×</button>
+          <button id="btn-close-optimize" class="btn-icon icon-close" title="关闭" aria-label="关闭"></button>
         </div>
         <div class="modal-body">
           <label for="optimize-instruction">优化要求</label>
@@ -147,12 +151,12 @@
 
     <div id="empty-state" class="state-view active">
       <div class="empty-content">
-        <div class="empty-icon">📝</div>
+        <div class="empty-icon" aria-hidden="true"></div>
         <h2>欢迎使用智能文档助手</h2>
         <p>点击浏览器工具栏中的插件图标</p>
         <p>开始录制您的操作流程</p>
         <button id="btn-start-here" class="btn btn-primary">
-          <span class="icon">⏺</span>
+          <span class="icon icon-record" aria-hidden="true"></span>
           开始录制
         </button>
       </div>
@@ -161,11 +165,11 @@
     <!-- 错误状态 -->
     <div id="error-state" class="state-view hidden">
       <div class="error-content">
-        <div class="error-icon">⚠️</div>
+        <div class="error-icon" aria-hidden="true"></div>
         <h2>生成失败</h2>
         <p id="error-message">请检查您的API配置和网络连接</p>
         <button id="btn-retry" class="btn btn-primary">
-          <span class="icon">🔄</span>
+          <span class="icon icon-retry" aria-hidden="true"></span>
           重试
         </button>
       </div>

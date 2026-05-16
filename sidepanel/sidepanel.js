@@ -77,6 +77,7 @@ class SidePanelManager {
     this._bindButton('btn-run-optimize', () => this.optimizeCurrentDocument());
     this._bindButton('btn-documents', () => this.showDocumentsPanel());
     this._bindButton('btn-close-documents', () => this.hideDocumentsPanel());
+    this._bindEditorEvents();
     this._bindDocumentUploadEvents('sidepanel');
   }
 
@@ -88,6 +89,27 @@ class SidePanelManager {
       this.cleanupFunctions.push(() => button.removeEventListener('click', wrappedHandler));
     } else {
       console.warn(`[Scribe:SidePanel] Button '${buttonId}' not found`);
+    }
+  }
+
+  _bindEditorEvents() {
+    const editor = document.getElementById('markdown-editor');
+    const preview = document.getElementById('markdown-preview');
+
+    if (editor) {
+      const handleEditorInput = debounce(() => {
+        if (document.getElementById('preview-pane')?.classList.contains('active')) {
+          this._updatePreview(editor.value);
+        }
+      }, 120);
+      editor.addEventListener('input', handleEditorInput);
+      this.cleanupFunctions.push(() => editor.removeEventListener('input', handleEditorInput));
+    }
+
+    if (preview) {
+      const handlePreviewInput = debounce(() => this._syncPreviewToEditor(), 120);
+      preview.addEventListener('input', handlePreviewInput);
+      this.cleanupFunctions.push(() => preview.removeEventListener('input', handlePreviewInput));
     }
   }
 
@@ -251,7 +273,9 @@ class SidePanelManager {
       taskDescription: description,
       sessionInfo,
       steps: stepsText,
-      documentTypeInstructions
+      documentTypeInstructions,
+      styleGuide: config.styleGuide || '',
+      documentExample: this._getDocumentExample(docType, config)
     };
     const promptMode = config.promptMode || DEFAULT_PROMPT_MODE;
     const selectedTemplate = promptMode === 'custom'
@@ -267,7 +291,40 @@ class SidePanelManager {
       prompt += `\n\n用户补充要求：\n${config.promptAppend.trim()}`;
     }
 
+    const styleReference = this._buildStyleReferencePrompt(docType, config);
+    if (styleReference) {
+      prompt += styleReference;
+    }
+
     return prompt;
+  }
+
+  _buildStyleReferencePrompt(docType, config = {}) {
+    const sections = [];
+    const styleGuide = this._trimReferenceText(config.styleGuide || '', 6000);
+    const example = this._trimReferenceText(this._getDocumentExample(docType, config), 10000);
+
+    if (styleGuide) {
+      sections.push(`风格指南：\n${styleGuide}`);
+    }
+
+    if (example) {
+      sections.push(`当前文档类型示例：\n${example}`);
+    }
+
+    if (!sections.length) return '';
+
+    return `\n\n写作风格与示例参考：\n${sections.join('\n\n')}\n\n请严格遵循以上风格指南；如果提供了示例文档，请参考示例的标题层级、段落颗粒度、语气、表格/列表使用方式和截图占位方式，但不要照抄示例中的业务事实、账号、数据、链接或截图。最终文档仍必须以本次录制步骤为准。`;
+  }
+
+  _getDocumentExample(docType, config = {}) {
+    return config.documentExamples?.[docType] || '';
+  }
+
+  _trimReferenceText(text, maxLength) {
+    const value = String(text || '').trim();
+    if (value.length <= maxLength) return value;
+    return value.slice(0, maxLength) + '\n\n[以上参考内容过长，已截断]';
   }
 
   _buildSessionInfo() {
@@ -289,7 +346,7 @@ class SidePanelManager {
           `步骤 ${num}｜页面跳转`,
           `- 来源页面：${step.from || '当前页'}`,
           `- 目标页面：${step.to || '新页面'}`,
-          `- 截图占位：${screenshotMarker}`
+          `- 截图：${screenshotMarker}`
         ].join('\n');
       }
 
@@ -299,27 +356,29 @@ class SidePanelManager {
         `- 元素类型：${step.tagName || '未知'}`,
         `- CSS 选择器：${step.selector || '未记录'}`,
         `- 点击坐标：${Number.isFinite(step.x) && Number.isFinite(step.y) ? `${step.x}, ${step.y}` : '未记录'}`,
-        `- 截图占位：${screenshotMarker}`
+        `- 截图：${screenshotMarker}`
       ].join('\n');
     }).join('\n\n');
   }
 
   _getDocumentTypeInstructions(docType) {
     const templates = {
-      'user-guide': `请生成“用户操作指南”，建议结构：
+      'user-guide': `请生成“用户操作指南”，要求简洁实用，建议结构：
 # 标题
 ## 适用场景
-说明这个流程解决什么问题、适合谁使用、完成后能得到什么结果。
+用 1-2 句话说明这个流程适合什么场景。
 ## 操作前准备
-列出浏览器、登录状态、权限、页面入口、必要数据等前置条件。
+只列必要前置条件，例如登录状态、权限、页面入口；没有就省略。
 ## 操作流程
-按录制步骤展开，每步包含：操作目标、具体操作、页面反馈/判断标准、截图占位。
+按步骤编号输出。每步格式为：
+### 步骤N：动作名称
+一句话说明怎么操作；如果有必要，再补一句成功后的页面变化。步骤末尾保留 [截图N]。
+不要拆成“操作目标、具体操作、页面反馈、判断标准”等固定字段。
+登录、输入密码、点击提交这类常规步骤要简短，不要解释密码框、眼睛图标、按钮颜色等常识。
 ## 结果确认
-说明用户如何确认流程已经完成。
+用 1-3 条说明如何确认流程已完成。
 ## 注意事项
-列出容易点错、加载等待、权限不足、数据缺失等风险。
-## 常见问题
-给出 3-5 个可能问题及处理办法。`,
+只列真正重要的注意事项，最多 3 条。`,
 
       tutorial: `请生成“教程文档”，建议结构：
 # 标题
@@ -330,7 +389,7 @@ class SidePanelManager {
 ## 准备工作
 列出账号、权限、浏览器、示例数据等准备事项。
 ## 分步教学
-按录制步骤展开，每步包含：本步目的、操作方法、截图占位、观察结果、下一步提示。
+按录制步骤展开，每步包含：本步操作、必要说明、[截图N]。不要机械拆成过多字段。
 ## 练习建议
 给出 2-3 个读者可自行尝试的变体操作。
 ## 小结
@@ -358,7 +417,7 @@ class SidePanelManager {
 ## 环境信息
 根据上下文列出页面地址、浏览器插件录制来源、时间如未知则写“未记录”。
 ## 复现步骤
-按录制步骤详细展开，每步包含操作、页面反馈和截图占位。
+按录制步骤展开，每步包含操作、必要的页面反馈和 [截图N]。
 ## 预期结果
 说明正常情况下应该发生什么。
 ## 实际结果
@@ -385,7 +444,9 @@ class SidePanelManager {
       .replaceAll('{{taskDescription}}', variables.taskDescription)
       .replaceAll('{{sessionInfo}}', variables.sessionInfo)
       .replaceAll('{{steps}}', variables.steps)
-      .replaceAll('{{documentTypeInstructions}}', variables.documentTypeInstructions);
+      .replaceAll('{{documentTypeInstructions}}', variables.documentTypeInstructions)
+      .replaceAll('{{styleGuide}}', variables.styleGuide)
+      .replaceAll('{{documentExample}}', variables.documentExample);
   }
 
   _templateIncludesContext(template) {
@@ -397,10 +458,14 @@ class SidePanelManager {
     if (!this.session?.steps?.length) return markdown;
     var result = markdown;
     this.session.steps.forEach(function(step, index) {
-      var placeholder = '[' + '截图' + (index + 1) + ']';
+      var stepNumber = index + 1;
+      var placeholder = '[' + '截图' + stepNumber + ']';
       if (step.screenshot) {
-        var imgTag = '![' + '步骤' + (index + 1) + '截图](' + step.screenshot + ')';
+        var imgTag = '![' + '步骤' + stepNumber + '截图](' + step.screenshot + ')';
         result = result.split(placeholder).join(imgTag);
+        result = result.replace(new RegExp('截图占位[：:]?\\s*步骤\\s*' + stepNumber + '\\s*截图', 'g'), imgTag);
+        result = result.replace(new RegExp('步骤\\s*' + stepNumber + '\\s*截图', 'g'), imgTag);
+        result = result.replace(new RegExp('截图\\s*' + stepNumber + '(?![\\]\\)])', 'g'), imgTag);
       }
     });
     return result;
@@ -421,13 +486,163 @@ class SidePanelManager {
     }
   }
 
+  _syncPreviewToEditor() {
+    const preview = document.getElementById('markdown-preview');
+    const editor = document.getElementById('markdown-editor');
+    if (!preview || !editor) return;
+
+    const markdown = this._htmlToMarkdown(preview);
+    if (editor.value !== markdown) {
+      editor.value = markdown;
+    }
+  }
+
+  _ensureEditorContentFresh() {
+    if (document.getElementById('preview-pane')?.classList.contains('active')) {
+      this._syncPreviewToEditor();
+    }
+  }
+
+  _htmlToMarkdown(root) {
+    const blocks = Array.from(root.childNodes)
+      .map(node => this._nodeToMarkdown(node, false))
+      .map(text => text.trim())
+      .filter(Boolean);
+
+    return this._normalizeMarkdownOutput(blocks.join('\n\n'));
+  }
+
+  _nodeToMarkdown(node, inline = false) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return this._normalizeTextNode(node.textContent || '');
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+
+    const tag = node.tagName.toLowerCase();
+    if (tag === 'br') return '\n';
+    if (tag === 'script' || tag === 'style') return '';
+
+    if (tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'h4' || tag === 'h5' || tag === 'h6') {
+      const level = Number(tag.slice(1));
+      return `${'#'.repeat(level)} ${this._childrenToMarkdown(node, true).trim()}`;
+    }
+
+    if (tag === 'p' || tag === 'div' || tag === 'section' || tag === 'article') {
+      return this._childrenToMarkdown(node, inline).trim();
+    }
+
+    if (tag === 'strong' || tag === 'b') {
+      const text = this._childrenToMarkdown(node, true).trim();
+      return text ? `**${text}**` : '';
+    }
+
+    if (tag === 'em' || tag === 'i') {
+      const text = this._childrenToMarkdown(node, true).trim();
+      return text ? `*${text}*` : '';
+    }
+
+    if (tag === 'code') {
+      if (node.parentElement?.tagName?.toLowerCase() === 'pre') return node.textContent || '';
+      return `\`${(node.textContent || '').replace(/`/g, '\\`')}\``;
+    }
+
+    if (tag === 'pre') {
+      const code = node.textContent || '';
+      return `\`\`\`\n${code.replace(/\n+$/g, '')}\n\`\`\``;
+    }
+
+    if (tag === 'a') {
+      const text = this._childrenToMarkdown(node, true).trim() || node.getAttribute('href') || '';
+      const href = node.getAttribute('href') || '';
+      return href ? `[${text}](${href})` : text;
+    }
+
+    if (tag === 'img') {
+      const alt = node.getAttribute('alt') || '';
+      const src = node.getAttribute('src') || '';
+      return src ? `![${alt}](${src})` : '';
+    }
+
+    if (tag === 'ul' || tag === 'ol') {
+      return this._listToMarkdown(node, tag === 'ol');
+    }
+
+    if (tag === 'li') {
+      return this._childrenToMarkdown(node, false).trim();
+    }
+
+    if (tag === 'blockquote') {
+      const text = this._childrenToMarkdown(node, false).trim();
+      return text.split('\n').map(line => `> ${line}`).join('\n');
+    }
+
+    if (tag === 'table') {
+      return this._tableToMarkdown(node);
+    }
+
+    return this._childrenToMarkdown(node, inline).trim();
+  }
+
+  _childrenToMarkdown(element, inline = false) {
+    return Array.from(element.childNodes)
+      .map(node => this._nodeToMarkdown(node, inline))
+      .join(inline ? '' : '\n')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n');
+  }
+
+  _listToMarkdown(list, ordered) {
+    const items = Array.from(list.children).filter(child => child.tagName?.toLowerCase() === 'li');
+    return items.map((item, index) => {
+      const prefix = ordered ? `${index + 1}. ` : '- ';
+      const text = this._childrenToMarkdown(item, false).trim().replace(/\n/g, '\n  ');
+      return `${prefix}${text}`;
+    }).join('\n');
+  }
+
+  _tableToMarkdown(table) {
+    const rows = Array.from(table.querySelectorAll('tr')).map(row =>
+      Array.from(row.children).map(cell =>
+        this._childrenToMarkdown(cell, true).trim().replace(/\|/g, '\\|')
+      )
+    ).filter(row => row.length);
+
+    if (!rows.length) return '';
+
+    const columnCount = Math.max(...rows.map(row => row.length));
+    const normalizeRow = row => {
+      const cells = Array.from({ length: columnCount }, (_, index) => row[index] || '');
+      return `| ${cells.join(' | ')} |`;
+    };
+
+    const output = [normalizeRow(rows[0])];
+    output.push(`| ${Array.from({ length: columnCount }, () => '---').join(' | ')} |`);
+    rows.slice(1).forEach(row => output.push(normalizeRow(row)));
+    return output.join('\n');
+  }
+
+  _normalizeTextNode(text) {
+    return String(text || '').replace(/\u00a0/g, ' ');
+  }
+
+  _normalizeMarkdownOutput(markdown) {
+    return String(markdown || '')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
   switchToPreview() {
     this._togglePane('preview-pane', 'btn-preview');
     const content = document.getElementById('markdown-editor')?.value;
     if (content) this._updatePreview(content);
   }
 
-  switchToEdit() { this._togglePane('edit-pane', 'btn-edit'); }
+  switchToEdit() {
+    this._ensureEditorContentFresh();
+    this._togglePane('edit-pane', 'btn-edit');
+  }
 
   _togglePane(paneId, buttonId) {
     ['preview-pane', 'edit-pane', 'btn-preview', 'btn-edit'].forEach(id => document.getElementById(id)?.classList.remove('active'));
@@ -436,6 +651,7 @@ class SidePanelManager {
   }
 
   async copyDocument() {
+    this._ensureEditorContentFresh();
     const content = document.getElementById('markdown-editor')?.value;
     if (!content) return;
     try {
@@ -568,6 +784,7 @@ ${markdown}`;
   }
 
   _getEditorContent() {
+    this._ensureEditorContentFresh();
     return document.getElementById('markdown-editor')?.value.trim() || '';
   }
 
@@ -603,6 +820,7 @@ ${markdown}`;
   }
 
   downloadDocument() {
+    this._ensureEditorContentFresh();
     const content = document.getElementById('markdown-editor')?.value;
     if (!content) return;
     const blob = new Blob([content], { type: 'text/markdown' });
@@ -614,6 +832,7 @@ ${markdown}`;
   }
 
   exportHtmlDocument() {
+    this._ensureEditorContentFresh();
     const markdown = document.getElementById('markdown-editor')?.value;
     if (!markdown) return;
 
