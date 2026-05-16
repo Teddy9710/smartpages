@@ -27,6 +27,8 @@ const RecordingState = {
   STOPPED: 'stopped'
 };
 
+const RECORDING_STORAGE_KEY = 'scribeRecordingState';
+
 /**
  * Manages the recording session lifecycle
  * @class
@@ -41,6 +43,26 @@ class RecordingManager {
 
     /** @type {number|null} */
     this.tabId = null;
+
+    /** @type {boolean} */
+    this._hydrated = false;
+  }
+
+  async ensureHydrated() {
+    if (this._hydrated) return;
+    try {
+      const result = await storagePromise('local', 'get', [RECORDING_STORAGE_KEY]);
+      const saved = result?.[RECORDING_STORAGE_KEY];
+      if (saved) {
+        this.state = saved.state || RecordingState.IDLE;
+        this.currentSession = saved.currentSession || null;
+        this.tabId = saved.tabId || null;
+      }
+    } catch (error) {
+      console.warn('[Scribe:Background] Failed to restore recording state:', error);
+    } finally {
+      this._hydrated = true;
+    }
   }
 
   /**
@@ -51,6 +73,7 @@ class RecordingManager {
    * @throws {ExtensionError} If recording is already in progress or tab is invalid
    */
   async startRecording(tabId) {
+    await this.ensureHydrated();
     if (this.state === RecordingState.RECORDING) {
       throw new ExtensionError('录制已在进行中', 'RECORDING_IN_PROGRESS');
     }
@@ -65,6 +88,7 @@ class RecordingManager {
 
     // Start content script listening
     await this._startContentScriptListening(tabId);
+    await this._persistState();
 
     this._notifyStateChanged();
     return { success: true };
@@ -77,6 +101,7 @@ class RecordingManager {
    * @throws {ExtensionError} If no recording is in progress
    */
   async stopRecording() {
+    await this.ensureHydrated();
     if (this.state !== RecordingState.RECORDING) {
       throw new ExtensionError('没有正在进行的录制', 'NO_RECORDING');
     }
@@ -86,6 +111,7 @@ class RecordingManager {
 
     // Stop content script listening
     await this._stopContentScriptListening();
+    await this._persistState();
 
     this._notifyStateChanged();
 
@@ -103,9 +129,11 @@ class RecordingManager {
    * @returns {{success: boolean}}
    */
   async resetRecording() {
+    await this.ensureHydrated();
     this.state = RecordingState.IDLE;
     this.currentSession = null;
     this.tabId = null;
+    await this._persistState();
     this._notifyStateChanged();
     return { success: true };
   }
@@ -129,6 +157,7 @@ class RecordingManager {
    * @returns {Promise<void>}
    */
   async addStep(step) {
+    await this.ensureHydrated();
     if (this.state !== RecordingState.RECORDING || !this.currentSession) {
       console.warn('[Scribe:Background] Cannot add step: invalid state or no session');
       return;
@@ -149,6 +178,7 @@ class RecordingManager {
         console.error('[Scribe:Background] Screenshot capture failed:', error);
       });
 
+      await this._persistState();
       this._notifyStateChanged();
     } catch (error) {
       console.error('[Scribe:Background] Failed to add step:', error);
@@ -200,6 +230,17 @@ class RecordingManager {
     };
   }
 
+  async _persistState() {
+    await storagePromise('local', 'set', {
+      [RECORDING_STORAGE_KEY]: {
+        state: this.state,
+        currentSession: this.currentSession,
+        tabId: this.tabId,
+        updatedAt: Date.now()
+      }
+    });
+  }
+
   /**
    * Sends message to content script to start listening
    * @private
@@ -209,6 +250,7 @@ class RecordingManager {
    */
   async _startContentScriptListening(tabId) {
     try {
+      await this._injectContentScript(tabId);
       await chrome.tabs.sendMessage(tabId, { type: 'START_LISTENING' });
     } catch (error) {
       if (this._isContentScriptConnectionError(error)) {
@@ -220,7 +262,7 @@ class RecordingManager {
           this.state = RecordingState.IDLE;
           this.currentSession = null;
           throw new ExtensionError(
-            '无法注入录制脚本。请确认当前页面不是浏览器系统页，并刷新后重试。' + (injectError?.message ? ` (${injectError.message})` : ''),
+            '无法注入录制脚本。请确认当前页面不是浏览器系统页；如果刚重新加载过扩展，请刷新目标页面后重试。' + (injectError?.message ? ` (${injectError.message})` : ''),
             'CONTENT_SCRIPT_ERROR'
           );
         }
@@ -244,10 +286,18 @@ class RecordingManager {
       throw new ExtensionError('chrome.scripting API 不可用', 'SCRIPTING_UNAVAILABLE');
     }
 
-    await chrome.scripting.executeScript({
-      target: { tabId, allFrames: false },
-      files: ['content/recorder.js']
-    });
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId, allFrames: false },
+        files: ['content/recorder.js']
+      });
+    } catch (error) {
+      const message = error?.message || '';
+      if (message.includes('Cannot access') || message.includes('Extension manifest')) {
+        throw new ExtensionError('当前页面无法注入录制脚本，请换到普通网页或刷新页面后重试。', 'CONTENT_SCRIPT_ERROR');
+      }
+      throw error;
+    }
   }
 
   /**
@@ -291,6 +341,7 @@ class RecordingManager {
         // Only assign if step still exists (prevents race conditions)
         if (this.currentSession?.steps?.[stepIndex]) {
           this.currentSession.steps[stepIndex].screenshot = screenshot;
+          await this._persistState();
         }
       }
     } catch (error) {

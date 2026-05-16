@@ -21,15 +21,27 @@ const ApiProviders = {
     modelName: 'gpt-4o-mini',
     keyUrl: 'https://platform.openai.com/api-keys'
   },
+  glm: {
+    label: 'GLM / Z.AI',
+    baseUrl: 'https://api.z.ai/api/paas/v4',
+    modelName: 'glm-4.5',
+    keyUrl: 'https://z.ai/manage-apikey/apikey-list'
+  },
   deepseek: {
     label: 'DeepSeek',
     baseUrl: 'https://api.deepseek.com/v1',
     modelName: 'deepseek-chat',
     keyUrl: 'https://platform.deepseek.com/api_keys'
   },
+  minimax: {
+    label: 'MiniMax',
+    baseUrl: 'https://api.minimax.io/v1',
+    modelName: 'MiniMax-M1',
+    keyUrl: 'https://platform.minimaxi.com/user-center/basic-information/interface-key'
+  },
   kimi: {
     label: 'Kimi / Moonshot',
-    baseUrl: 'https://api.moonshot.cn/v1',
+    baseUrl: 'https://api.moonshot.ai/v1',
     modelName: 'moonshot-v1-8k',
     keyUrl: 'https://platform.moonshot.ai/console/api-keys'
   },
@@ -72,6 +84,7 @@ class SettingsManager {
       smartDescription: true,
       maxTokens: DEFAULT_MAX_TOKENS,
       promptMode: DEFAULT_PROMPT_MODE,
+      outputFormat: DEFAULT_OUTPUT_FORMAT,
       promptAppend: '',
       customPrompt: DEFAULT_PROMPT_TEMPLATE,
       styleGuide: '',
@@ -82,7 +95,8 @@ class SettingsManager {
       api: this.api,
       source: '',
       onNotify: (msg, type) => alert(msg),
-      getApi: () => this.api
+      getApi: () => this.api,
+      actions: this._getReferenceDocumentActions()
     });
     this.cleanupFunctions = [];
     this.init();
@@ -175,6 +189,7 @@ class SettingsManager {
     const modelNameInput = document.getElementById('model-name');
     const smartDescCheckbox = document.getElementById('smart-description');
     const maxTokensInput = document.getElementById('max-tokens');
+    const outputFormatSelect = document.getElementById('output-format');
     const promptModeSelect = document.getElementById('prompt-mode');
     const defaultPromptPreview = document.getElementById('default-prompt-preview');
     const promptAppendInput = document.getElementById('prompt-append');
@@ -190,6 +205,7 @@ class SettingsManager {
     if (modelNameInput) modelNameInput.value = this.config.modelName;
     if (smartDescCheckbox) smartDescCheckbox.checked = this.config.smartDescription;
     if (maxTokensInput) maxTokensInput.value = this.config.maxTokens || DEFAULT_MAX_TOKENS;
+    if (outputFormatSelect) outputFormatSelect.value = this.config.outputFormat || DEFAULT_OUTPUT_FORMAT;
     if (promptModeSelect) promptModeSelect.value = this.config.promptMode || DEFAULT_PROMPT_MODE;
     if (defaultPromptPreview) defaultPromptPreview.value = DEFAULT_PROMPT_TEMPLATE;
     if (promptAppendInput) promptAppendInput.value = this.config.promptAppend || '';
@@ -221,6 +237,33 @@ class SettingsManager {
         .map(([type, element]) => [type, element?.value.trim() || ''])
         .filter(([, value]) => value)
     );
+  }
+
+  _getReferenceDocumentActions() {
+    return [
+      { label: '设为风格指南', className: 'apply', onClick: (doc) => this._applyReferenceDocument(doc, 'style-guide') },
+      { label: '用户指南示例', className: 'apply', onClick: (doc) => this._applyReferenceDocument(doc, 'example-user-guide') },
+      { label: '教程示例', className: 'apply', onClick: (doc) => this._applyReferenceDocument(doc, 'example-tutorial') },
+      { label: '测试示例', className: 'apply', onClick: (doc) => this._applyReferenceDocument(doc, 'example-testing') },
+      { label: '问题示例', className: 'apply', onClick: (doc) => this._applyReferenceDocument(doc, 'example-bug-report') }
+    ];
+  }
+
+  async _applyReferenceDocument(doc, targetId) {
+    try {
+      const result = await this.api.getDocumentContent(doc.id);
+      if (!result.success) {
+        this._showTestResult('读取参考文档失败：' + result.message, 'error');
+        return;
+      }
+      const target = document.getElementById(targetId);
+      if (!target) return;
+      target.value = result.document.content || '';
+      target.focus();
+      this._showTestResult('已填入参考文档，请点击保存配置生效', 'success');
+    } catch (error) {
+      this._showTestResult('读取参考文档失败：' + error.message, 'error');
+    }
   }
 
   _applyApiProvider(providerId) {
@@ -302,6 +345,7 @@ class SettingsManager {
     const modelNameInput = document.getElementById('model-name');
     const smartDescCheckbox = document.getElementById('smart-description');
     const maxTokensInput = document.getElementById('max-tokens');
+    const outputFormatSelect = document.getElementById('output-format');
     const promptModeSelect = document.getElementById('prompt-mode');
     const promptAppendInput = document.getElementById('prompt-append');
     const customPromptInput = document.getElementById('custom-prompt');
@@ -332,6 +376,7 @@ class SettingsManager {
       modelName: modelNameInput?.value.trim() || 'gpt-3.5-turbo',
       smartDescription: smartDescCheckbox?.checked ?? true,
       maxTokens,
+      outputFormat: outputFormatSelect?.value || DEFAULT_OUTPUT_FORMAT,
       promptMode,
       promptAppend: promptAppendInput?.value.trim() || '',
       customPrompt,
@@ -345,6 +390,7 @@ class SettingsManager {
         modelName: this.config.modelName,
         smartDescription: this.config.smartDescription,
         maxTokens: this.config.maxTokens,
+        outputFormat: this.config.outputFormat,
         promptMode: this.config.promptMode,
         promptAppend: this.config.promptAppend,
         customPrompt: this.config.customPrompt,

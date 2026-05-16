@@ -45,6 +45,9 @@
   /** @constant {number} MAX_TEXT_LENGTH - Maximum text content length */
   const MAX_TEXT_LENGTH = 50;
 
+  /** @constant {number} PAGE_SNAPSHOT_LIMIT - Maximum items per snapshot group */
+  const PAGE_SNAPSHOT_LIMIT = 12;
+
   // ==========================================================================
   // STATE
   // ==========================================================================
@@ -60,6 +63,9 @@
 
   /** @type {number} Timestamp of last recorded action */
   let lastRecordedAction = 0;
+
+  /** @type {Map<Element, number>} Last input record time by element */
+  const lastInputRecordTimes = new Map();
 
   /** @type {string} Last URL for navigation tracking */
   let lastUrl = location.href;
@@ -111,8 +117,16 @@
    * @param {Object} message - Message to send
    */
   function sendMessage(message) {
+    if (!chrome?.runtime?.id) {
+      console.warn('[Scribe:Content] Extension context invalidated; refresh the page to continue recording.');
+      stopListening();
+      return;
+    }
     chrome.runtime.sendMessage(message).catch(error => {
       console.error('[Scribe:Content] Failed to send message:', error);
+      if (String(error?.message || '').includes('Extension context invalidated')) {
+        stopListening();
+      }
     });
   }
 
@@ -225,27 +239,236 @@
   // ==========================================================================
 
   /**
-   * Extracts text content from an element
+   * Finds the closest meaningful interactive element for a click target.
+   * @param {Element} element - Raw clicked element
+   * @returns {Element|null} Interactive element
+   */
+  function findInteractiveElement(element) {
+    if (!element) return null;
+    const selector = [
+      'button',
+      'a[href]',
+      'input',
+      'textarea',
+      'select',
+      'summary',
+      '[role="button"]',
+      '[role="tab"]',
+      '[role="link"]',
+      '[role="menuitem"]',
+      '[role="option"]',
+      '[role="checkbox"]',
+      '[role="radio"]',
+      '[role="switch"]',
+      '[role="combobox"]',
+      '[role="textbox"]',
+      '[role="treeitem"]',
+      '[role="gridcell"]',
+      '[tabindex]:not([tabindex="-1"])',
+      '[onclick]',
+      '[data-testid]',
+      '[data-test]',
+      '[data-cy]'
+    ].join(',');
+    return element.closest?.(selector) || element;
+  }
+
+  function normalizeElementText(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim().substring(0, MAX_TEXT_LENGTH);
+  }
+
+  function getAriaLabelledByText(element) {
+    const ids = (element?.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean);
+    return normalizeElementText(ids.map(id => document.getElementById(id)?.textContent || '').join(' '));
+  }
+
+  function getAssociatedLabelText(element) {
+    if (!element) return '';
+    if (element.labels?.length) {
+      return normalizeElementText(Array.from(element.labels).map(label => label.textContent || '').join(' '));
+    }
+    if (element.id && window.CSS?.escape) {
+      const label = document.querySelector(`label[for="${CSS.escape(element.id)}"]`);
+      if (label) return normalizeElementText(label.textContent || '');
+    }
+    return normalizeElementText(element.closest?.('label')?.textContent || '');
+  }
+
+  /**
+   * Extracts a stable human-readable name from an element.
    * @param {Element} element - Target element
    * @returns {string} Extracted text
    */
   function getElementText(element) {
     if (!element) return '';
 
-    // Handle input/textarea elements
-    if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
-      return element.value || element.placeholder || '';
+    const tag = element.tagName || '';
+    const candidates = [
+      element.getAttribute('aria-label'),
+      getAriaLabelledByText(element),
+      getAssociatedLabelText(element),
+      element.getAttribute('title'),
+      element.getAttribute('alt'),
+      element.getAttribute('placeholder'),
+      element.getAttribute('value'),
+      element.getAttribute('data-label'),
+      element.getAttribute('data-title'),
+      element.getAttribute('data-name'),
+      element.getAttribute('data-testid'),
+      element.getAttribute('data-test'),
+      element.getAttribute('data-cy'),
+      tag === 'INPUT' || tag === 'TEXTAREA' ? element.value : '',
+      element.innerText,
+      element.textContent
+    ];
+
+    for (const candidate of candidates) {
+      const text = normalizeElementText(candidate);
+      if (text) return text;
     }
 
-    // Try aria-label or title first (more descriptive for icons)
-    const ariaLabel = element.getAttribute('aria-label');
-    if (ariaLabel && ariaLabel.trim()) return ariaLabel.trim().substring(0, MAX_TEXT_LENGTH);
-    const titleAttr = element.getAttribute('title');
-    if (titleAttr && titleAttr.trim()) return titleAttr.trim().substring(0, MAX_TEXT_LENGTH);
+    return '';
+  }
 
-    // Get text content, limited to prevent large strings
-    const text = element.textContent?.trim() || '';
-    return text.substring(0, MAX_TEXT_LENGTH);
+  function getElementRole(element) {
+    if (!element) return 'unknown';
+    const explicitRole = element.getAttribute('role');
+    if (explicitRole) return explicitRole;
+
+    const tag = element.tagName ? element.tagName.toLowerCase() : '';
+    const type = (element.getAttribute('type') || '').toLowerCase();
+    if (tag === 'a') return 'link';
+    if (tag === 'button') return 'button';
+    if (tag === 'select') return 'combobox';
+    if (tag === 'textarea') return 'textbox';
+    if (tag === 'summary') return 'button';
+    if (tag === 'input') {
+      if (type === 'checkbox') return 'checkbox';
+      if (type === 'radio') return 'radio';
+      if (type === 'button' || type === 'submit' || type === 'reset') return 'button';
+      return 'textbox';
+    }
+    return tag || 'unknown';
+  }
+
+  function getElementState(element) {
+    if (!element) return {};
+    const state = {};
+    ['aria-selected', 'aria-expanded', 'aria-checked', 'aria-pressed', 'aria-current'].forEach(attr => {
+      const value = element.getAttribute(attr);
+      if (value !== null) state[attr.replace('aria-', '')] = value;
+    });
+    if ('checked' in element) state.checked = Boolean(element.checked);
+    if ('disabled' in element) state.disabled = Boolean(element.disabled);
+    return state;
+  }
+
+  function getElementInfo(rawTarget) {
+    const element = findInteractiveElement(rawTarget);
+    return {
+      element,
+      name: getElementText(element),
+      role: getElementRole(element),
+      tagName: element?.tagName?.toLowerCase() || 'unknown',
+      inputType: (element?.getAttribute?.('type') || '').toLowerCase(),
+      selector: generateSelector(element),
+      state: getElementState(element)
+    };
+  }
+
+  function isVisibleElement(element) {
+    if (!element || !(element instanceof Element)) return false;
+    const style = window.getComputedStyle(element);
+    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return false;
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0 &&
+      rect.bottom >= 0 && rect.right >= 0 &&
+      rect.top <= window.innerHeight && rect.left <= window.innerWidth;
+  }
+
+  function collectVisibleTexts(selector, mapper, limit = PAGE_SNAPSHOT_LIMIT) {
+    const items = [];
+    const seen = new Set();
+    document.querySelectorAll(selector).forEach(element => {
+      if (items.length >= limit || !isVisibleElement(element)) return;
+      const value = mapper(element);
+      const text = typeof value === 'string' ? normalizeElementText(value) : value;
+      const key = JSON.stringify(text);
+      if (!text || seen.has(key)) return;
+      seen.add(key);
+      items.push(text);
+    });
+    return items;
+  }
+
+  function summarizeTables(limit = 4) {
+    const tables = [];
+    document.querySelectorAll('table').forEach(table => {
+      if (tables.length >= limit || !isVisibleElement(table)) return;
+      const caption = normalizeElementText(table.querySelector('caption')?.textContent || '');
+      const headers = [];
+      const seen = new Set();
+      table.querySelectorAll('th').forEach(th => {
+        if (headers.length >= 12 || !isVisibleElement(th)) return;
+        const text = normalizeElementText(th.textContent || '');
+        if (text && !seen.has(text)) {
+          seen.add(text);
+          headers.push(text);
+        }
+      });
+      const rowCount = table.querySelectorAll('tbody tr, tr').length;
+      tables.push({ caption, headers, rowCount });
+    });
+    return tables;
+  }
+
+  function getActiveTabs() {
+    return collectVisibleTexts('[role="tab"][aria-selected="true"], .active[role="tab"], .selected[role="tab"], [aria-current="page"]', getElementText, 8);
+  }
+
+  function getDialogSummaries() {
+    return collectVisibleTexts('[role="dialog"], dialog, .modal, .ant-modal, .el-dialog', element => {
+      const title = normalizeElementText(
+        element.querySelector('[role="heading"], h1, h2, h3, .modal-title, .ant-modal-title, .el-dialog__title')?.textContent || ''
+      );
+      const text = normalizeElementText(element.innerText || element.textContent || '');
+      return title || text;
+    }, 4);
+  }
+
+  function capturePageSnapshot() {
+    const headings = collectVisibleTexts('h1, h2, h3, [role="heading"]', element => element.textContent, 10);
+    const buttons = collectVisibleTexts('button, [role="button"], input[type="button"], input[type="submit"]', getElementText);
+    const links = collectVisibleTexts('a[href], [role="link"]', getElementText, 10);
+    const tabs = collectVisibleTexts('[role="tab"]', getElementText, 10);
+    const inputs = collectVisibleTexts('input, textarea, [role="textbox"], [contenteditable="true"]', element => {
+      const name = getElementText(element);
+      const placeholder = element.getAttribute('placeholder') || '';
+      return name || placeholder;
+    }, 10);
+    const selects = collectVisibleTexts('select, [role="combobox"], [role="listbox"]', getElementText, 8);
+    const landmarks = collectVisibleTexts('main, nav, aside, header, footer, [role="main"], [role="navigation"], [role="complementary"]', element => {
+      const role = element.getAttribute('role') || element.tagName.toLowerCase();
+      const label = getElementText(element);
+      return label ? role + ': ' + label : role;
+    }, 8);
+    const visibleText = normalizeElementText(document.body?.innerText || '');
+
+    return {
+      title: document.title || '',
+      url: location.href,
+      headings,
+      landmarks,
+      activeTabs: getActiveTabs(),
+      tabs,
+      buttons,
+      links,
+      inputs,
+      selects,
+      dialogs: getDialogSummaries(),
+      tables: summarizeTables(),
+      visibleTextSummary: visibleText.substring(0, 500)
+    };
   }
 
   /**
@@ -266,30 +489,76 @@
    * @param {string} text
    * @returns {string}
    */
-  function buildActionDescription(element, text) {
-    var tag = element.tagName ? element.tagName.toLowerCase() : '';
-    var type = (element.getAttribute('type') || '').toLowerCase();
-    var role = element.getAttribute('role') || '';
-    if (tag === 'a') {
+  function buildActionDescription(elementInfo) {
+    var element = elementInfo.element;
+    var text = elementInfo.name;
+    var tag = elementInfo.tagName;
+    var type = elementInfo.inputType;
+    var role = elementInfo.role;
+    if (role === 'tab') return text ? '点击了“' + text + '”页签' : '点击了页签';
+    if (role === 'menuitem') return text ? '点击了“' + text + '”菜单项' : '点击了菜单项';
+    if (role === 'option') return text ? '选择了“' + text + '”选项' : '选择了选项';
+    if (role === 'switch') return text ? '点击了“' + text + '”开关' : '点击了开关';
+    if (role === 'checkbox' || type === 'checkbox') return text ? '点击了“' + text + '”复选框' : '点击了复选框';
+    if (role === 'radio' || type === 'radio') return text ? '点击了“' + text + '”单选项' : '点击了单选项';
+    if (tag === 'a' || role === 'link') {
       var href = element.getAttribute('href') || '';
-      return text ? '点击了链接「' + text + '」(' + href + ')' : '点击了链接 ' + href;
+      return text ? '点击了“' + text + '”链接' + (href ? '（' + href + '）' : '') : '点击了链接 ' + href;
     }
     if (tag === 'button' || role === 'button' || type === 'button' || type === 'submit') {
-      return text ? '点击了「' + text + '」按钮' : '点击了按钮';
+      return text ? '点击了“' + text + '”按钮' : '点击了按钮';
     }
     if (tag === 'input') {
       var itype = type || 'text';
       var ph = element.getAttribute('placeholder') || '';
-      if (ph) return '点击了' + itype + '输入框「' + ph + '」';
-      return text ? '点击了' + itype + '输入框「' + text + '」' : '点击了' + itype + '输入框';
+      if (ph) return '点击了“' + ph + '”输入框';
+      return text ? '点击了“' + text + '”输入框' : '点击了' + itype + '输入框';
     }
-    if (tag === 'textarea') return text ? '点击了文本域「' + text + '」' : '点击了文本域';
-    if (tag === 'select') return text ? '点击了下拉框「' + text + '」' : '点击了下拉框';
-    if (type === 'checkbox') return text ? '点击了复选框「' + text + '」' : '点击了复选框';
-    if (type === 'radio') return text ? '点击了单选框「' + text + '」' : '点击了单选框';
+    if (tag === 'textarea' || role === 'textbox') return text ? '点击了“' + text + '”文本框' : '点击了文本框';
+    if (tag === 'select' || role === 'combobox') return text ? '点击了“' + text + '”下拉框' : '点击了下拉框';
     if (tag === 'nav' || role === 'navigation') return '点击了导航区域';
-    if (text) return '点击了「' + text + '」';
+    if (text) return '点击了“' + text + '”';
     return '点击了 <' + tag + '> 元素';
+  }
+
+  function createInteractionStep(type, target, event) {
+    const elementInfo = getElementInfo(target);
+    const coords = event ? getEventCoordinates(event) : { x: 0, y: 0 };
+    const action = type === 'input'
+      ? buildInputActionDescription(elementInfo)
+      : type === 'change'
+        ? buildChangeActionDescription(elementInfo)
+        : buildActionDescription(elementInfo);
+
+    return {
+      type,
+      timestamp: Date.now(),
+      selector: elementInfo.selector,
+      rawSelector: generateSelector(target),
+      tagName: elementInfo.tagName,
+      text: elementInfo.name,
+      elementName: elementInfo.name,
+      elementRole: elementInfo.role,
+      elementType: elementInfo.inputType || elementInfo.role,
+      elementState: elementInfo.state,
+      pageSnapshot: capturePageSnapshot(),
+      action,
+      x: coords.x,
+      y: coords.y
+    };
+  }
+
+  function buildInputActionDescription(elementInfo) {
+    const name = elementInfo.name || '输入框';
+    return '在“' + name + '”中输入内容';
+  }
+
+  function buildChangeActionDescription(elementInfo) {
+    const name = elementInfo.name || '控件';
+    if (elementInfo.role === 'combobox' || elementInfo.tagName === 'select') return '修改了“' + name + '”下拉选择';
+    if (elementInfo.role === 'checkbox' || elementInfo.inputType === 'checkbox') return '切换了“' + name + '”复选框';
+    if (elementInfo.role === 'radio' || elementInfo.inputType === 'radio') return '选择了“' + name + '”单选项';
+    return '修改了“' + name + '”';
   }
 
   // ==========================================================================
@@ -367,28 +636,15 @@
       return;
     }
 
+    const target = event.target;
+    const elementInfo = getElementInfo(target);
+
     // Update tracking variables
-    lastElement = event.target;
+    lastElement = elementInfo.element || target;
     lastClickTime = now;
     lastRecordedAction = now;
 
-    const target = event.target;
-    const coords = getEventCoordinates(event);
-
-    const elementText = getElementText(target);
-    const action = buildActionDescription(target, elementText);
-
-    // Build step object
-    const step = {
-      type: 'click',
-      timestamp: now,
-      selector: generateSelector(target),
-      tagName: target.tagName?.toLowerCase() || 'unknown',
-      text: elementText,
-      action: action,
-      x: coords.x,
-      y: coords.y
-    };
+    const step = createInteractionStep('click', target, event);
 
     // Send to background (async, don't await)
     sendMessage({
@@ -399,6 +655,30 @@
     // Show visual feedback
     showClickFeedback(coords.x, coords.y);
   }, THROTTLE_DELAY);
+
+  const recordInput = debounce(function(event) {
+    if (!isListening) return;
+    const target = event.target;
+    if (!target || !['INPUT', 'TEXTAREA'].includes(target.tagName) && target.getAttribute?.('contenteditable') !== 'true') return;
+    const now = Date.now();
+    const lastTime = lastInputRecordTimes.get(target) || 0;
+    if (now - lastTime < 800) return;
+    lastInputRecordTimes.set(target, now);
+    sendMessage({ type: 'ADD_STEP', step: createInteractionStep('input', target, event) });
+  }, 600);
+
+  const recordChange = function(event) {
+    if (!isListening) return;
+    const target = event.target;
+    if (!target || !['SELECT', 'INPUT', 'TEXTAREA'].includes(target.tagName)) return;
+    sendMessage({ type: 'ADD_STEP', step: createInteractionStep('change', target, event) });
+  };
+
+  const recordSubmit = function(event) {
+    if (!isListening) return;
+    const target = event.target;
+    sendMessage({ type: 'ADD_STEP', step: createInteractionStep('submit', target, event) });
+  };
 
   /**
    * Records a navigation event
@@ -496,6 +776,9 @@
 
     // Use capture phase for more reliable event interception
     document.addEventListener('click', recordClick, true);
+    document.addEventListener('input', recordInput, true);
+    document.addEventListener('change', recordChange, true);
+    document.addEventListener('submit', recordSubmit, true);
 
     // Start URL observation
     observeUrlChanges();
@@ -515,6 +798,9 @@
     isListening = false;
 
     document.removeEventListener('click', recordClick, true);
+    document.removeEventListener('input', recordInput, true);
+    document.removeEventListener('change', recordChange, true);
+    document.removeEventListener('submit', recordSubmit, true);
 
     // Stop URL observation
     removeUrlObservers();
@@ -523,6 +809,7 @@
     lastElement = null;
     lastClickTime = 0;
     lastRecordedAction = 0;
+    lastInputRecordTimes.clear();
 
     console.log('[Scribe:Content] Recording stopped');
   }

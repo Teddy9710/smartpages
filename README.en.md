@@ -15,7 +15,7 @@
   <img alt="Chrome Extension MV3" src="https://img.shields.io/badge/Chrome%20Extension-MV3-2563eb">
   <img alt="Vanilla JavaScript" src="https://img.shields.io/badge/JavaScript-ES2022-f7df1e">
   <img alt="Markdown HTML" src="https://img.shields.io/badge/Export-Markdown%20%2F%20HTML-14b8a6">
-  <img alt="License" src="https://img.shields.io/badge/License-MIT-111827">
+  <img alt="License" src="https://img.shields.io/badge/License-Apache%202.0-111827">
 </p>
 
 ---
@@ -58,16 +58,17 @@ The extension records key actions such as clicks, text input, and page navigatio
 - Generate Markdown documents from recorded steps.
 - Support user guides, tutorials, test cases, bug reports, and custom descriptions.
 - Append custom requirements or replace the default prompt entirely.
-- Use a style guide to enforce tone, structure, heading hierarchy, terminology, and writing rules.
-- Provide example documents by document type so the model can follow their structure and level of detail without copying their factual content.
+- Use a style guide to enforce tone, structure, heading hierarchy, terminology, and writing rules. Style guides can be plain text, Markdown, or HTML.
+- Provide example documents by document type. Examples can be Markdown or HTML, so the model can follow their structure, level of detail, and layout hierarchy without copying their factual content.
+- Choose the final output format. Markdown remains the default, but HTML and plain text are also supported while preserving the reference style as much as possible.
 - Configure maximum output tokens to reduce truncation on long documents.
 
 ### 3. Editing And Export
 
 - Edit directly in the rendered preview after generation. No extra edit button is required.
 - Switch between Markdown preview and Markdown source editing.
-- Copy Markdown with one click.
-- Download Markdown files.
+- Copy the current document content with one click.
+- Download `.md`, `.html`, or `.txt` files based on the selected output format.
 - Export standalone HTML files.
 - Refine the generated document with AI by providing additional instructions.
 - Revert to the version before AI refinement.
@@ -81,7 +82,7 @@ The extension records key actions such as clicks, text input, and page navigatio
 
 ### 5. Document Resource Management
 
-- Upload and manage PDF, DOCX, TXT, and similar document resources.
+- Upload and manage PDF, DOCX, TXT, MD, HTML, and similar document resources.
 - Search, refresh, and delete uploaded resources.
 - Related logic lives in `utils/documentUpload.js`, `utils/documentApi.js`, and `utils/docUIUtils.js`.
 
@@ -141,14 +142,15 @@ Any provider compatible with this request format can usually be configured in Se
 
 | Setting | Description | Example |
 | --- | --- | --- |
-| Model provider | Common API presets or custom provider | OpenAI, DeepSeek, Kimi, OpenRouter |
+| Model provider | Common API presets or custom provider | OpenAI, GLM, DeepSeek, MiniMax, Kimi, OpenRouter |
 | API Key | Provider API key | `sk-...` |
 | Base URL | API base endpoint | `https://api.openai.com/v1` |
 | Model name | Chat Completions model name | `gpt-4o-mini`, `deepseek-chat` |
 | Max output tokens | Controls generated document length | `4000` |
+| Output format | Controls final generation and download format | Markdown, HTML, plain text |
 | Prompt mode | Append requirements or fully customize | Default prompt + my requirements |
 | Style guide | Fixed writing rules | Heading hierarchy, tone, terminology, forbidden phrasing |
-| Example documents | Type-specific reference samples | User guide, tutorial, test case, bug report |
+| Example documents | Type-specific reference samples, supporting Markdown or HTML | User guide, tutorial, test case, bug report |
 
 Note: model names, base URLs, context limits, and billing rules vary by provider. Refer to the provider's official documentation.
 
@@ -159,7 +161,8 @@ Note: model names, base URLs, context limits, and billing rules vary by provider
 | Format | Purpose | Status |
 | --- | --- | --- |
 | Markdown `.md` | Default output, easy to edit and copy | Supported |
-| HTML `.html` | Standalone page for delivery or browser viewing | Supported |
+| HTML `.html` | Can be the final generated format or exported from other formats | Supported |
+| Text `.txt` | Plain-text delivery or copying | Supported |
 | PDF `.pdf` | Fixed-layout delivery | Not built in yet. Export HTML first, then print to PDF in the browser |
 
 ---
@@ -195,13 +198,14 @@ Then load the `dist/` directory from the extensions management page.
 
 1. Open Settings, select a provider, and fill in the API key, base URL, and model name.
 2. Click "Test Connection" to confirm the model API is available.
-3. If you have fixed writing rules, fill in the style guide or example documents.
-4. Open the web page you want to document.
-5. Click the extension icon and start recording.
-6. Complete the workflow on the web page.
-7. Stop recording and open the side panel.
-8. Choose a recommended document goal or enter a custom description.
-9. After generation, edit directly in the preview, switch to source editing, refine with AI, or export.
+3. Choose the default output format. Markdown is the default, but HTML and plain text are available.
+4. If you have fixed writing rules, fill in the style guide or example documents. The content can be plain text, Markdown, or HTML.
+5. Open the web page you want to document.
+6. Click the extension icon and start recording.
+7. Complete the workflow on the web page.
+8. Stop recording and open the side panel.
+9. Choose a recommended document goal or enter a custom description.
+10. After generation, edit directly in the preview, switch to source editing, refine with AI, or export.
 
 ---
 
@@ -259,6 +263,7 @@ node validate.js    # Validate syntax for core JS files
 | Screenshot capture | Available |
 | AI document generation | Available |
 | Style guide and example documents | Available |
+| Selectable output formats | Available |
 | Provider presets and custom base URL | Available |
 | Direct preview editing | Available |
 | Markdown export | Available |
@@ -281,4 +286,4 @@ node validate.js    # Validate syntax for core JS files
 
 ## License
 
-[MIT License](LICENSE)
+[Apache License 2.0](LICENSE)

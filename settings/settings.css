@@ -519,6 +519,16 @@ body {
   background: #f3f4f6;
 }
 
+.doc-action-btn.apply {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.doc-action-btn.apply:hover {
+  background: #dbeafe;
+}
+
 .doc-action-btn.delete {
   color: #dc2626;
   border-color: #dc2626;

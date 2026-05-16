@@ -39,6 +39,7 @@ class DocUIHelper {
     this._source = opts.source || '';
     this._onNotify = opts.onNotify || alert;
     this._getApi = opts.getApi || (() => this._api);
+    this._actions = Array.isArray(opts.actions) ? opts.actions : [];
   }
 
   /** Resolve element ID with optional source prefix */
@@ -232,18 +233,24 @@ class DocUIHelper {
       ])
     ]);
 
-    const docActions = createElement('div', { className: 'doc-actions' }, [
+    const defaultActions = [
       createElement('button', {
         className: 'doc-action-btn view',
-        textContent: '👁 查看',
+        textContent: '查看',
         onclick: () => self.viewDocument(doc.id)
       }),
       createElement('button', {
         className: 'doc-action-btn delete',
-        textContent: '🗑 删除',
+        textContent: '删除',
         onclick: () => self.deleteDocument(doc.id)
       })
-    ]);
+    ];
+    const customActions = this._actions.map(action => createElement('button', {
+      className: `doc-action-btn ${action.className || ''}`.trim(),
+      textContent: action.label,
+      onclick: () => action.onClick?.(doc)
+    }));
+    const docActions = createElement('div', { className: 'doc-actions' }, [...customActions, ...defaultActions]);
 
     docItem.appendChild(docInfo);
     docItem.appendChild(docActions);

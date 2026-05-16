@@ -19,7 +19,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const STORAGE_WARNING_THRESHOLD = 8 * 1024 * 1024;
 
 /** @constant {string[]} SUPPORTED_FILE_FORMATS - Supported document formats for upload */
-const SUPPORTED_FILE_FORMATS = ['.pdf', '.docx', '.txt'];
+const SUPPORTED_FILE_FORMATS = ['.pdf', '.docx', '.txt', '.md', '.html', '.htm'];
 
 /** @constant {number} SCREENSHOT_QUALITY - Default screenshot quality (0-100) */
 const SCREENSHOT_QUALITY = 60;
@@ -41,6 +41,9 @@ const MAX_MAX_TOKENS = 12000;
 
 /** @constant {string} DEFAULT_PROMPT_MODE - Default prompt customization mode */
 const DEFAULT_PROMPT_MODE = 'append';
+
+/** @constant {string} DEFAULT_OUTPUT_FORMAT - Default generated document format */
+const DEFAULT_OUTPUT_FORMAT = 'markdown';
 
 /** @constant {string} DEFAULT_PROMPT_TEMPLATE - Default document generation prompt template */
 const DEFAULT_PROMPT_TEMPLATE = `你是一名产品文档编辑。请根据录制到的网页操作，生成一份清晰、简洁、可直接使用的 Markdown 文档。
@@ -421,6 +424,9 @@ async function fetchWithTimeout(url, options = {}, timeout = DEFAULT_API_TIMEOUT
     if (error.name === 'AbortError') {
       throw new ExtensionError('请求超时，请检查网络连接', 'REQUEST_TIMEOUT');
     }
+    if (error instanceof TypeError && String(error.message || '').includes('Failed to fetch')) {
+      throw new ExtensionError('网络请求失败：无法连接到模型 API。请检查 Base URL、网络代理、服务商跨域/CORS 设置，或稍后重试。', 'NETWORK_ERROR');
+    }
     throw new ExtensionError(`网络请求失败: ${error.message}`, 'NETWORK_ERROR');
   }
 }
@@ -461,9 +467,20 @@ function validateUrl(urlString, allowedProtocols = ['https:', 'http:']) {
  */
 async function sendMessage(message) {
   return new Promise((resolve, reject) => {
+    if (!chrome?.runtime?.id) {
+      reject(new ExtensionError('扩展上下文已失效，请刷新当前页面后重试', 'EXTENSION_CONTEXT_INVALIDATED'));
+      return;
+    }
     chrome.runtime.sendMessage(message, (response) => {
       if (chrome.runtime.lastError) {
-        reject(new ExtensionError(chrome.runtime.lastError.message, 'MESSAGE_ERROR'));
+        const msg = chrome.runtime.lastError.message || '';
+        const code = msg.includes('Extension context invalidated')
+          ? 'EXTENSION_CONTEXT_INVALIDATED'
+          : 'MESSAGE_ERROR';
+        const friendly = code === 'EXTENSION_CONTEXT_INVALIDATED'
+          ? '扩展上下文已失效，请刷新当前页面后重试'
+          : msg;
+        reject(new ExtensionError(friendly, code));
       } else {
         resolve(response);
       }
@@ -615,6 +632,7 @@ async function loadConfig() {
     'promptMode',
     'promptAppend',
     'customPrompt',
+    'outputFormat',
     'styleGuide',
     'documentExamples'
   ]);
@@ -632,6 +650,7 @@ async function loadConfig() {
     promptMode: result.promptMode || DEFAULT_PROMPT_MODE,
     promptAppend: result.promptAppend || '',
     customPrompt: result.customPrompt || DEFAULT_PROMPT_TEMPLATE,
+    outputFormat: result.outputFormat || DEFAULT_OUTPUT_FORMAT,
     styleGuide: result.styleGuide || '',
     documentExamples: result.documentExamples || {}
   };
@@ -679,6 +698,7 @@ if (typeof module !== 'undefined' && module.exports) {
     MIN_MAX_TOKENS,
     MAX_MAX_TOKENS,
     DEFAULT_PROMPT_MODE,
+    DEFAULT_OUTPUT_FORMAT,
     DEFAULT_PROMPT_TEMPLATE,
     SUPPORTED_FILE_FORMATS,
     SCREENSHOT_QUALITY,

@@ -255,13 +255,14 @@ class SidePanelManager {
       }
 
       const data = await response.json();
-      const markdown = data.choices[0].message.content.trim();
+      const outputFormat = this._getOutputFormat(config);
+      const markdown = this._normalizeGeneratedContent(data.choices[0].message.content.trim(), outputFormat);
       this.showEditor();
-      this._setEditorContent(this._injectScreenshots(markdown));
+      this._setEditorContent(this._injectScreenshots(markdown, outputFormat));
       this._resetOptimizationState();
     } catch (error) {
       console.error('[Scribe:SidePanel] Generation failed:', error);
-      this.showErrorState(error.message || '生成文档失败，请重试');
+      this.showErrorState(this._formatUserFacingError(error, '生成文档失败，请重试'));
     }
   }
 
@@ -269,11 +270,13 @@ class SidePanelManager {
     const sessionInfo = this._buildSessionInfo();
     const stepsText = this._buildStepsText();
     const documentTypeInstructions = this._getDocumentTypeInstructions(docType);
+    const outputFormatInstruction = this._getOutputFormatInstruction(config.outputFormat);
     const variables = {
       taskDescription: description,
       sessionInfo,
       steps: stepsText,
       documentTypeInstructions,
+      outputFormatInstruction,
       styleGuide: config.styleGuide || '',
       documentExample: this._getDocumentExample(docType, config)
     };
@@ -296,7 +299,42 @@ class SidePanelManager {
       prompt += styleReference;
     }
 
+    prompt += `\n\n${outputFormatInstruction}`;
+
     return prompt;
+  }
+
+  _getOutputFormat(config = this.config) {
+    const format = typeof config === 'string' ? config : config?.outputFormat;
+    return ['markdown', 'html', 'text'].includes(format) ? format : 'markdown';
+  }
+
+  _getOutputFormatInstruction(format) {
+    const normalized = this._getOutputFormat(format);
+    const instructions = {
+      markdown: [
+        '输出格式要求：',
+        '- 最终只输出 Markdown 文档，不要输出解释、寒暄或代码块围栏。',
+        '- 如果参考文档是 HTML，只学习它的层级、组件、表格、列表和提示块表达，并转换为 Markdown 结构。',
+        '- 保留每个录制步骤对应的 [截图N] 占位或图片引用。'
+      ],
+      html: [
+        '输出格式要求：',
+        '- 如果前面的默认提示词或文档类型要求提到 Markdown，请忽略该格式限制，以本条 HTML 输出要求为准。',
+        '- 最终只输出 HTML，不要输出 Markdown，不要用 ```html 代码块包裹。',
+        '- 输出可直接保存为 .html 的文档内容；允许使用语义化 HTML 和必要的内联样式，禁止 script、iframe、外部资源和事件处理属性。',
+        '- 如果参考文档是 HTML，请尽量沿用它的标题层级、内容区块、表格、列表、提示块和视觉节奏，但事实内容必须以本次录制为准。',
+        '- 保留每个录制步骤对应的截图占位，建议使用 <img alt="步骤N截图" src="[截图N]"> 或清晰的 [截图N] 标记。'
+      ],
+      text: [
+        '输出格式要求：',
+        '- 如果前面的默认提示词或文档类型要求提到 Markdown，请忽略该格式限制，以本条纯文本输出要求为准。',
+        '- 最终只输出纯文本，不要输出 Markdown、HTML 或代码块围栏。',
+        '- 如果参考文档是 Markdown 或 HTML，只学习其内容顺序、层级和语气，并转换为纯文本段落。',
+        '- 保留每个录制步骤对应的 [截图N] 占位。'
+      ]
+    };
+    return instructions[normalized].join('\n');
   }
 
   _buildStyleReferencePrompt(docType, config = {}) {
@@ -314,7 +352,7 @@ class SidePanelManager {
 
     if (!sections.length) return '';
 
-    return `\n\n写作风格与示例参考：\n${sections.join('\n\n')}\n\n请严格遵循以上风格指南；如果提供了示例文档，请参考示例的标题层级、段落颗粒度、语气、表格/列表使用方式和截图占位方式，但不要照抄示例中的业务事实、账号、数据、链接或截图。最终文档仍必须以本次录制步骤为准。`;
+    return `\n\n写作风格与示例参考：\n${sections.join('\n\n')}\n\n请严格遵循以上风格指南；如果提供了示例文档，请参考示例的标题层级、段落颗粒度、语气、表格/列表使用方式和截图占位方式。示例可能是 Markdown、纯文本或 HTML；如果是 HTML，请学习它的内容层级、组件组织、表格/列表/提示块等版式表达，并按用户选择的输出格式转换。不要照抄示例中的业务事实、账号、数据、链接或截图。最终文档仍必须以本次录制步骤为准。`;
   }
 
   _getDocumentExample(docType, config = {}) {
@@ -350,15 +388,68 @@ class SidePanelManager {
         ].join('\n');
       }
 
+      const actionTypeLabel = {
+        click: '用户点击',
+        input: '用户输入',
+        change: '用户变更',
+        submit: '表单提交'
+      }[step.type] || '用户操作';
+
       return [
-        `步骤 ${num}｜用户操作`,
-        `- 操作对象：${step.text || step.action || '未识别元素'}`,
-        `- 元素类型：${step.tagName || '未知'}`,
+        `步骤 ${num}｜${actionTypeLabel}`,
+        `- 操作描述：${step.action || '点击页面元素'}`,
+        `- 元件名称：${step.elementName || step.text || '未识别名称'}`,
+        `- 元件角色：${step.elementRole || '未知'}`,
+        `- 元件类型：${step.elementType || step.tagName || '未知'}`,
+        `- 元件状态：${this._formatElementState(step.elementState)}`,
+        `- HTML 标签：${step.tagName || '未知'}`,
         `- CSS 选择器：${step.selector || '未记录'}`,
+        `- 原始点击选择器：${step.rawSelector || step.selector || '未记录'}`,
         `- 点击坐标：${Number.isFinite(step.x) && Number.isFinite(step.y) ? `${step.x}, ${step.y}` : '未记录'}`,
+        `- 页面语义快照：\n${this._formatPageSnapshot(step.pageSnapshot)}`,
         `- 截图：${screenshotMarker}`
       ].join('\n');
     }).join('\n\n');
+  }
+
+  _formatElementState(state) {
+    if (!state || typeof state !== 'object') return '未记录';
+    const entries = Object.entries(state).filter(([, value]) => value !== undefined && value !== null && value !== '');
+    if (!entries.length) return '未记录';
+    return entries.map(([key, value]) => `${key}=${value}`).join(', ');
+  }
+
+  _formatPageSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') return '  未记录';
+    const lines = [];
+    const addList = (label, values) => {
+      if (Array.isArray(values) && values.length) {
+        lines.push(`  - ${label}：${values.join('、')}`);
+      }
+    };
+    if (snapshot.title) lines.push(`  - 页面标题：${snapshot.title}`);
+    if (snapshot.url) lines.push(`  - 页面地址：${snapshot.url}`);
+    addList('页面标题层级', snapshot.headings);
+    addList('主要区域', snapshot.landmarks);
+    addList('当前页签', snapshot.activeTabs);
+    addList('可见页签', snapshot.tabs);
+    addList('主要按钮', snapshot.buttons);
+    addList('主要链接', snapshot.links);
+    addList('输入项', snapshot.inputs);
+    addList('下拉/选择控件', snapshot.selects);
+    addList('弹窗/抽屉', snapshot.dialogs);
+    if (Array.isArray(snapshot.tables) && snapshot.tables.length) {
+      snapshot.tables.forEach((table, index) => {
+        const name = table.caption || `表格${index + 1}`;
+        const headers = table.headers?.length ? `，列：${table.headers.join('、')}` : '';
+        const rows = Number.isFinite(table.rowCount) ? `，约 ${table.rowCount} 行` : '';
+        lines.push(`  - ${name}${headers}${rows}`);
+      });
+    }
+    if (snapshot.visibleTextSummary) {
+      lines.push(`  - 可见文本摘要：${snapshot.visibleTextSummary}`);
+    }
+    return lines.length ? lines.join('\n') : '  未记录';
   }
 
   _getDocumentTypeInstructions(docType) {
@@ -445,6 +536,7 @@ class SidePanelManager {
       .replaceAll('{{sessionInfo}}', variables.sessionInfo)
       .replaceAll('{{steps}}', variables.steps)
       .replaceAll('{{documentTypeInstructions}}', variables.documentTypeInstructions)
+      .replaceAll('{{outputFormatInstruction}}', variables.outputFormatInstruction)
       .replaceAll('{{styleGuide}}', variables.styleGuide)
       .replaceAll('{{documentExample}}', variables.documentExample);
   }
@@ -454,14 +546,16 @@ class SidePanelManager {
     return value.includes('{{sessionInfo}}') && value.includes('{{steps}}');
   }
 
-  _injectScreenshots(markdown) {
-    if (!this.session?.steps?.length) return markdown;
-    var result = markdown;
+  _injectScreenshots(content, format = this._getOutputFormat()) {
+    if (!this.session?.steps?.length) return content;
+    var result = content;
     this.session.steps.forEach(function(step, index) {
       var stepNumber = index + 1;
       var placeholder = '[' + '截图' + stepNumber + ']';
       if (step.screenshot) {
-        var imgTag = '![' + '步骤' + stepNumber + '截图](' + step.screenshot + ')';
+        var imgTag = format === 'html'
+          ? '<img alt="' + '步骤' + stepNumber + '截图" src="' + step.screenshot + '">'
+          : '![' + '步骤' + stepNumber + '截图](' + step.screenshot + ')';
         result = result.split(placeholder).join(imgTag);
         result = result.replace(new RegExp('截图占位[：:]?\\s*步骤\\s*' + stepNumber + '\\s*截图', 'g'), imgTag);
         result = result.replace(new RegExp('步骤\\s*' + stepNumber + '\\s*截图', 'g'), imgTag);
@@ -476,7 +570,18 @@ class SidePanelManager {
     if (editor) { editor.value = content; this._updatePreview(content); }
   }
 
-  _updatePreview(markdown) { this._renderMarkdown(markdown); }
+  _updatePreview(content) { this._renderDocument(content); }
+
+  _renderDocument(content) {
+    const format = this._getOutputFormat();
+    if (format === 'html') {
+      this._renderHtml(content);
+    } else if (format === 'text') {
+      this._renderText(content);
+    } else {
+      this._renderMarkdown(content);
+    }
+  }
 
   _renderMarkdown(markdown) {
     const previewDiv = document.getElementById('markdown-preview');
@@ -486,14 +591,31 @@ class SidePanelManager {
     }
   }
 
+  _renderHtml(html) {
+    const previewDiv = document.getElementById('markdown-preview');
+    if (!previewDiv) return;
+    safeSetInnerHTML(previewDiv, this._extractHtmlBody(html), true);
+  }
+
+  _renderText(text) {
+    const previewDiv = document.getElementById('markdown-preview');
+    if (!previewDiv) return;
+    previewDiv.textContent = text || '';
+  }
+
   _syncPreviewToEditor() {
     const preview = document.getElementById('markdown-preview');
     const editor = document.getElementById('markdown-editor');
     if (!preview || !editor) return;
 
-    const markdown = this._htmlToMarkdown(preview);
-    if (editor.value !== markdown) {
-      editor.value = markdown;
+    const format = this._getOutputFormat();
+    const content = format === 'html'
+      ? preview.innerHTML.trim()
+      : format === 'text'
+        ? preview.innerText.trim()
+        : this._htmlToMarkdown(preview);
+    if (editor.value !== content) {
+      editor.value = content;
     }
   }
 
@@ -633,6 +755,24 @@ class SidePanelManager {
       .trim();
   }
 
+  _normalizeGeneratedContent(content, format) {
+    const normalizedFormat = this._getOutputFormat(format);
+    const value = String(content || '').trim();
+    const fencePattern = normalizedFormat === 'html'
+      ? /^```(?:html)?\s*([\s\S]*?)\s*```$/i
+      : normalizedFormat === 'markdown'
+        ? /^```(?:markdown|md)?\s*([\s\S]*?)\s*```$/i
+        : /^```(?:text|txt)?\s*([\s\S]*?)\s*```$/i;
+    const match = value.match(fencePattern);
+    return (match?.[1] || value).trim();
+  }
+
+  _extractHtmlBody(html) {
+    const value = String(html || '');
+    const doc = new DOMParser().parseFromString(value, 'text/html');
+    return doc.body?.innerHTML || value;
+  }
+
   switchToPreview() {
     this._togglePane('preview-pane', 'btn-preview');
     const content = document.getElementById('markdown-editor')?.value;
@@ -740,7 +880,10 @@ class SidePanelManager {
       }
 
       const data = await response.json();
-      const optimized = data.choices?.[0]?.message?.content?.trim();
+      const optimized = this._normalizeGeneratedContent(
+        data.choices?.[0]?.message?.content?.trim(),
+        this._getOutputFormat(config)
+      );
       if (!optimized) throw new ExtensionError('AI没有返回优化后的文档', 'EMPTY_RESPONSE');
 
       this._setEditorContent(optimized);
@@ -750,7 +893,7 @@ class SidePanelManager {
       this._showNotification('文档已优化，可随时回退到优化前版本', 'success');
     } catch (error) {
       console.error('[Scribe:SidePanel] Optimization failed:', error);
-      this._setOptimizeStatus(error.message || '优化失败，请重试', 'error');
+      this._setOptimizeStatus(this._formatUserFacingError(error, '优化失败，请重试'), 'error');
     } finally {
       this.isOptimizing = false;
       this._setOptimizeControls(false);
@@ -767,19 +910,23 @@ class SidePanelManager {
   }
 
   _buildOptimizationPrompt(markdown, instruction) {
-    return `你是一名资深产品文档编辑。请根据用户要求优化下面的 Markdown 文档。
+    const format = this._getOutputFormat();
+    const formatName = format === 'html' ? 'HTML' : format === 'text' ? '纯文本' : 'Markdown';
+    return `你是一名资深产品文档编辑。请根据用户要求优化下面的 ${formatName} 文档。
 
 用户优化要求：
 ${instruction}
 
 硬性要求：
-- 只输出优化后的完整 Markdown 文档，不要输出解释或对话。
-- 保留原文中的所有截图 Markdown 或 [截图N] 占位符，不要删除、重编号或改写图片链接。
+- 只输出优化后的完整 ${formatName} 文档，不要输出解释或对话。
+- 保留原文中的所有截图引用或 [截图N] 占位符，不要删除、重编号或改写图片链接。
 - 保留事实边界，不要编造具体账号、金额、订单号、接口返回值等无法从原文判断的信息。
 - 可以重排结构、补充说明、改写措辞、增加注意事项和常见问题。
 - 保持简体中文，面向非技术人员，内容清晰、完整、可执行。
 
-原始 Markdown 文档：
+${this._getOutputFormatInstruction(format)}
+
+原始 ${formatName} 文档：
 ${markdown}`;
   }
 
@@ -823,9 +970,16 @@ ${markdown}`;
     this._ensureEditorContentFresh();
     const content = document.getElementById('markdown-editor')?.value;
     if (!content) return;
-    const blob = new Blob([content], { type: 'text/markdown' });
+    const format = this._getOutputFormat();
+    const extension = format === 'html' ? 'html' : format === 'text' ? 'txt' : 'md';
+    const mimeType = format === 'html'
+      ? 'text/html;charset=utf-8'
+      : format === 'text'
+        ? 'text/plain;charset=utf-8'
+        : 'text/markdown;charset=utf-8';
+    const blob = new Blob([format === 'html' ? this._buildStandaloneHtmlFromCurrentContent(content) : content], { type: mimeType });
     const url = URL.createObjectURL(blob);
-    const a = createElement('a', { href: url, download: `document_${Date.now()}.md` });
+    const a = createElement('a', { href: url, download: `document_${Date.now()}.${extension}` });
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
@@ -833,10 +987,10 @@ ${markdown}`;
 
   exportHtmlDocument() {
     this._ensureEditorContentFresh();
-    const markdown = document.getElementById('markdown-editor')?.value;
-    if (!markdown) return;
+    const content = document.getElementById('markdown-editor')?.value;
+    if (!content) return;
 
-    const html = this._buildStandaloneHtml(markdown);
+    const html = this._buildStandaloneHtmlFromCurrentContent(content);
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = createElement('a', { href: url, download: `document_${Date.now()}.html` });
@@ -846,10 +1000,24 @@ ${markdown}`;
     this._showNotification('HTML 文件已导出！', 'success');
   }
 
+  _buildStandaloneHtmlFromCurrentContent(content) {
+    const format = this._getOutputFormat();
+    if (format === 'html') {
+      return this._ensureStandaloneHtml(content);
+    }
+    if (format === 'text') {
+      return this._buildStandaloneHtmlFromBody(`<pre>${this._escapeHtml(content)}</pre>`, 'Smart Page Scribe Document');
+    }
+    return this._buildStandaloneHtml(content);
+  }
+
   _buildStandaloneHtml(markdown) {
     const bodyHtml = this._markdownToSafeHtml(markdown);
     const title = this._extractDocumentTitle(markdown);
+    return this._buildStandaloneHtmlFromBody(bodyHtml, title);
+  }
 
+  _buildStandaloneHtmlFromBody(bodyHtml, title) {
     return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -915,6 +1083,16 @@ ${bodyHtml}
 </html>`;
   }
 
+  _ensureStandaloneHtml(html) {
+    const value = String(html || '').trim();
+    if (/<!doctype html|<html[\s>]/i.test(value)) {
+      return value;
+    }
+    const doc = new DOMParser().parseFromString(value, 'text/html');
+    const title = doc.querySelector('h1')?.textContent?.trim() || 'Smart Page Scribe Document';
+    return this._buildStandaloneHtmlFromBody(doc.body?.innerHTML || value, title);
+  }
+
   _markdownToSafeHtml(markdown) {
     if (typeof marked === 'undefined') {
       return `<pre>${this._escapeHtml(markdown)}</pre>`;
@@ -962,6 +1140,16 @@ ${bodyHtml}
 
   _showError(message) { alert(message); }
   _showNotification(message, type) { alert(message); }
+
+  _formatUserFacingError(error, fallback) {
+    if (error?.code === 'EXTENSION_CONTEXT_INVALIDATED') {
+      return '扩展上下文已失效，请刷新当前页面后重试。';
+    }
+    if (error?.code === 'NETWORK_ERROR') {
+      return error.message || '网络请求失败，请检查模型 API 地址、网络代理或服务商跨域设置。';
+    }
+    return error?.message || fallback;
+  }
 
   cleanup() {
     this.cleanupFunctions.forEach(fn => fn());

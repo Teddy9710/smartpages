@@ -5,7 +5,7 @@
 
 class DocumentUploader {
   constructor() {
-    this.supportedFormats = ['pdf', 'docx', 'txt', 'md', 'html', 'rtf', 'xlsx', 'pptx'];
+    this.supportedFormats = ['pdf', 'docx', 'txt', 'md', 'html', 'htm', 'rtf', 'xlsx', 'pptx'];
     this.uploadDir = 'docs';
   }
 
@@ -27,6 +27,7 @@ class DocumentUploader {
       'txt': '📑',
       'md': '📘',
       'html': '🌐',
+      'htm': '🌐',
       'rtf': '📜',
       'xlsx': '📊',
       'pptx': '📽️'
@@ -47,7 +48,8 @@ class DocumentUploader {
       if (file.type.startsWith('text/') ||
           file.name.toLowerCase().endsWith('.txt') ||
           file.name.toLowerCase().endsWith('.md') ||
-          file.name.toLowerCase().endsWith('.html')) {
+          file.name.toLowerCase().endsWith('.html') ||
+          file.name.toLowerCase().endsWith('.htm')) {
         reader.readAsText(file);
       } else {
         reader.readAsDataURL(file);
@@ -69,7 +71,7 @@ class DocumentUploader {
         try {
           let content = '';
 
-          if (ext === 'txt' || ext === 'md' || ext === 'html' || ext === 'rtf') {
+          if (ext === 'txt' || ext === 'md' || ext === 'html' || ext === 'htm' || ext === 'rtf') {
             content = result;
           } else if (ext === 'pdf') {
             content = this._parsePdf(result);
@@ -94,7 +96,9 @@ class DocumentUploader {
       reader.onerror = () => reject(new Error('读取文件失败'));
 
       if (file.type.startsWith('text/') || file.name.toLowerCase().endsWith('.txt') ||
-          file.name.toLowerCase().endsWith('.md') || file.name.toLowerCase().endsWith('.html')) {
+          file.name.toLowerCase().endsWith('.md') ||
+          file.name.toLowerCase().endsWith('.html') ||
+          file.name.toLowerCase().endsWith('.htm')) {
         reader.readAsText(file);
       } else {
         reader.readAsArrayBuffer(file);

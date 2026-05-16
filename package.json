@@ -17,7 +17,7 @@
     "ai"
   ],
   "author": "",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "main": "diagnostic-tool.js",
   "directories": {
     "doc": "docs"

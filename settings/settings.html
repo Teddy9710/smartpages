@@ -26,7 +26,9 @@
           <label for="api-provider">模型服务商</label>
           <select id="api-provider" class="input">
             <option value="openai">OpenAI</option>
+            <option value="glm">GLM / Z.AI</option>
             <option value="deepseek">DeepSeek</option>
+            <option value="minimax">MiniMax</option>
             <option value="kimi">Kimi / Moonshot</option>
             <option value="openrouter">OpenRouter</option>
             <option value="siliconflow">SiliconFlow</option>
@@ -85,6 +87,16 @@
         </div>
 
         <div class="form-group">
+          <label for="output-format">默认输出格式</label>
+          <select id="output-format" class="input">
+            <option value="markdown">Markdown (.md)</option>
+            <option value="html">HTML (.html)</option>
+            <option value="text">纯文本 (.txt)</option>
+          </select>
+          <p class="help-text">默认使用 Markdown。选择 HTML 时会参考风格文档的版式层级并生成可下载的 HTML 文档。</p>
+        </div>
+
+        <div class="form-group">
           <label for="prompt-mode">提示词模式</label>
           <select id="prompt-mode" class="input">
             <option value="append">使用默认提示词，并追加我的要求</option>
@@ -100,7 +112,7 @@
             class="textarea prompt-textarea"
             readonly
           ></textarea>
-          <p class="help-text">可用占位符：{{taskDescription}}、{{sessionInfo}}、{{steps}}、{{documentTypeInstructions}}、{{styleGuide}}、{{documentExample}}</p>
+          <p class="help-text">可用占位符：{{taskDescription}}、{{sessionInfo}}、{{steps}}、{{documentTypeInstructions}}、{{styleGuide}}、{{documentExample}}、{{outputFormatInstruction}}</p>
         </div>
 
         <div class="form-group" id="prompt-append-group">
@@ -126,9 +138,9 @@
           <textarea
             id="style-guide"
             class="textarea prompt-textarea"
-            placeholder="例如：使用简体中文；标题不超过 18 个字；步骤用动宾短语；语气专业、简洁；避免营销话术；所有截图占位必须保留。"
+            placeholder="例如：使用简体中文；标题不超过 18 个字；步骤用动宾短语；语气专业、简洁；避免营销话术；所有截图占位必须保留。也可以粘贴 HTML/CSS 片段作为版式和层级参考。"
           ></textarea>
-          <p class="help-text">用于控制所有生成文档的语气、措辞、标题、段落、表格和截图占位规则。</p>
+          <p class="help-text">支持纯文本、Markdown 或 HTML。用于控制所有生成文档的语气、措辞、标题、段落、表格、版式层级和截图占位规则。</p>
         </div>
 
         <div class="form-group">
@@ -136,22 +148,22 @@
           <div class="example-grid">
             <div class="example-card">
               <label for="example-user-guide">用户操作指南示例</label>
-              <textarea id="example-user-guide" class="textarea example-textarea" placeholder="粘贴一份用户操作指南示例 Markdown"></textarea>
+              <textarea id="example-user-guide" class="textarea example-textarea" placeholder="粘贴一份用户操作指南示例，支持 Markdown 或 HTML"></textarea>
             </div>
             <div class="example-card">
               <label for="example-tutorial">教程文档示例</label>
-              <textarea id="example-tutorial" class="textarea example-textarea" placeholder="粘贴一份教程文档示例 Markdown"></textarea>
+              <textarea id="example-tutorial" class="textarea example-textarea" placeholder="粘贴一份教程文档示例，支持 Markdown 或 HTML"></textarea>
             </div>
             <div class="example-card">
               <label for="example-testing">测试用例示例</label>
-              <textarea id="example-testing" class="textarea example-textarea" placeholder="粘贴一份测试用例示例 Markdown"></textarea>
+              <textarea id="example-testing" class="textarea example-textarea" placeholder="粘贴一份测试用例示例，支持 Markdown 或 HTML"></textarea>
             </div>
             <div class="example-card">
               <label for="example-bug-report">问题报告示例</label>
-              <textarea id="example-bug-report" class="textarea example-textarea" placeholder="粘贴一份问题报告示例 Markdown"></textarea>
+              <textarea id="example-bug-report" class="textarea example-textarea" placeholder="粘贴一份问题报告示例，支持 Markdown 或 HTML"></textarea>
             </div>
           </div>
-          <p class="help-text">生成时会优先使用当前文档类型对应的示例；示例只用于学习结构、语气和颗粒度，不会照抄事实内容。</p>
+          <p class="help-text">生成时会优先使用当前文档类型对应的示例；示例可为 Markdown 或 HTML，只用于学习结构、语气、版式层级和颗粒度，不会照抄事实内容。</p>
         </div>
 
         <div class="button-group">
@@ -168,19 +180,19 @@
         <div id="test-result" class="test-result hidden"></div>
       </section>
 
-      <!-- 文档管理部分 -->
+      <!-- 参考文档管理部分 -->
       <section class="section">
-        <h2>文档管理</h2>
-        <p class="section-desc">上传和管理您的文档，支持PDF、DOCX、TXT格式</p>
+        <h2>参考文档管理</h2>
+          <p class="section-desc">上传风格指南或示例文档，然后一键应用到上方对应配置。支持 PDF、DOCX、TXT、MD、HTML 格式。</p>
 
         <div class="form-group">
-          <label for="document-upload">上传文档</label>
+          <label for="document-upload">上传参考文档</label>
           <div class="upload-area" id="upload-area">
             <div class="upload-content">
               <span class="upload-icon" aria-hidden="true"></span>
-              <p>拖拽文件到这里或点击选择文件</p>
-              <p class="upload-help">支持格式: PDF, DOCX, TXT</p>
-              <input type="file" id="document-file" accept=".pdf,.docx,.txt" style="display: none;">
+              <p>拖拽风格指南或示例文档到这里，或点击选择文件</p>
+              <p class="upload-help">支持格式: PDF, DOCX, TXT, MD, HTML</p>
+              <input type="file" id="document-file" accept=".pdf,.docx,.txt,.md,.html,.htm" style="display: none;">
               <button id="browse-btn" class="btn btn-outline">浏览文件</button>
             </div>
           </div>
@@ -194,7 +206,7 @@
         </div>
 
         <div class="documents-list-container">
-          <h3>已上传的文档</h3>
+          <h3>已上传的参考文档</h3>
           <div class="documents-actions">
             <input type="text" id="search-documents" placeholder="搜索文档..." class="input input-small">
             <button id="refresh-documents" class="btn btn-small btn-secondary"><span class="icon icon-refresh" aria-hidden="true"></span>刷新</button>
