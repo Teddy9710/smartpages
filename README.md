@@ -1,232 +1,285 @@
-# Smart Page Scribe - 智能网页文档助手
+# Smart Page Scribe
 
 <p align="center">
-  <strong>一键录制网页操作，AI 自动生成专业文档</strong>
+  <img src="icons/icon128.png" width="96" height="96" alt="Smart Page Scribe icon">
+</p>
+
+<p align="center">
+  <strong>浏览器操作录制 + AI 文档生成助手</strong><br>
+  记录网页操作流程，自动生成可编辑、可优化、可导出的操作文档。
+</p>
+
+<p align="center">
+  <img alt="Chrome Extension MV3" src="https://img.shields.io/badge/Chrome%20Extension-MV3-2563eb">
+  <img alt="Vanilla JavaScript" src="https://img.shields.io/badge/JavaScript-ES2022-f7df1e">
+  <img alt="Markdown HTML" src="https://img.shields.io/badge/Export-Markdown%20%2F%20HTML-14b8a6">
+  <img alt="License" src="https://img.shields.io/badge/License-MIT-111827">
 </p>
 
 ---
 
-## ✨ 功能特性
+## 项目简介
 
-### 🎬 智能录制引擎
-- 一键开始/停止录制，自动捕获点击操作
-- 检测 SPA 路由跳转，支持复杂交互流程
-- 每步操作自动截图，完整记录操作过程
+Smart Page Scribe 是一个浏览器插件项目，面向需要沉淀网页操作流程的人：测试人员、实施顾问、产品经理、客服/运维同学，或任何经常需要写“怎么操作”的人。
 
-### 🤖 AI 智能协作
-- **智能意图推测**：AI 自动分析操作，推测文档类型
-- **智能文档生成**：基于录制内容自动生成结构化 Markdown 文档
-- 支持自定义大模型 API（OpenAI 兼容接口，如 DeepSeek）
-
-### 📝 专业编辑器
-- 实时 Markdown 预览 + 源码编辑模式
-- 一键复制 / 导出为 Markdown 文件
-
-### 📂 文档上传与管理
-- 多格式支持（PDF、DOCX、TXT、MD）
-- GitHub 云端上传 + 本地安全存储
-- 全文搜索 + 文档版本管理
-- RESTful API + CLI 接口
-
-### 🔒 安全
-- Content Security Policy (CSP) 防护
-- API 密钥 Chrome Storage 加密存储
-- 所有动态内容通过 `createElement` 安全渲染（XSS 防护）
-- 第三方库本地打包，无外部 CDN 依赖
+它会在网页中记录点击、输入、页面跳转等关键步骤，并在每一步保留截图。录制结束后，插件把这些步骤交给兼容 OpenAI Chat Completions 格式的大模型，生成结构化文档。用户还可以在侧边栏中继续编辑、AI 优化、回退、复制、下载 Markdown，或导出为 HTML。
 
 ---
 
-## 🚀 安装
+## 界面一览
 
-### 前置要求
-- Chrome / Edge 浏览器
-- OpenAI 兼容的 API 密钥（推荐 [DeepSeek](https://platform.deepseek.com)，高性价比）
+<p align="center">
+  <img src="docs/assets/readme-hero.png" width="760" alt="Smart Page Scribe product preview">
+</p>
 
-### 安装步骤
-
-1. **克隆项目**
-   ```bash
-   git clone https://github.com/Teddy9710/smartpages.git
-   cd smartpages
-   ```
-
-2. **（可选）使用构建工具**
-   ```bash
-   npm install
-   npm run build    # 输出到 dist/
-   ```
-
-3. **加载扩展**
-   - 打开 `chrome://extensions/`（或 `edge://extensions/`）
-   - 开启「开发者模式」
-   - 点击「加载已解压的扩展程序」
-   - 选择项目根目录（或 `dist/` 目录）
-
-4. **配置 API**
-   - 点击扩展图标 → 设置
-   - 填写 API Key、Base URL、模型名称
-   - 点击「测试连接」验证
+| 页面 | 作用 |
+| --- | --- |
+| Popup 弹窗 | 开始录制、停止录制、查看录制状态、打开编辑器 |
+| Side Panel 智能文档助手 | 选择文档类型、生成文档、预览/编辑 Markdown、AI 优化、回退、导出 |
+| Settings 设置页 | 配置 API Key、Base URL、模型名、最大输出 Token、提示词、文档资源 |
+| Content Script | 注入目标网页，采集用户操作和截图 |
+| Background Service Worker | 管理录制会话、消息转发、截图、Content Script 自动注入 |
 
 ---
 
-## 🎯 使用指南
+## 核心功能
 
-### 录制操作流程
+### 1. 网页操作录制
 
-1. 打开目标网页 → 点击扩展图标 → **开始录制**
-2. 在页面上执行操作（点击、跳转等会被自动记录）
-3. 完成后点击 → **停止录制**
+- 一键开始/停止录制。
+- 自动记录点击、输入、路由变化等操作。
+- 每个步骤可关联页面截图。
+- 支持在 Content Script 未注入时自动补注入，减少“刷新页面后重试”的干扰。
 
-### 生成文档
+### 2. AI 文档生成
 
-1. 停止录制后侧边栏自动打开
-2. AI 分析操作并提供文档描述建议
-3. 选择描述（或自定义） → 点击「生成文档」
-4. 预览、编辑、复制或下载
+- 根据录制步骤生成 Markdown 文档。
+- 默认提示词偏向简洁、可执行的用户指南。
+- 自动对敏感输入做遮蔽处理。
+- 支持用户追加要求或完全自定义提示词。
+- 支持配置最大输出 Token，避免长文档被截断。
+
+### 3. 文档编辑与导出
+
+- Markdown 预览与源码编辑双模式。
+- 一键复制 Markdown。
+- 下载 Markdown 文件。
+- 导出独立 HTML 文件。
+- AI 二次优化：用户输入优化要求后重新润色文档。
+- 支持回退到 AI 优化前版本。
+
+### 4. 文档资源管理
+
+- 支持上传和管理 PDF、DOCX、TXT 等文档资源。
+- 支持搜索、刷新、删除等基础管理操作。
+- 相关逻辑封装在 `utils/documentUpload.js`、`utils/documentApi.js`、`utils/docUIUtils.js`。
 
 ---
 
-## 📁 项目结构
+## 工作流程
 
-```
-smartpages/
-├── manifest.json           # Manifest V3 配置
-├── vite.config.js          # Vite 构建配置
-├── tsconfig.json           # TypeScript 配置（渐进迁移）
-├── .eslintrc.json          # ESLint 配置
-├── .prettierrc             # Prettier 配置
-├── @types/global.d.ts      # 类型定义
-├── libs/                   # 第三方库（本地打包）
-│   └── marked.min.js
-├── popup/                  # 弹出窗口
-├── sidepanel/              # 侧边栏编辑器
-├── settings/               # 设置页面
-├── background/             # Service Worker
-├── content/                # 内容脚本（录制器）
-├── utils/                  # 共享工具库
-│   ├── common.js           # 通用函数 & 常量
-│   ├── documentUpload.js   # 文档上传
-│   ├── documentApi.js      # API 客户端
-│   └── codeUtils.js        # 代码工具
-├── upload/                 # 文档上传管理
-├── skills/                 # 技能模块
-├── icons/                  # 图标资源
-├── styles/                 # 全局样式
-└── docs/                   # 模拟 & 文档
+```mermaid
+flowchart LR
+  A["打开目标网页"] --> B["点击插件并开始录制"]
+  B --> C["Content Script 记录操作和截图"]
+  C --> D["停止录制"]
+  D --> E["侧边栏选择文档目标"]
+  E --> F["调用大模型生成 Markdown"]
+  F --> G["预览 / 编辑 / AI 优化"]
+  G --> H["复制 Markdown"]
+  G --> I["下载 .md"]
+  G --> J["导出 .html"]
 ```
 
 ---
 
-## 🛠️ 技术栈
+## 架构图
 
-| 类别 | 技术 |
-|------|------|
-| 扩展标准 | Chrome Extension Manifest V3 |
-| 前端 | Vanilla JavaScript (ES2022) |
-| Markdown 渲染 | Marked.js（本地打包） |
-| 存储 | Chrome Storage API (加密) |
-| 构建 | Vite + vite-plugin-static-copy |
-| 类型检查 | TypeScript (allowJs, 渐进迁移) |
-| 代码规范 | ESLint + Prettier |
-| 包管理 | npm |
+```mermaid
+flowchart TB
+  subgraph Browser["浏览器插件"]
+    Popup["popup/\n录制入口"]
+    SidePanel["sidepanel/\n智能文档助手"]
+    Settings["settings/\n配置中心"]
+    Background["background/\nService Worker"]
+    Content["content/\n页面录制脚本"]
+    Utils["utils/\n公共能力"]
+  end
+
+  Page["目标网页"] <--> Content
+  Popup <--> Background
+  SidePanel <--> Background
+  Settings <--> Utils
+  Background <--> Content
+  SidePanel --> Utils
+  Utils --> Storage["Chrome Storage"]
+  SidePanel --> LLM["OpenAI-Compatible\n/chat/completions API"]
+```
 
 ---
 
-## 💻 开发
+## 支持的模型 API
 
-### 可用命令
+当前项目按 OpenAI 兼容的 Chat Completions 格式调用模型接口：
+
+```text
+POST {Base URL}/chat/completions
+```
+
+只要服务商兼容这个请求格式，通常都可以通过设置页配置：
+
+| 配置项 | 说明 | 示例 |
+| --- | --- | --- |
+| API Key | 模型服务密钥 | `sk-...` |
+| Base URL | API 基础地址 | `https://api.openai.com/v1` |
+| 模型名 | Chat Completions 模型名称 | `gpt-4o-mini`、`deepseek-chat` |
+| 最大输出 Token | 控制生成文档长度 | `4000` |
+| 提示词模式 | 追加要求或完全自定义 | 默认提示词 + 我的要求 |
+
+常见可尝试的服务：
+
+- OpenAI API
+- DeepSeek API
+- 其他提供 OpenAI-compatible `/chat/completions` 的模型网关或服务商
+
+> 注意：不同服务商的模型名、Base URL、上下文长度和计费规则不同，以对应服务商文档为准。
+
+---
+
+## 生成文档格式
+
+| 格式 | 用途 | 当前支持 |
+| --- | --- | --- |
+| Markdown `.md` | 默认生成格式，方便编辑和复制 | 支持 |
+| HTML `.html` | 独立页面，方便交付或浏览器打开 | 支持 |
+| PDF `.pdf` | 固定版式交付 | 暂未内置，可先导出 HTML 后用浏览器打印为 PDF |
+
+---
+
+## 安装使用
+
+### 方式一：直接加载源码目录
+
+适合只想使用插件、不关心构建流程的场景。
+
+1. 下载或克隆本项目。
+2. 打开 Chrome/Edge 的扩展管理页：
+   - Chrome: `chrome://extensions/`
+   - Edge: `edge://extensions/`
+3. 开启“开发者模式”。
+4. 点击“加载已解压的扩展程序”。
+5. 选择项目根目录 `smartpages/`。
+
+### 方式二：构建后加载 `dist/`
+
+适合开发、发布或确认打包产物的场景。
 
 ```bash
-npm install          # 安装依赖
-npm run dev          # 开发模式（watch）
-npm run build        # 生产构建 → dist/
-npm run lint         # 代码检查
-npm run lint:fix     # 自动修复
-npm run typecheck    # TypeScript 类型检查
+npm install
+npm run build
 ```
 
-### 调试
+然后在扩展管理页加载 `dist/` 目录。
 
-- **Popup**：右键扩展图标 → 检查弹出内容
-- **Background**：扩展管理页 → 点击 service worker
-- **Content Script**：页面开发者工具
-- **Side Panel**：侧边栏右键 → 检查
+### 为什么浏览器插件项目里会有 npm？
 
-### 代码规范
+npm 不是插件运行时依赖。插件在浏览器中运行，核心代码是原生 HTML/CSS/JavaScript。
 
-- ES6+ 语法，async/await 异步模式
-- 所有 DOM 操作使用 `createElement()`，禁止 `innerHTML` 拼接用户数据
-- 配置项提取为常量（`utils/common.js`）
-- 中文注释
+这里使用 npm 主要是为了开发体验：
 
----
-
-## 📚 文档导航
-
-| 文档 | 说明 |
-|------|------|
-| [QUICKSTART.md](QUICKSTART.md) | 5 分钟快速上手 |
-| [STEP-BY-STEP.md](STEP-BY-STEP.md) | 详细操作步骤 |
-| [DEEPSEEK.md](DEEPSEEK.md) | DeepSeek API 配置指南 |
-| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | 故障诊断 |
-| [CHANGELOG.md](CHANGELOG.md) | 更新日志 |
-| [prd.md](prd.md) | 产品需求文档 |
-| [TESTING.md](TESTING.md) | 测试指南 |
+- 用 Vite 复制和整理扩展文件到 `dist/`。
+- 用 ESLint 做代码检查。
+- 用 TypeScript 做 JS 类型检查。
+- 统一执行 `build`、`lint`、`typecheck` 等命令。
 
 ---
 
-## 🔐 安全特性
+## 快速上手
 
-- ✅ **CSP 配置**：`script-src 'self'` 禁止内联脚本和外部加载
-- ✅ **XSS 防护**：所有动态内容通过 `createElement` / `safeSetInnerHTML` 渲染
-- ✅ **本地依赖**：第三方库全部本地打包，无运行时 CDN 请求
-- ✅ **存储空间监控**：自动检测 Chrome Storage 用量，接近上限时预警
-- ✅ **加密存储**：API 密钥通过 Chrome Storage API 加密保存
-
----
-
-## ❓ 常见问题
-
-**Q: 录制时没有反应？**
-刷新目标页面，content script 需要重新注入。
-
-**Q: API 调用失败？**
-检查 API Key、Base URL 可达性、账户额度，使用「测试连接」功能排查。
-
-**Q: 生成文档质量不高？**
-提供更详细的任务描述，或切换更强模型（如 GPT-4）。
-
-**Q: 如何使用其他 AI 服务？**
-设置中修改 Base URL，确保兼容 OpenAI API 格式即可。
+1. 打开设置页，填写 API Key、Base URL、模型名。
+2. 点击“测试连接”，确认模型 API 可用。
+3. 打开需要记录流程的网页。
+4. 点击插件图标，开始录制。
+5. 在网页上完成操作流程。
+6. 停止录制，进入侧边栏。
+7. 选择推荐的文档目标，或输入自定义描述。
+8. 生成文档后进行预览、编辑、AI 优化或导出。
 
 ---
 
-## 🗺️ 路线图
+## 项目结构
 
-- [ ] 支持导出为 PDF
-- [ ] 添加文档模板系统
-- [ ] 多语言支持（i18n）
-- [ ] 视频录制功能
-- [ ] 云端配置同步
-- [ ] 团队协作功能
-- [ ] 完全迁移至 TypeScript
+```text
+smartpages/
+├─ manifest.json              # Chrome Extension Manifest V3 配置
+├─ popup/                     # 插件弹窗：开始/停止录制
+├─ sidepanel/                 # 智能文档助手：生成、预览、编辑、导出
+├─ settings/                  # 设置页：模型、提示词、文档资源
+├─ background/                # Service Worker：会话、截图、消息转发
+├─ content/                   # Content Script：网页操作录制
+├─ utils/                     # 通用工具、配置、文档上传/API/UI 工具
+├─ styles/                    # 共享样式变量
+├─ libs/                      # 本地第三方库，例如 marked.js
+├─ icons/                     # 插件图标
+├─ upload/                    # 文档上传相关扩展模块
+├─ docs/                      # 文档/API/模拟和测试资料
+├─ scripts/                   # 构建辅助脚本
+├─ validate.js                # JS 语法校验脚本
+└─ vite.config.js             # 构建配置
+```
 
 ---
 
-## 🤝 贡献
+## 主要命令
 
-欢迎提交 Issue 和 Pull Request！
+```bash
+npm run build       # 生成 dist/ 扩展目录
+npm run dev         # watch 模式构建
+npm run lint        # ESLint 检查
+npm run lint:fix    # 自动修复可修复问题
+npm run typecheck   # TypeScript 类型检查
+node validate.js    # 核心 JS 文件语法校验
+```
 
-1. Fork 本项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
+---
 
-## 📄 许可证
+## 安全与隐私
+
+- API Key 存储在 Chrome Storage 中。
+- 扩展页面启用 CSP，禁止外部脚本直接注入。
+- 第三方库本地打包，避免运行时依赖 CDN。
+- 生成提示词会要求对密码、Token、手机号、身份证号等敏感内容进行遮蔽。
+- 文档渲染使用受控方式处理动态内容，降低 XSS 风险。
+
+---
+
+## 当前状态
+
+| 模块 | 状态 |
+| --- | --- |
+| 录制操作 | 可用 |
+| 截图采集 | 可用 |
+| AI 文档生成 | 可用 |
+| 提示词配置 | 可用 |
+| 最大输出 Token 配置 | 可用 |
+| Markdown 导出 | 可用 |
+| HTML 导出 | 可用 |
+| AI 二次优化与回退 | 可用 |
+| 文档上传管理 | 可用 |
+| PDF 直接导出 | 规划中 |
+
+---
+
+## 开发建议
+
+- 修改 UI 后运行 `npm run build`。
+- 修改 JS 后运行 `node validate.js` 和 `npm run typecheck`。
+- 录制相关问题优先检查 `background/background.js` 与 `content/recorder.js`。
+- 文档生成质量优先调整 `utils/common.js` 中的默认提示词和 `sidepanel/sidepanel.js` 中的文档类型说明。
+- 设置页字段变更需要同步 `settings/settings.html`、`settings/settings.js` 和 `utils/common.js`。
+
+---
+
+## License
 
 [MIT License](LICENSE)
-
----
-
-**享受智能文档生成的便利！** 📝✨
