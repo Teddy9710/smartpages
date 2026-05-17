@@ -52,6 +52,7 @@ class SidePanelManager {
   }
 
   async init() {
+    await this._applyLanguage();
     this._bindEvents();
     await this._checkForPendingSession();
   }
@@ -192,6 +193,120 @@ class SidePanelManager {
   showDocumentsPanel() { this.setState(StateViews.DOCUMENTS); this.docUI.loadDocumentsList(); }
   hideDocumentsPanel() { this._showEmptyState(); }
 
+  async _applyLanguage() {
+    const config = await loadConfig().catch(() => ({ appLanguage: DEFAULT_APP_LANGUAGE }));
+    this.language = config.appLanguage === 'en-US' ? 'en-US' : 'zh-CN';
+    document.documentElement.lang = this.language;
+    const isEn = this.language === 'en-US';
+    const text = isEn ? {
+      title: 'Document Generator',
+      subtitle: 'Turn browser workflows into docs',
+      docsTitle: 'Reference Documents',
+      uploadTitle: 'Upload reference documents',
+      uploadHelp: 'Supported formats: PDF, DOCX, TXT, MD, HTML',
+      browse: 'Browse Files',
+      search: 'Search documents...',
+      refresh: 'Refresh',
+      loading: 'Processing...',
+      descTitle: 'Choose document type',
+      custom: 'Custom',
+      customPlaceholder: 'Describe the document you want...',
+      generate: 'Generate Document',
+      preview: 'Preview',
+      edit: 'Edit',
+      optimize: 'Optimize',
+      revert: 'Revert',
+      copy: 'Copy',
+      download: 'Download',
+      html: 'HTML',
+      emptyTitle: 'No recording yet',
+      emptyDesc: 'Start recording from the current tab, then generate a document here.',
+      start: 'Start Recording',
+      errorTitle: 'Something went wrong',
+      retry: 'Retry',
+      optimizeTitle: 'AI Optimize',
+      optimizePlaceholder: 'Tell AI how to improve this document...',
+      cancel: 'Cancel',
+      runOptimize: 'Start Optimization'
+    } : {
+      title: '文档生成器',
+      subtitle: '将浏览器操作流程转换为文档',
+      docsTitle: '参考文档',
+      uploadTitle: '上传参考文档',
+      uploadHelp: '支持格式: PDF, DOCX, TXT, MD, HTML',
+      browse: '浏览文件',
+      search: '搜索文档...',
+      refresh: '刷新',
+      loading: '正在处理...',
+      descTitle: '选择文档类型',
+      custom: '自定义',
+      customPlaceholder: '请输入您想要的文档描述...',
+      generate: '生成文档',
+      preview: '预览',
+      edit: '编辑',
+      optimize: '优化',
+      revert: '回退',
+      copy: '复制',
+      download: '下载',
+      html: 'HTML',
+      emptyTitle: '还没有录制内容',
+      emptyDesc: '从当前标签页开始录制，然后在这里生成文档。',
+      start: '开始录制',
+      errorTitle: '出现问题',
+      retry: '重试',
+      optimizeTitle: 'AI 优化',
+      optimizePlaceholder: '告诉 AI 你想如何改进这份文档...',
+      cancel: '取消',
+      runOptimize: '开始优化'
+    };
+
+    const set = (selector, value) => {
+      const el = document.querySelector(selector);
+      if (el && value) el.textContent = value;
+    };
+    const setButton = (selector, value) => {
+      const el = document.querySelector(selector);
+      if (!el) return;
+      const icon = el.querySelector('.icon');
+      el.textContent = '';
+      if (icon) el.appendChild(icon);
+      el.append(document.createTextNode(icon ? ` ${value}` : value));
+    };
+
+    set('.header-title h1', text.title);
+    set('.header-title p', text.subtitle);
+    set('#documents-state .panel-header h2', text.docsTitle);
+    set('.upload-section h3', text.uploadTitle);
+    set('.upload-help', text.uploadHelp);
+    setButton('#sidepanel-browse-btn', text.browse);
+    const search = document.getElementById('sidepanel-search-documents');
+    if (search) search.placeholder = text.search;
+    setButton('#sidepanel-refresh-documents', text.refresh);
+    set('#loading-text', text.loading);
+    set('#description-state h2', text.descTitle);
+    set('.custom-input label', text.custom);
+    const custom = document.getElementById('custom-description');
+    if (custom) custom.placeholder = text.customPlaceholder;
+    setButton('#btn-generate', text.generate);
+    setButton('#btn-preview', text.preview);
+    setButton('#btn-edit', text.edit);
+    setButton('#btn-ai-optimize', text.optimize);
+    setButton('#btn-revert-optimization', text.revert);
+    setButton('#btn-copy', text.copy);
+    setButton('#btn-download', text.download);
+    setButton('#btn-export-html', text.html);
+    set('#empty-state h2', text.emptyTitle);
+    set('#empty-state p', text.emptyDesc);
+    setButton('#btn-start-here', text.start);
+    set('#error-state h2', text.errorTitle);
+    setButton('#btn-retry', text.retry);
+    set('#optimize-title', text.optimizeTitle);
+    const optimizeInstruction = document.getElementById('optimize-instruction');
+    if (optimizeInstruction) optimizeInstruction.placeholder = text.optimizePlaceholder;
+    setButton('#btn-cancel-optimize', text.cancel);
+    setButton('#btn-run-optimize', text.runOptimize);
+  }
+
   // ========================================================================
   // DESCRIPTION OPTIONS
   // ========================================================================
@@ -200,9 +315,17 @@ class SidePanelManager {
     const container = document.getElementById('description-list');
     if (!container) return;
     container.replaceChildren();
-    DefaultDescriptions.forEach(desc => {
+    const descriptions = this.language === 'en-US'
+      ? [
+        { value: 'user-guide', label: 'User Guide', description: 'Generate a detailed user operation guide' },
+        { value: 'tutorial', label: 'Tutorial', description: 'Generate a beginner-friendly tutorial document' },
+        { value: 'testing', label: 'Test Cases', description: 'Generate a test case document' },
+        { value: 'bug-report', label: 'Bug Report', description: 'Generate a bug report document' }
+      ]
+      : DefaultDescriptions;
+    descriptions.forEach((desc, index) => {
       container.appendChild(createElement('div', { className: 'description-option' }, [
-        createElement('input', { type: 'radio', name: 'description', value: desc.value, id: `desc-${desc.value}`, checked: desc === DefaultDescriptions[0] }),
+        createElement('input', { type: 'radio', name: 'description', value: desc.value, id: `desc-${desc.value}`, checked: index === 0 }),
         createElement('label', { htmlFor: `desc-${desc.value}`, textContent: desc.label })
       ]));
     });
@@ -242,10 +365,13 @@ class SidePanelManager {
       if (!config.apiKey) throw new ExtensionError('请先在设置中配置API密钥', 'CONFIG_ERROR');
 
       const prompt = this._buildGenerationPrompt(description, selectedValue, config);
+      const request = buildModelApiRequest(config, prompt, {
+        temperature: 0.7,
+        maxTokens: config.maxTokens || DEFAULT_MAX_TOKENS
+      });
       const response = await fetchWithTimeout(
-        config.baseUrl + '/chat/completions',
-        { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${config.apiKey}` },
-          body: JSON.stringify({ model: config.modelName, messages: [{ role: 'user', content: prompt }], temperature: 0.7, max_tokens: config.maxTokens || DEFAULT_MAX_TOKENS }) },
+        request.url,
+        request.fetchOptions,
         DOC_GEN_TIMEOUT
       );
 
@@ -256,7 +382,8 @@ class SidePanelManager {
 
       const data = await response.json();
       const outputFormat = this._getOutputFormat(config);
-      const markdown = this._normalizeGeneratedContent(data.choices[0].message.content.trim(), outputFormat);
+      const markdown = this._normalizeGeneratedContent(extractModelResponseText(data, getApiFormat(config)), outputFormat);
+      if (!markdown) throw new ExtensionError('AI没有返回可用的文档内容', 'EMPTY_RESPONSE');
       this.showEditor();
       this._setEditorContent(this._injectScreenshots(markdown, outputFormat));
       this._resetOptimizationState();
@@ -300,6 +427,11 @@ class SidePanelManager {
     }
 
     prompt += `\n\n${outputFormatInstruction}`;
+    if (config.appLanguage === 'en-US') {
+      prompt += '\n\nOutput language requirement: write the final document in clear English unless the user explicitly asks for another language.';
+    } else {
+      prompt += '\n\n输出语言要求：除非用户明确要求其他语言，最终文档请使用简体中文。';
+    }
 
     return prompt;
   }
@@ -856,21 +988,14 @@ class SidePanelManager {
         this.originalBeforeOptimization = currentContent;
       }
 
+      const request = buildModelApiRequest(
+        config,
+        this._buildOptimizationPrompt(currentContent, instruction),
+        { temperature: 0.5, maxTokens: config.maxTokens || DEFAULT_MAX_TOKENS }
+      );
       const response = await fetchWithTimeout(
-        config.baseUrl + '/chat/completions',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${config.apiKey}`
-          },
-          body: JSON.stringify({
-            model: config.modelName,
-            messages: [{ role: 'user', content: this._buildOptimizationPrompt(currentContent, instruction) }],
-            temperature: 0.5,
-            max_tokens: config.maxTokens || DEFAULT_MAX_TOKENS
-          })
-        },
+        request.url,
+        request.fetchOptions,
         DOC_GEN_TIMEOUT
       );
 
@@ -881,7 +1006,7 @@ class SidePanelManager {
 
       const data = await response.json();
       const optimized = this._normalizeGeneratedContent(
-        data.choices?.[0]?.message?.content?.trim(),
+        extractModelResponseText(data, getApiFormat(config)),
         this._getOutputFormat(config)
       );
       if (!optimized) throw new ExtensionError('AI没有返回优化后的文档', 'EMPTY_RESPONSE');

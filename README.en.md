@@ -24,7 +24,7 @@
 
 Smart Page Scribe is a browser extension that converts real web workflows into structured documentation. It is useful for QA, implementation teams, product managers, support teams, operations teams, and anyone who frequently writes step-by-step instructions.
 
-The extension records key actions such as clicks, text input, and page navigation, while keeping screenshots for each step. After recording, it calls an OpenAI-compatible Chat Completions API to generate a Markdown document. Users can directly edit the rendered preview in the side panel, switch to Markdown source editing, run AI refinement, revert changes, copy, download Markdown, or export a standalone HTML file.
+The extension records key actions such as clicks, text input, and page navigation, while keeping screenshots for each step. After recording, it calls the configured GPT, Gemini, Claude, or compatible model provider to generate a document. Users can directly edit the rendered preview in the side panel, switch to Markdown source editing, run AI refinement, revert changes, copy, download Markdown, or export a standalone HTML file.
 
 ---
 
@@ -79,6 +79,8 @@ The extension records key actions such as clicks, text input, and page navigatio
 - Automatically fill the recommended base URL and model name for the selected provider.
 - Manually edit the base URL for OpenAI-compatible APIs.
 - Show the matching API key link for the selected provider.
+- Switch the main UI between Chinese and English. When English is selected, generated documents default to English.
+- Support GPT / OpenAI, Gemini / Google, Claude / Anthropic, GLM, DeepSeek, MiniMax, Kimi, OpenRouter, SiliconFlow, DashScope, and custom OpenAI-compatible APIs.
 
 ### 5. Document Resource Management
 
@@ -125,27 +127,36 @@ flowchart TB
   Background <--> Content
   SidePanel --> Utils
   Utils --> Storage["Chrome Storage"]
-  SidePanel --> LLM["OpenAI-Compatible\n/chat/completions API"]
+  SidePanel --> LLM["Model API\nOpenAI-compatible or Anthropic"]
 ```
 
 ---
 
 ## Supported Model APIs
 
-The project calls model APIs using the OpenAI-compatible Chat Completions format:
+The project supports two model API families.
+
+OpenAI, Gemini, GLM, DeepSeek, MiniMax, Kimi, OpenRouter, SiliconFlow, DashScope, and custom compatible providers use the OpenAI-compatible Chat Completions format:
 
 ```text
 POST {Base URL}/chat/completions
 ```
 
-Any provider compatible with this request format can usually be configured in Settings.
+Claude / Anthropic uses the Anthropic Messages API:
+
+```text
+POST {Base URL}/messages
+```
+
+Any provider compatible with these request formats can usually be configured in Settings.
 
 | Setting | Description | Example |
 | --- | --- | --- |
-| Model provider | Common API presets or custom provider | OpenAI, GLM, DeepSeek, MiniMax, Kimi, OpenRouter |
+| Interface language | Main extension UI language, also used as the default generation language | Chinese, English |
+| Model provider | Common API presets or custom provider | GPT / OpenAI, Gemini / Google, Claude / Anthropic, GLM, DeepSeek, MiniMax, Kimi, OpenRouter |
 | API Key | Provider API key | `sk-...` |
 | Base URL | API base endpoint | `https://api.openai.com/v1` |
-| Model name | Chat Completions model name | `gpt-4o-mini`, `deepseek-chat` |
+| Model name | Model name | `gpt-4o-mini`, `gemini-3-flash-preview`, `claude-sonnet-4-20250514` |
 | Max output tokens | Controls generated document length | `4000` |
 | Output format | Controls final generation and download format | Markdown, HTML, plain text |
 | Prompt mode | Append requirements or fully customize | Default prompt + my requirements |

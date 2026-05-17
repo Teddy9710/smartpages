@@ -23,9 +23,20 @@
         <p class="section-desc">配置您的大模型API凭证以使用AI功能</p>
 
         <div class="form-group">
+          <label for="app-language">界面语言</label>
+          <select id="app-language" class="input">
+            <option value="zh-CN">中文</option>
+            <option value="en-US">English</option>
+          </select>
+          <p class="help-text">切换扩展主要页面的显示语言。</p>
+        </div>
+
+        <div class="form-group">
           <label for="api-provider">模型服务商</label>
           <select id="api-provider" class="input">
-            <option value="openai">OpenAI</option>
+            <option value="openai">GPT / OpenAI</option>
+            <option value="gemini">Gemini / Google</option>
+            <option value="claude">Claude / Anthropic</option>
             <option value="glm">GLM / Z.AI</option>
             <option value="deepseek">DeepSeek</option>
             <option value="minimax">MiniMax</option>

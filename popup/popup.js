@@ -57,6 +57,7 @@ class PopupManager {
    * @async
    */
   async init() {
+    await this._applyLanguage();
     this._bindButtonEvents();
     this._bindMessageListener();
     await this._refreshState();
@@ -210,6 +211,83 @@ class PopupManager {
     }
   }
 
+  async _applyLanguage() {
+    const config = await loadConfig().catch(() => ({ appLanguage: DEFAULT_APP_LANGUAGE }));
+    this.language = config.appLanguage === 'en-US' ? 'en-US' : 'zh-CN';
+    document.documentElement.lang = this.language;
+    const isEn = this.language === 'en-US';
+    const text = isEn ? {
+      title: 'Smart Page Scribe',
+      subtitle: 'Record browser actions and generate docs',
+      statusIdle: 'Not recording',
+      start: 'Start Recording',
+      hint: 'Click to start recording your workflow',
+      recording: 'Recording',
+      steps: 'steps',
+      stop: 'Stop Recording',
+      success: 'Recording Complete',
+      totalPrefix: 'Recorded ',
+      totalSuffix: ' steps',
+      editor: 'Open Editor',
+      newRecording: 'New Recording',
+      settings: 'Settings'
+    } : {
+      title: 'Smart Page Scribe',
+      subtitle: '记录浏览器操作并生成文档',
+      statusIdle: '未录制',
+      start: '开始录制',
+      hint: '点击开始录制您的操作流程',
+      recording: '正在录制',
+      steps: '个步骤',
+      stop: '停止录制',
+      success: '录制完成',
+      totalPrefix: '共记录 ',
+      totalSuffix: ' 个步骤',
+      editor: '打开编辑器',
+      newRecording: '重新录制',
+      settings: '设置'
+    };
+
+    const set = (selector, value) => {
+      const el = document.querySelector(selector);
+      if (el && value) el.textContent = value;
+    };
+    const setButton = (selector, value) => {
+      const el = document.querySelector(selector);
+      if (!el) return;
+      const icon = el.querySelector('.icon');
+      el.textContent = '';
+      if (icon) el.appendChild(icon);
+      el.append(document.createTextNode(icon ? ` ${value}` : value));
+    };
+
+    set('.header h1', text.title);
+    set('.header p', text.subtitle);
+    set('#status-text', text.statusIdle);
+    setButton('#btn-start', text.start);
+    set('.hint', text.hint);
+    set('.recording-badge', text.recording);
+    const stepCount = document.getElementById('step-count');
+    const stepCountContainer = document.querySelector('.step-count');
+    if (stepCountContainer && stepCount) {
+      stepCountContainer.textContent = '';
+      stepCountContainer.appendChild(stepCount);
+      stepCountContainer.append(document.createTextNode(` ${text.steps}`));
+    }
+    setButton('#btn-stop', text.stop);
+    set('.success-message h2', text.success);
+    const totalSteps = document.getElementById('total-steps');
+    const stepInfo = document.querySelector('.step-info');
+    if (stepInfo && totalSteps) {
+      stepInfo.textContent = text.totalPrefix;
+      stepInfo.appendChild(totalSteps);
+      stepInfo.append(document.createTextNode(text.totalSuffix));
+    }
+    setButton('#btn-open-editor', text.editor);
+    setButton('#btn-new-recording', text.newRecording);
+    setButton('#btn-settings', text.settings);
+  }
+
   // ========================================================================
   // RECORDING ACTIONS
   // ========================================================================
@@ -273,7 +351,7 @@ class PopupManager {
       const btn = document.getElementById(ButtonIds.STOP);
       if (btn) {
         btn.disabled = true;
-        btn.textContent = '停止中...';
+        btn.textContent = this.language === 'en-US' ? 'Stopping...' : '停止中...';
       }
 
       const response = await sendMessage({ type: 'STOP_RECORDING' });
@@ -299,7 +377,7 @@ class PopupManager {
       const btn = document.getElementById(ButtonIds.STOP);
       if (btn) {
         btn.disabled = false;
-        btn.textContent = '停止录制';
+        btn.textContent = this.language === 'en-US' ? 'Stop Recording' : '停止录制';
       }
     }
   }

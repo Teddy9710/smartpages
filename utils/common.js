@@ -45,6 +45,12 @@ const DEFAULT_PROMPT_MODE = 'append';
 /** @constant {string} DEFAULT_OUTPUT_FORMAT - Default generated document format */
 const DEFAULT_OUTPUT_FORMAT = 'markdown';
 
+/** @constant {string} DEFAULT_API_FORMAT - Default model API protocol */
+const DEFAULT_API_FORMAT = 'openai';
+
+/** @constant {string} DEFAULT_APP_LANGUAGE - Default extension UI language */
+const DEFAULT_APP_LANGUAGE = 'zh-CN';
+
 /** @constant {string} DEFAULT_PROMPT_TEMPLATE - Default document generation prompt template */
 const DEFAULT_PROMPT_TEMPLATE = `你是一名产品文档编辑。请根据录制到的网页操作，生成一份清晰、简洁、可直接使用的 Markdown 文档。
 
@@ -455,6 +461,71 @@ function validateUrl(urlString, allowedProtocols = ['https:', 'http:']) {
   }
 }
 
+function normalizeBaseUrl(baseUrl, fallback = 'https://api.openai.com/v1') {
+  return String(baseUrl || fallback).trim().replace(/\/+$/, '');
+}
+
+function getApiFormat(config = {}) {
+  return config.apiFormat === 'anthropic' ? 'anthropic' : DEFAULT_API_FORMAT;
+}
+
+function buildModelApiRequest(config = {}, prompt, options = {}) {
+  const apiFormat = getApiFormat(config);
+  const baseUrl = normalizeBaseUrl(config.baseUrl);
+  const maxTokens = options.maxTokens || config.maxTokens || DEFAULT_MAX_TOKENS;
+  const temperature = options.temperature ?? 0.7;
+  const model = config.modelName || (apiFormat === 'anthropic' ? 'claude-sonnet-4-20250514' : 'gpt-4o-mini');
+
+  if (apiFormat === 'anthropic') {
+    return {
+      url: `${baseUrl}/messages`,
+      fetchOptions: {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': config.apiKey,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: maxTokens,
+          temperature,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      }
+    };
+  }
+
+  return {
+    url: `${baseUrl}/chat/completions`,
+    fetchOptions: {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.apiKey}`
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature,
+        max_tokens: maxTokens
+      })
+    }
+  };
+}
+
+function extractModelResponseText(data, apiFormat = DEFAULT_API_FORMAT) {
+  if (apiFormat === 'anthropic') {
+    return (data?.content || [])
+      .map(block => block?.type === 'text' ? block.text : '')
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+  }
+
+  return data?.choices?.[0]?.message?.content?.trim() || '';
+}
+
 // ============================================================================
 // CHROME EXTENSION UTILITIES
 // ============================================================================
@@ -633,6 +704,8 @@ async function loadConfig() {
     'promptAppend',
     'customPrompt',
     'outputFormat',
+    'apiFormat',
+    'appLanguage',
     'styleGuide',
     'documentExamples'
   ]);
@@ -651,6 +724,8 @@ async function loadConfig() {
     promptAppend: result.promptAppend || '',
     customPrompt: result.customPrompt || DEFAULT_PROMPT_TEMPLATE,
     outputFormat: result.outputFormat || DEFAULT_OUTPUT_FORMAT,
+    apiFormat: result.apiFormat || DEFAULT_API_FORMAT,
+    appLanguage: result.appLanguage || DEFAULT_APP_LANGUAGE,
     styleGuide: result.styleGuide || '',
     documentExamples: result.documentExamples || {}
   };
@@ -683,6 +758,10 @@ if (typeof module !== 'undefined' && module.exports) {
     loadConfig,
     fetchWithTimeout,
     validateUrl,
+    normalizeBaseUrl,
+    getApiFormat,
+    buildModelApiRequest,
+    extractModelResponseText,
     sendMessage,
     queryTabs,
     isRestrictedUrl,
@@ -699,6 +778,8 @@ if (typeof module !== 'undefined' && module.exports) {
     MAX_MAX_TOKENS,
     DEFAULT_PROMPT_MODE,
     DEFAULT_OUTPUT_FORMAT,
+    DEFAULT_API_FORMAT,
+    DEFAULT_APP_LANGUAGE,
     DEFAULT_PROMPT_TEMPLATE,
     SUPPORTED_FILE_FORMATS,
     SCREENSHOT_QUALITY,
