@@ -33,11 +33,20 @@ const THROTTLE_DELAY = 200;
 /** @constant {number} DEFAULT_MAX_TOKENS - Default max tokens for LLM responses */
 const DEFAULT_MAX_TOKENS = 4000;
 
+/** @constant {number} DEFAULT_MAX_INPUT_TOKENS - Default model input budget */
+const DEFAULT_MAX_INPUT_TOKENS = 200000;
+
 /** @constant {number} MIN_MAX_TOKENS - Minimum configurable output tokens */
 const MIN_MAX_TOKENS = 500;
 
 /** @constant {number} MAX_MAX_TOKENS - Maximum configurable output tokens */
 const MAX_MAX_TOKENS = 12000;
+
+/** @constant {number} MIN_MAX_INPUT_TOKENS - Minimum configurable input budget */
+const MIN_MAX_INPUT_TOKENS = 4000;
+
+/** @constant {number} MAX_MAX_INPUT_TOKENS - Maximum configurable input budget */
+const MAX_MAX_INPUT_TOKENS = 1000000;
 
 /** @constant {string} DEFAULT_PROMPT_MODE - Default prompt customization mode */
 const DEFAULT_PROMPT_MODE = 'append';
@@ -700,6 +709,7 @@ async function loadConfig() {
     'modelName',
     'smartDescription',
     'maxTokens',
+    'maxInputTokens',
     'promptMode',
     'promptAppend',
     'customPrompt',
@@ -713,6 +723,10 @@ async function loadConfig() {
   const maxTokens = Number.isFinite(parsedMaxTokens)
     ? Math.min(Math.max(parsedMaxTokens, MIN_MAX_TOKENS), MAX_MAX_TOKENS)
     : DEFAULT_MAX_TOKENS;
+  const parsedMaxInputTokens = Number.parseInt(result.maxInputTokens, 10);
+  const maxInputTokens = Number.isFinite(parsedMaxInputTokens)
+    ? Math.min(Math.max(parsedMaxInputTokens, MIN_MAX_INPUT_TOKENS), MAX_MAX_INPUT_TOKENS)
+    : DEFAULT_MAX_INPUT_TOKENS;
 
   return {
     apiKey: result.apiKey || '',
@@ -720,6 +734,7 @@ async function loadConfig() {
     modelName: result.modelName || 'gpt-3.5-turbo',
     smartDescription: result.smartDescription !== undefined ? result.smartDescription : true,
     maxTokens,
+    maxInputTokens,
     promptMode: result.promptMode || DEFAULT_PROMPT_MODE,
     promptAppend: result.promptAppend || '',
     customPrompt: result.customPrompt || DEFAULT_PROMPT_TEMPLATE,
@@ -776,6 +791,8 @@ if (typeof module !== 'undefined' && module.exports) {
     API_TEST_TIMEOUT,
     MIN_MAX_TOKENS,
     MAX_MAX_TOKENS,
+    MIN_MAX_INPUT_TOKENS,
+    MAX_MAX_INPUT_TOKENS,
     DEFAULT_PROMPT_MODE,
     DEFAULT_OUTPUT_FORMAT,
     DEFAULT_API_FORMAT,
@@ -785,6 +802,7 @@ if (typeof module !== 'undefined' && module.exports) {
     SCREENSHOT_QUALITY,
     DEBOUNCE_DELAY,
     THROTTLE_DELAY,
-    DEFAULT_MAX_TOKENS
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_MAX_INPUT_TOKENS
   };
 }

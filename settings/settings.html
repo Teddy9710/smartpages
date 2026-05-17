@@ -98,6 +98,20 @@
         </div>
 
         <div class="form-group">
+          <label for="max-input-tokens">最大输入 Token</label>
+          <input
+            type="number"
+            id="max-input-tokens"
+            class="input"
+            min="4000"
+            max="1000000"
+            step="10000"
+            placeholder="200000"
+          >
+          <p class="help-text">控制发送给模型的最长上下文。超过后会保留开头和结尾并省略中间内容，避免超过模型上限。</p>
+        </div>
+
+        <div class="form-group">
           <label for="output-format">默认输出格式</label>
           <select id="output-format" class="input">
             <option value="markdown">Markdown (.md)</option>

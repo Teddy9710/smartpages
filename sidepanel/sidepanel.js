@@ -364,7 +364,7 @@ class SidePanelManager {
       this.config = config;
       if (!config.apiKey) throw new ExtensionError('请先在设置中配置API密钥', 'CONFIG_ERROR');
 
-      const prompt = this._buildGenerationPrompt(description, selectedValue, config);
+      const prompt = this._limitPromptForModel(this._buildGenerationPrompt(description, selectedValue, config), config.maxInputTokens);
       const request = buildModelApiRequest(config, prompt, {
         temperature: 0.7,
         maxTokens: config.maxTokens || DEFAULT_MAX_TOKENS
@@ -684,17 +684,64 @@ class SidePanelManager {
     this.session.steps.forEach(function(step, index) {
       var stepNumber = index + 1;
       var placeholder = '[' + '截图' + stepNumber + ']';
+      var englishPlaceholder = '[Screenshot ' + stepNumber + ']';
       if (step.screenshot) {
         var imgTag = format === 'html'
           ? '<img alt="' + '步骤' + stepNumber + '截图" src="' + step.screenshot + '">'
           : '![' + '步骤' + stepNumber + '截图](' + step.screenshot + ')';
         result = result.split(placeholder).join(imgTag);
+        result = result.split(englishPlaceholder).join(imgTag);
         result = result.replace(new RegExp('截图占位[：:]?\\s*步骤\\s*' + stepNumber + '\\s*截图', 'g'), imgTag);
         result = result.replace(new RegExp('步骤\\s*' + stepNumber + '\\s*截图', 'g'), imgTag);
         result = result.replace(new RegExp('截图\\s*' + stepNumber + '(?![\\]\\)])', 'g'), imgTag);
+        result = result.replace(new RegExp('Screenshot\\s*' + stepNumber + '(?![\\]\\)])', 'gi'), imgTag);
       }
     });
     return result;
+  }
+
+  _getScreenshotMarker(stepNumber) {
+    return `[截图${stepNumber}]`;
+  }
+
+  _getScreenshotMarkerFromAlt(alt) {
+    const match = String(alt || '').match(/(?:步骤|step)?\s*(\d+)\s*(?:截图|screenshot)?/i);
+    if (!match) return '';
+    const stepNumber = Number.parseInt(match[1], 10);
+    return Number.isFinite(stepNumber) ? this._getScreenshotMarker(stepNumber) : '';
+  }
+
+  _prepareContentForModel(content) {
+    let screenshotIndex = 0;
+    const nextMarker = () => {
+      screenshotIndex += 1;
+      return this._getScreenshotMarker(screenshotIndex);
+    };
+
+    return String(content || '')
+      .replace(/!\[([^\]]*)\]\(data:image\/[^)]+\)/gi, (_match, alt) => this._getScreenshotMarkerFromAlt(alt) || nextMarker())
+      .replace(/<img\b[^>]*>/gi, (imgTag) => {
+        const srcMatch = imgTag.match(/\bsrc=(["'])data:image\/[\s\S]*?\1/i);
+        if (!srcMatch) return imgTag;
+        const altMatch = imgTag.match(/\balt=(["'])([\s\S]*?)\1/i);
+        return this._getScreenshotMarkerFromAlt(altMatch?.[2] || '') || nextMarker();
+      })
+      .replace(/data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=]+/gi, '[图片内容已省略]');
+  }
+
+  _limitPromptForModel(content, maxInputTokens = DEFAULT_MAX_INPUT_TOKENS) {
+    const tokenBudget = Number.isFinite(Number(maxInputTokens))
+      ? Math.min(Math.max(Number(maxInputTokens), MIN_MAX_INPUT_TOKENS), MAX_MAX_INPUT_TOKENS)
+      : DEFAULT_MAX_INPUT_TOKENS;
+    const charBudget = tokenBudget * 4;
+    const value = String(content || '');
+    if (value.length <= charBudget) return value;
+
+    const marker = `\n\n[中间内容因超过最大输入 Token 预算已省略，当前预算：${tokenBudget} tokens]\n\n`;
+    const remaining = Math.max(charBudget - marker.length, 1000);
+    const headLength = Math.floor(remaining * 0.65);
+    const tailLength = remaining - headLength;
+    return value.slice(0, headLength) + marker + value.slice(-tailLength);
   }
 
   _setEditorContent(content) {
@@ -815,6 +862,9 @@ class SidePanelManager {
     if (tag === 'img') {
       const alt = node.getAttribute('alt') || '';
       const src = node.getAttribute('src') || '';
+      if (/^data:image\//i.test(src)) {
+        return this._getScreenshotMarkerFromAlt(alt) || '[截图]';
+      }
       return src ? `![${alt}](${src})` : '';
     }
 
@@ -990,7 +1040,13 @@ class SidePanelManager {
 
       const request = buildModelApiRequest(
         config,
-        this._buildOptimizationPrompt(currentContent, instruction),
+        this._limitPromptForModel(
+          this._buildOptimizationPrompt(
+            this._limitPromptForModel(this._prepareContentForModel(currentContent), config.maxInputTokens),
+            instruction
+          ),
+          config.maxInputTokens
+        ),
         { temperature: 0.5, maxTokens: config.maxTokens || DEFAULT_MAX_TOKENS }
       );
       const response = await fetchWithTimeout(
@@ -1011,7 +1067,7 @@ class SidePanelManager {
       );
       if (!optimized) throw new ExtensionError('AI没有返回优化后的文档', 'EMPTY_RESPONSE');
 
-      this._setEditorContent(optimized);
+      this._setEditorContent(this._injectScreenshots(optimized, this._getOutputFormat(config)));
       this._setRevertVisible(true);
       this.switchToPreview();
       this.closeOptimizeDialog(true);
@@ -1045,6 +1101,7 @@ ${instruction}
 硬性要求：
 - 只输出优化后的完整 ${formatName} 文档，不要输出解释或对话。
 - 保留原文中的所有截图引用或 [截图N] 占位符，不要删除、重编号或改写图片链接。
+- 为避免请求过长，原文中的截图图片可能已被压缩为 [截图N] 占位符；输出时必须保留这些占位符，系统会在返回后自动恢复真实截图。
 - 保留事实边界，不要编造具体账号、金额、订单号、接口返回值等无法从原文判断的信息。
 - 可以重排结构、补充说明、改写措辞、增加注意事项和常见问题。
 - 保持简体中文，面向非技术人员，内容清晰、完整、可执行。

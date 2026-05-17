@@ -108,6 +108,7 @@ class SettingsManager {
       appLanguage: DEFAULT_APP_LANGUAGE,
       smartDescription: true,
       maxTokens: DEFAULT_MAX_TOKENS,
+      maxInputTokens: DEFAULT_MAX_INPUT_TOKENS,
       promptMode: DEFAULT_PROMPT_MODE,
       outputFormat: DEFAULT_OUTPUT_FORMAT,
       promptAppend: '',
@@ -225,6 +226,7 @@ class SettingsManager {
     const modelNameInput = document.getElementById('model-name');
     const smartDescCheckbox = document.getElementById('smart-description');
     const maxTokensInput = document.getElementById('max-tokens');
+    const maxInputTokensInput = document.getElementById('max-input-tokens');
     const outputFormatSelect = document.getElementById('output-format');
     const promptModeSelect = document.getElementById('prompt-mode');
     const defaultPromptPreview = document.getElementById('default-prompt-preview');
@@ -242,6 +244,7 @@ class SettingsManager {
     if (modelNameInput) modelNameInput.value = this.config.modelName;
     if (smartDescCheckbox) smartDescCheckbox.checked = this.config.smartDescription;
     if (maxTokensInput) maxTokensInput.value = this.config.maxTokens || DEFAULT_MAX_TOKENS;
+    if (maxInputTokensInput) maxInputTokensInput.value = this.config.maxInputTokens || DEFAULT_MAX_INPUT_TOKENS;
     if (outputFormatSelect) outputFormatSelect.value = this.config.outputFormat || DEFAULT_OUTPUT_FORMAT;
     if (promptModeSelect) promptModeSelect.value = this.config.promptMode || DEFAULT_PROMPT_MODE;
     if (defaultPromptPreview) defaultPromptPreview.value = DEFAULT_PROMPT_TEMPLATE;
@@ -388,6 +391,7 @@ class SettingsManager {
     const modelNameInput = document.getElementById('model-name');
     const smartDescCheckbox = document.getElementById('smart-description');
     const maxTokensInput = document.getElementById('max-tokens');
+    const maxInputTokensInput = document.getElementById('max-input-tokens');
     const outputFormatSelect = document.getElementById('output-format');
     const promptModeSelect = document.getElementById('prompt-mode');
     const promptAppendInput = document.getElementById('prompt-append');
@@ -403,6 +407,11 @@ class SettingsManager {
     const maxTokens = this._parseMaxTokens(maxTokensInput?.value);
     if (!maxTokens) {
       this._showTestResult(`最大输出 Token 需要在 ${MIN_MAX_TOKENS}-${MAX_MAX_TOKENS} 之间`, 'error');
+      return;
+    }
+    const maxInputTokens = this._parseMaxInputTokens(maxInputTokensInput?.value);
+    if (!maxInputTokens) {
+      this._showTestResult(`最大输入 Token 需要在 ${MIN_MAX_INPUT_TOKENS}-${MAX_MAX_INPUT_TOKENS} 之间`, 'error');
       return;
     }
 
@@ -421,6 +430,7 @@ class SettingsManager {
       appLanguage: appLanguageSelect?.value || DEFAULT_APP_LANGUAGE,
       smartDescription: smartDescCheckbox?.checked ?? true,
       maxTokens,
+      maxInputTokens,
       outputFormat: outputFormatSelect?.value || DEFAULT_OUTPUT_FORMAT,
       promptMode,
       promptAppend: promptAppendInput?.value.trim() || '',
@@ -437,6 +447,7 @@ class SettingsManager {
         appLanguage: this.config.appLanguage,
         smartDescription: this.config.smartDescription,
         maxTokens: this.config.maxTokens,
+        maxInputTokens: this.config.maxInputTokens,
         outputFormat: this.config.outputFormat,
         promptMode: this.config.promptMode,
         promptAppend: this.config.promptAppend,
@@ -456,6 +467,13 @@ class SettingsManager {
     const parsed = Number.parseInt(value, 10);
     if (!Number.isFinite(parsed)) return DEFAULT_MAX_TOKENS;
     if (parsed < MIN_MAX_TOKENS || parsed > MAX_MAX_TOKENS) return null;
+    return parsed;
+  }
+
+  _parseMaxInputTokens(value) {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed)) return DEFAULT_MAX_INPUT_TOKENS;
+    if (parsed < MIN_MAX_INPUT_TOKENS || parsed > MAX_MAX_INPUT_TOKENS) return null;
     return parsed;
   }
 
@@ -530,6 +548,7 @@ class SettingsManager {
       model: 'Model Name',
       modelHelp: 'For example: gpt-4o-mini, gemini-3-flash-preview, claude-sonnet-4-20250514',
       maxTokens: 'Max Output Tokens',
+      maxInputTokens: 'Max Input Tokens',
       outputFormat: 'Default Output Format',
       promptMode: 'Prompt Mode',
       test: 'Test Connection',
@@ -559,6 +578,7 @@ class SettingsManager {
       model: '模型名称',
       modelHelp: '例如：gpt-4o-mini、gemini-3-flash-preview、claude-sonnet-4-20250514',
       maxTokens: '最大输出 Token',
+      maxInputTokens: '最大输入 Token',
       outputFormat: '默认输出格式',
       promptMode: '提示词模式',
       test: '测试连接',
@@ -603,6 +623,7 @@ class SettingsManager {
     set('label[for="model-name"]', text.model);
     set('#model-name + .help-text', text.modelHelp);
     set('label[for="max-tokens"]', text.maxTokens);
+    set('label[for="max-input-tokens"]', text.maxInputTokens);
     set('label[for="output-format"]', text.outputFormat);
     set('label[for="prompt-mode"]', text.promptMode);
     setButton('#btn-test', text.test);
