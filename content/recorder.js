@@ -653,7 +653,7 @@
     });
 
     // Show visual feedback
-    showClickFeedback(coords.x, coords.y);
+    showClickFeedback(step.x, step.y);
   }, THROTTLE_DELAY);
 
   const recordInput = debounce(function(event) {
