@@ -232,14 +232,14 @@ ls -la icons/
 
 **Background调试：**
 1. 打开 `chrome://extensions/`
-2. 找到"Smart Page Scribe"
+2. 找到"SmartPages"
 3. 点击"service worker"链接
 4. 查看Console
 
 **Content Script调试：**
 1. 打开要录制的页面
 2. 按F12打开开发者工具
-3. 查看Console（应该看到 `[Smart Page Scribe]` 开头的日志）
+3. 查看Console（应该看到 `[SmartPages]` 开头的日志）
 
 **Side Panel调试：**
 1. 打开侧边栏
@@ -288,16 +288,16 @@ ls -la icons/
 
 **Background:**
 ```
-Smart Page Scribe installed
+SmartPages installed
 Recording started
 Recording stopped
 ```
 
 **Content Script:**
 ```
-[Smart Page Scribe] Content script loaded
-[Smart Page Scribe] Recording started
-[Smart Page Scribe] Recording stopped
+[SmartPages] Content script loaded
+[SmartPages] Recording started
+[SmartPages] Recording stopped
 ```
 
 **Side Panel:**

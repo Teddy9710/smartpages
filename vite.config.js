@@ -25,7 +25,7 @@ const copyTargets = [
 ].filter(target => existsSync(resolve(projectRoot, target.src.replace(/\/\*$/, ''))));
 
 /**
- * Vite config for Smart Page Scribe Chrome Extension
+ * Vite config for SmartPages Chrome Extension
  * Uses copy-based approach since Chrome Extension uses non-module scripts.
  */
 export default defineConfig({

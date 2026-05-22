@@ -126,7 +126,7 @@ class DocumentUploadManager {
     const apiUrl = `https://api.github.com/repos/${githubOptions.owner}/${githubOptions.repo}/contents/${file.name}`;
     
     const requestBody = {
-      message: `Upload ${file.name} via Smart Page Scribe`,
+      message: `Upload ${file.name} via SmartPages`,
       content: base64Content,
       branch: githubOptions.branch || 'main'
     };

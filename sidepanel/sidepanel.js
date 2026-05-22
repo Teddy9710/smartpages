@@ -1,5 +1,5 @@
 /**
- * Smart Page Scribe - Side Panel Manager
+ * SmartPages - Side Panel Manager
  *
  * Manages the side panel UI for document generation and editing.
  * Uses DocUIHelper for shared document management logic.
@@ -1188,7 +1188,7 @@ ${markdown}`;
       return this._ensureStandaloneHtml(content);
     }
     if (format === 'text') {
-      return this._buildStandaloneHtmlFromBody(`<pre>${this._escapeHtml(content)}</pre>`, 'Smart Page Scribe Document');
+      return this._buildStandaloneHtmlFromBody(`<pre>${this._escapeHtml(content)}</pre>`, 'SmartPages Document');
     }
     return this._buildStandaloneHtml(content);
   }
@@ -1271,7 +1271,7 @@ ${bodyHtml}
       return value;
     }
     const doc = new DOMParser().parseFromString(value, 'text/html');
-    const title = doc.querySelector('h1')?.textContent?.trim() || 'Smart Page Scribe Document';
+    const title = doc.querySelector('h1')?.textContent?.trim() || 'SmartPages Document';
     return this._buildStandaloneHtmlFromBody(doc.body?.innerHTML || value, title);
   }
 
@@ -1294,7 +1294,7 @@ ${bodyHtml}
 
   _extractDocumentTitle(markdown) {
     const heading = markdown.split('\n').find(line => line.trim().startsWith('# '));
-    return heading ? heading.replace(/^#\s+/, '').trim() : 'Smart Page Scribe Document';
+    return heading ? heading.replace(/^#\s+/, '').trim() : 'SmartPages Document';
   }
 
   _escapeHtml(value) {

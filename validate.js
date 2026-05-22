@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Smart Page Scribe - Validation Script
+ * SmartPages - Validation Script
  * Checks for syntax errors and common issues in all JavaScript files
  */
 
@@ -18,7 +18,7 @@ const filesToCheck = [
 
 const issues = [];
 
-console.log('🔍 Validating Smart Page Scribe extension files...\n');
+console.log('🔍 Validating SmartPages extension files...\n');
 
 filesToCheck.forEach(filePath => {
   const fullPath = path.join(__dirname, filePath);
@@ -47,7 +47,7 @@ filesToCheck.forEach(filePath => {
       const lineNum = index + 1;
 
       // Check for console.log that should be removed in production
-      const hasPrefix = line.includes('[Smart Page Scribe]') ||
+      const hasPrefix = line.includes('[SmartPages]') ||
                        line.includes('[Scribe:') ||
                        line.includes('[SidePanel]') ||
                        line.includes('[Popup]') ||

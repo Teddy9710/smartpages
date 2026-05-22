@@ -1,8 +1,8 @@
-# Smart Page Scribe - 代码结构文档
+# SmartPages - 代码结构文档
 
 ## 项目概述
 
-**Smart Page Scribe（智能网页文档助手）** 是一个 Chrome 浏览器扩展，能够智能录制用户的网页操作并自动生成结构化的 Markdown 文档。
+**SmartPages（智能网页文档助手）** 是一个 Chrome 浏览器扩展，能够智能录制用户的网页操作并自动生成结构化的 Markdown 文档。
 
 ### 核心功能
 
@@ -386,7 +386,7 @@ Chrome 扩展清单文件，定义扩展的基本信息和权限：
 ```json
 {
   "manifest_version": 3,
-  "name": "Smart Page Scribe - 智能网页文档助手",
+  "name": "SmartPages - 智能网页文档助手",
   "version": "1.0.0",
   "permissions": [
     "storage",
@@ -416,7 +416,7 @@ NPM 配置文件：
 
 ```json
 {
-  "name": "smart-page-scribe",
+  "name": "smartpages",
   "version": "1.0.0",
   "scripts": {
     "build": "echo 'Building extension...'",

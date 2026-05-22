@@ -1,9 +1,9 @@
-# Smart Page Scribe
+# SmartPages
 
 [中文](README.md)
 
 <p align="center">
-  <img src="icons/icon128.png" width="96" height="96" alt="Smart Page Scribe icon">
+  <img src="icons/icon128.png" width="96" height="96" alt="SmartPages icon">
 </p>
 
 <p align="center">
@@ -22,7 +22,7 @@
 
 ## Overview
 
-Smart Page Scribe is a browser extension that converts real web workflows into structured documentation. It is useful for QA, implementation teams, product managers, support teams, operations teams, and anyone who frequently writes step-by-step instructions.
+SmartPages is a browser extension that converts real web workflows into structured documentation. It is useful for QA, implementation teams, product managers, support teams, operations teams, and anyone who frequently writes step-by-step instructions.
 
 The extension records key actions such as clicks, text input, and page navigation, while keeping screenshots for each step. After recording, it calls the configured GPT, Gemini, Claude, or compatible model provider to generate a document. Users can directly edit the rendered preview in the side panel, switch to Markdown source editing, run AI refinement, revert changes, copy, download Markdown, or export a standalone HTML file.
 
@@ -31,7 +31,7 @@ The extension records key actions such as clicks, text input, and page navigatio
 ## Interface
 
 <p align="center">
-  <img src="docs/assets/readme-hero.png" width="760" alt="Smart Page Scribe product preview">
+  <img src="docs/assets/readme-hero.png" width="760" alt="SmartPages product preview">
 </p>
 
 | Page | Purpose |

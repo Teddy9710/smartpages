@@ -1,6 +1,6 @@
-# Smart Page Scribe 优化说明
+# SmartPages 优化说明
 
-本文档详细说明了对 Smart Page Scribe 项目进行的优化改进。
+本文档详细说明了对 SmartPages 项目进行的优化改进。
 
 ## 优化目标
 

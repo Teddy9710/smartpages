@@ -1,6 +1,6 @@
-# Smart Page Scribe - 文档上传功能
+# SmartPages - 文档上传功能
 
-本文档详细介绍了Smart Page Scribe的文档上传功能。
+本文档详细介绍了SmartPages的文档上传功能。
 
 ## 功能概述
 

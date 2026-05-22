@@ -1,4 +1,4 @@
-# Smart Page Scribe - 修复文档
+# SmartPages - 修复文档
 
 ## 修复日期
 2026-01-19
@@ -156,7 +156,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 #### 修复: 统一错误日志格式
 **位置**: recorder.js:107-112, 171-176
 
-**修复**: 将所有console.error添加统一的'[Smart Page Scribe]'前缀，便于在浏览器控制台识别
+**修复**: 将所有console.error添加统一的'[SmartPages]'前缀，便于在浏览器控制台识别
 
 ### 5. background.js RecordingManager.addStep 修复
 

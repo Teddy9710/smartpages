@@ -1,5 +1,5 @@
 /**
- * Smart Page Scribe - Popup Manager
+ * SmartPages - Popup Manager
  *
  * Manages the extension popup UI and interactions.
  * Handles recording controls and state display.
@@ -217,7 +217,7 @@ class PopupManager {
     document.documentElement.lang = this.language;
     const isEn = this.language === 'en-US';
     const text = isEn ? {
-      title: 'Smart Page Scribe',
+      title: 'SmartPages',
       subtitle: 'Record browser actions and generate docs',
       statusIdle: 'Not recording',
       start: 'Start Recording',
@@ -232,7 +232,7 @@ class PopupManager {
       newRecording: 'New Recording',
       settings: 'Settings'
     } : {
-      title: 'Smart Page Scribe',
+      title: 'SmartPages',
       subtitle: '记录浏览器操作并生成文档',
       statusIdle: '未录制',
       start: '开始录制',

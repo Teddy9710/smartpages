@@ -1,5 +1,5 @@
 /**
- * Smart Page Scribe - Background Service Worker
+ * SmartPages - Background Service Worker
  *
  * This is the main background service worker that manages:
  * - Recording state and sessions
@@ -707,14 +707,14 @@ if (!chrome.runtime.scribeMessageListener) {
  */
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
-    console.log('[Scribe:Background] Smart Page Scribe installed');
+    console.log('[Scribe:Background] SmartPages installed');
     // Could open setup page or show welcome notification
     showNotification(
-      'Smart Page Scribe',
+      'SmartPages',
       '安装成功！点击扩展图标开始录制您的操作流程。'
     );
   } else if (details.reason === 'update') {
-    console.log('[Scribe:Background] Smart Page Scribe updated to', chrome.runtime.getManifest().version);
+    console.log('[Scribe:Background] SmartPages updated to', chrome.runtime.getManifest().version);
   }
 });
 

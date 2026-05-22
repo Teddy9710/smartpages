@@ -28,7 +28,7 @@
 
 ```
 1. 打开 chrome://extensions/
-2. 找到 "Smart Page Scribe"
+2. 找到 "SmartPages"
 3. 点击 "service worker" 链接
 4. 查看Console日志
 ```
@@ -47,13 +47,13 @@ Recording stopped
 1. 切换到您正在录制的标签页
 2. 按 F12 打开开发者工具
 3. 切换到 Console 标签
-4. 查看是否有 [Smart Page Scribe] 开头的日志
+4. 查看是否有 [SmartPages] 开头的日志
 ```
 
 **期望看到的日志：**
 ```
-[Smart Page Scribe] Content script loaded
-[Smart Page Scribe] Recording started
+[SmartPages] Content script loaded
+[SmartPages] Recording started
 ```
 
 ---
@@ -65,7 +65,7 @@ Recording stopped
 **症状：**
 - 点击"开始录制"后，插件图标没有变化
 - Content Script没有注入
-- Console没有看到"[Smart Page Scribe] Recording started"
+- Console没有看到"[SmartPages] Recording started"
 
 **原因：** 页面没有刷新，content script未注入
 
@@ -168,7 +168,7 @@ chrome.runtime.sendMessage({type: 'RESET_RECORDING'})
 - [ ] 没有报错信息
 
 **Content Script：**
-- [ ] 页面Console显示 "[Smart Page Scribe] Recording stopped"
+- [ ] 页面Console显示 "[SmartPages] Recording stopped"
 - [ ] 可以看到录制的步骤数
 
 **UI：**
@@ -213,7 +213,7 @@ chrome.runtime.sendMessage({type: 'RESET_RECORDING'})
 3. **Content Script Console日志**
    ```
    在录制的页面按F12 → Console
-   查找 [Smart Page Scribe] 开头的日志
+   查找 [SmartPages] 开头的日志
    ```
 
 4. **操作步骤**

@@ -1,4 +1,4 @@
-// Smart Page Scribe 文档管理系统主入口
+// SmartPages 文档管理系统主入口
 
 /**
  * 文档管理系统整合了所有文档相关功能
@@ -71,7 +71,7 @@ class DocumentManagementSystem {
 
   // 初始化系统
   async initialize() {
-    console.log('Smart Page Scribe 文档管理系统已初始化');
+    console.log('SmartPages 文档管理系统已初始化');
     console.log('可用组件:');
     console.log('- DocumentSystem: 主系统接口');
     console.log('- DocStorage: 文档存储');

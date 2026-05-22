@@ -1,5 +1,5 @@
 /**
- * Smart Page Scribe - Common Utilities
+ * SmartPages - Common Utilities
  *
  * This file contains shared utility functions used across the extension.
  * All functions are documented with JSDoc and include error handling.

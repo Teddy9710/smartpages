@@ -1,5 +1,5 @@
 /**
- * Smart Page Scribe - Document UI Utilities
+ * SmartPages - Document UI Utilities
  *
  * Shared document management UI logic used by both sidepanel and settings.
  * Eliminates ~200 lines of duplicated code across sidepanel.js and settings.js.

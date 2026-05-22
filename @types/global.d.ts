@@ -1,5 +1,5 @@
 /**
- * Type definitions for Smart Page Scribe Chrome Extension
+ * Type definitions for SmartPages Chrome Extension
  */
 
 /** Recording states for the extension */

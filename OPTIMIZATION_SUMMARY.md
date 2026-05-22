@@ -1,4 +1,4 @@
-# Smart Page Scribe - 优化摘要
+# SmartPages - 优化摘要
 
 ## 优化完成时间
 2026-05-02

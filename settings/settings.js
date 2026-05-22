@@ -1,5 +1,5 @@
 /**
- * Smart Page Scribe - Settings Manager
+ * SmartPages - Settings Manager
  *
  * Manages the extension settings page including API configuration,
  * document management, and feature toggles.
@@ -597,7 +597,7 @@ class SettingsManager {
       hide: '隐藏'
     };
 
-    document.title = `${text.title} - Smart Page Scribe`;
+    document.title = `${text.title} - SmartPages`;
     const set = (selector, value) => {
       const el = document.querySelector(selector);
       if (el && value) el.textContent = value;

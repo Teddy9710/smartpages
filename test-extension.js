@@ -1,7 +1,7 @@
 // 扩展测试脚本 - 用于在浏览器控制台运行
 // 使用方法：在浏览器控制台粘贴此脚本
 
-console.log('=== Smart Page Scribe 扩展测试 ===\n');
+console.log('=== SmartPages 扩展测试 ===\n');
 
 async function testExtension() {
   const results = {

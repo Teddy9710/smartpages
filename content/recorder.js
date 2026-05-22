@@ -1,5 +1,5 @@
 /**
- * Smart Page Scribe - Content Script (Recorder)
+ * SmartPages - Content Script (Recorder)
  *
  * This script runs in the context of web pages to record user interactions.
  * Designed for minimal performance impact on the host page.

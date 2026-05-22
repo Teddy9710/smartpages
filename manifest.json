@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Smart Page Scribe - 智能网页文档助手",
+  "name": "SmartPages - 智能网页文档助手",
   "version": "1.2.0",
   "description": "智能录制网页操作并自动生成文档的浏览器插件，支持文档上传管理",
   "permissions": [

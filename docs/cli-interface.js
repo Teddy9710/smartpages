@@ -228,7 +228,7 @@ class CLIInterface {
   // 帮助命令
   helpCommand() {
     return `
-Smart Page Scribe 文档管理命令行工具
+SmartPages 文档管理命令行工具
 
 使用方法:
   scribe <command> [options] [parameters]
@@ -287,7 +287,7 @@ function initCLI() {
     return result;
   };
   
-  console.log('Smart Page Scribe CLI 已准备就绪!');
+  console.log('SmartPages CLI 已准备就绪!');
   console.log('在控制台中使用 scribe <command> 来管理文档。');
   console.log('输入 scribe help 查看可用命令。');
 }
