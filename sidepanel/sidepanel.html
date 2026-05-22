@@ -75,6 +75,15 @@
         <div id="description-list" class="description-list">
           <!-- 动态生成的描述选项 -->
         </div>
+        <section class="step-editor-panel" aria-labelledby="step-editor-title">
+          <div class="step-editor-header">
+            <div>
+              <h3 id="step-editor-title">录制步骤</h3>
+              <p id="step-editor-summary">生成前可删除、排序或改写步骤说明。</p>
+            </div>
+          </div>
+          <div id="recorded-steps-list" class="recorded-steps-list"></div>
+        </section>
         <div class="custom-input">
           <label>
             <input type="radio" name="description" value="custom">
@@ -113,6 +122,16 @@
         </button>
         <button id="btn-export-html" class="btn-tool" title="导出HTML文件">
           <span class="icon icon-html" aria-hidden="true">HTML</span> HTML
+        </button>
+        <label class="toolbar-select" title="HTML图片导出方式">
+          <span id="export-image-mode-label">图片</span>
+          <select id="export-image-mode">
+            <option value="inline">内联</option>
+            <option value="linked">资源包</option>
+          </select>
+        </label>
+        <button id="btn-clear-cache" class="btn-tool" title="清理录制缓存">
+          <span class="icon icon-clean" aria-hidden="true"></span> 清理缓存
         </button>
       </div>
       <div class="editor-content">

@@ -271,6 +271,151 @@ body {
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
+.step-editor-panel {
+  margin-bottom: var(--spacing-xl);
+  padding: var(--spacing-lg);
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.step-editor-header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.step-editor-header h3 {
+  margin-bottom: 4px;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+}
+
+.step-editor-header p {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.recorded-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  max-height: 320px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.step-editor-empty {
+  padding: var(--spacing-md);
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-secondary);
+  border-radius: 6px;
+}
+
+.step-editor-item {
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.step-editor-item-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+.step-editor-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  min-width: 0;
+}
+
+.step-editor-title strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.step-editor-title span {
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #075985;
+  background: #e0f2fe;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.step-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.step-action-btn {
+  padding: 4px 8px;
+  border: 1px solid var(--color-border-hover);
+  border-radius: 6px;
+  background: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.step-action-btn:hover:not(:disabled) {
+  border-color: var(--color-primary-start);
+  color: var(--color-primary-start);
+  background: var(--color-primary-light);
+}
+
+.step-action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.step-action-danger {
+  color: var(--color-error-text);
+  border-color: var(--color-error-border);
+}
+
+.step-action-danger:hover:not(:disabled) {
+  color: var(--color-error-text);
+  background: var(--color-error-bg);
+  border-color: var(--color-error-border);
+}
+
+.step-action-input {
+  width: 100%;
+  min-height: 58px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border-hover);
+  border-radius: 6px;
+  color: var(--color-text-primary);
+  font: inherit;
+  line-height: var(--line-height-normal);
+  resize: vertical;
+}
+
+.step-action-input:focus {
+  outline: none;
+  border-color: var(--color-primary-start);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.step-editor-meta {
+  margin-top: 7px;
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  line-height: var(--line-height-normal);
+  word-break: break-all;
+}
+
 /* ============================================================================
    EDITOR
    ============================================================================ */
@@ -322,6 +467,28 @@ body {
 
 .toolbar-spacer {
   flex: 1;
+}
+
+.toolbar-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 7px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg-primary);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.toolbar-select select {
+  max-width: 96px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  outline: none;
 }
 
 .editor-content {
@@ -1553,12 +1720,21 @@ body {
 }
 
 .icon-revert::before,
-.icon-retry::before {
+.icon-retry::before,
+.icon-clean::before {
   width: 14px;
   height: 14px;
   border: 2px solid currentColor;
   border-left-color: transparent;
   border-radius: 50%;
+}
+
+.icon-clean::after {
+  width: 9px;
+  height: 2px;
+  top: 10px;
+  border-radius: 999px;
+  background: currentColor;
 }
 
 .icon-record::before {

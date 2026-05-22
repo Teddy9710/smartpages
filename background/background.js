@@ -28,6 +28,9 @@ const RecordingState = {
 };
 
 const RECORDING_STORAGE_KEY = 'scribeRecordingState';
+const MAX_SCREENSHOT_WIDTH = 1920;
+const MAX_SCREENSHOT_HEIGHT = 1440;
+const COMPRESSED_SCREENSHOT_QUALITY = 0.9;
 
 /**
  * Manages the recording session lifecycle
@@ -231,14 +234,42 @@ class RecordingManager {
   }
 
   async _persistState() {
-    await storagePromise('local', 'set', {
-      [RECORDING_STORAGE_KEY]: {
-        state: this.state,
-        currentSession: this.currentSession,
-        tabId: this.tabId,
-        updatedAt: Date.now()
-      }
-    });
+    const savedState = {
+      state: this.state,
+      currentSession: this.currentSession,
+      tabId: this.tabId,
+      updatedAt: Date.now()
+    };
+
+    try {
+      await storagePromise('local', 'set', {
+        [RECORDING_STORAGE_KEY]: savedState
+      });
+    } catch (error) {
+      console.warn('[Scribe:Background] Failed to persist full recording state, retrying without screenshots:', error);
+      await storagePromise('local', 'set', {
+        [RECORDING_STORAGE_KEY]: {
+          ...savedState,
+          currentSession: this._createLightweightSession(this.currentSession),
+          screenshotStorageLimited: true
+        }
+      });
+    }
+  }
+
+  _createLightweightSession(session) {
+    if (!session) return null;
+    return {
+      ...session,
+      steps: (session.steps || []).map(step => {
+        if (!step?.screenshot) return step;
+        return {
+          ...step,
+          screenshot: undefined,
+          screenshotOmitted: true
+        };
+      })
+    };
   }
 
   /**
@@ -288,7 +319,7 @@ class RecordingManager {
 
     try {
       await chrome.scripting.executeScript({
-        target: { tabId, allFrames: false },
+        target: { tabId, allFrames: true },
         files: ['content/recorder.js']
       });
     } catch (error) {
@@ -316,6 +347,47 @@ class RecordingManager {
     }
   }
 
+  async resumeRecordingInTab(tabId, tab = null) {
+    await this.ensureHydrated();
+    if (this.state !== RecordingState.RECORDING || this.tabId !== tabId) return;
+
+    try {
+      const currentTab = tab?.url ? tab : await chrome.tabs.get(tabId);
+      if (!currentTab?.url || isRestrictedUrl(currentTab.url)) return;
+
+      const previousUrl = this.currentSession?.pageUrl || '';
+      const nextUrl = currentTab.url || '';
+      if (previousUrl && nextUrl && previousUrl !== nextUrl) {
+        await this._addNavigationStep(previousUrl, nextUrl);
+      }
+
+      if (this.currentSession) {
+        this.currentSession.pageUrl = currentTab.url || this.currentSession.pageUrl || '';
+        this.currentSession.pageTitle = currentTab.title || this.currentSession.pageTitle || '';
+      }
+
+      await this._startContentScriptListening(tabId);
+      await this._persistState();
+      this._notifyStateChanged();
+      console.log('[Scribe:Background] Recording resumed after navigation:', currentTab.url);
+    } catch (error) {
+      console.warn('[Scribe:Background] Failed to resume recording after navigation:', error);
+    }
+  }
+
+  async _addNavigationStep(from, to) {
+    if (!this.currentSession?.steps || from === to) return;
+    const lastStep = this.currentSession.steps[this.currentSession.steps.length - 1];
+    if (lastStep?.type === 'navigate' && lastStep.from === from && lastStep.to === to) return;
+
+    await this.addStep({
+      type: 'navigate',
+      timestamp: Date.now(),
+      from,
+      to
+    });
+  }
+
   /**
    * Captures a screenshot for a specific step
    * @private
@@ -333,10 +405,11 @@ class RecordingManager {
       }
 
       if (this.state === RecordingState.RECORDING && this.tabId) {
-        const screenshot = await chrome.tabs.captureVisibleTab(null, {
+        const rawScreenshot = await chrome.tabs.captureVisibleTab(null, {
           format: 'png',
           quality: SCREENSHOT_QUALITY
         });
+        const screenshot = await this._compressScreenshot(rawScreenshot);
 
         // Only assign if step still exists (prevents race conditions)
         if (this.currentSession?.steps?.[stepIndex]) {
@@ -348,6 +421,68 @@ class RecordingManager {
       console.error('[Scribe:Background] Screenshot failed for step', stepIndex, error);
       // Screenshot failure doesn't affect step recording
     }
+  }
+
+  async _compressScreenshot(dataUrl) {
+    if (!dataUrl || typeof createImageBitmap !== 'function' || typeof OffscreenCanvas === 'undefined') {
+      return dataUrl;
+    }
+
+    try {
+      const blob = await (await fetch(dataUrl)).blob();
+      const bitmap = await createImageBitmap(blob);
+      const scale = Math.min(
+        1,
+        MAX_SCREENSHOT_WIDTH / bitmap.width,
+        MAX_SCREENSHOT_HEIGHT / bitmap.height
+      );
+      const width = Math.max(1, Math.round(bitmap.width * scale));
+      const height = Math.max(1, Math.round(bitmap.height * scale));
+      const canvas = new OffscreenCanvas(width, height);
+      const context = canvas.getContext('2d');
+      context.drawImage(bitmap, 0, 0, width, height);
+      bitmap.close?.();
+      const compressedBlob = await canvas.convertToBlob({
+        type: 'image/jpeg',
+        quality: COMPRESSED_SCREENSHOT_QUALITY
+      });
+      return await this._blobToDataUrl(compressedBlob);
+    } catch (error) {
+      console.warn('[Scribe:Background] Screenshot compression failed, keeping original:', error);
+      return dataUrl;
+    }
+  }
+
+  async _blobToDataUrl(blob) {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let binary = '';
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+    }
+    return `data:${blob.type || 'image/jpeg'};base64,${btoa(binary)}`;
+  }
+
+  async getStorageUsage() {
+    const bytes = await chrome.storage.local.getBytesInUse();
+    return {
+      bytes,
+      mb: Number((bytes / 1024 / 1024).toFixed(2)),
+      warningThreshold: STORAGE_WARNING_THRESHOLD
+    };
+  }
+
+  async clearRecordingCache() {
+    await this.ensureHydrated();
+    if (this.state === RecordingState.RECORDING) {
+      throw new ExtensionError('录制进行中，不能清理录制缓存', 'RECORDING_IN_PROGRESS');
+    }
+    this.state = RecordingState.IDLE;
+    this.currentSession = null;
+    this.tabId = null;
+    await storagePromise('local', 'remove', RECORDING_STORAGE_KEY);
+    this._notifyStateChanged();
+    return { success: true };
   }
 
   /**
@@ -591,9 +726,11 @@ const recordingManager = new RecordingManager();
  */
 const RECORDING_MESSAGE_TYPES = [
   'GET_RECORDING_STATE',
+  'GET_STORAGE_USAGE',
   'START_RECORDING',
   'STOP_RECORDING',
   'RESET_RECORDING',
+  'CLEAR_RECORDING_CACHE',
   'ADD_STEP',
   'GET_SESSION'
 ];
@@ -660,6 +797,9 @@ async function handleRecordingMessage(message, sender) {
     case 'GET_RECORDING_STATE':
       return recordingManager.getState();
 
+    case 'GET_STORAGE_USAGE':
+      return await recordingManager.getStorageUsage();
+
     case 'START_RECORDING':
       if (!message.tabId) {
         return { error: 'Missing tabId parameter' };
@@ -671,6 +811,9 @@ async function handleRecordingMessage(message, sender) {
 
     case 'RESET_RECORDING':
       return await recordingManager.resetRecording();
+
+    case 'CLEAR_RECORDING_CACHE':
+      return await recordingManager.clearRecordingCache();
 
     case 'ADD_STEP':
       if (!message.step) {
@@ -696,6 +839,14 @@ async function handleRecordingMessage(message, sender) {
 if (!chrome.runtime.scribeMessageListener) {
   chrome.runtime.scribeMessageListener = messageHandler;
   chrome.runtime.onMessage.addListener(messageHandler);
+}
+
+if (!chrome.runtime.scribeTabUpdateListener) {
+  chrome.runtime.scribeTabUpdateListener = async function(tabId, changeInfo, tab) {
+    if (changeInfo.status !== 'complete') return;
+    await recordingManager.resumeRecordingInTab(tabId, tab);
+  };
+  chrome.tabs.onUpdated.addListener(chrome.runtime.scribeTabUpdateListener);
 }
 
 // ============================================================================
@@ -772,6 +923,10 @@ self.addEventListener('unhandledrejection', (event) => {
  * @property {string} [screenshot] - Base64 screenshot data
  * @property {string} [from] - Navigation source URL
  * @property {string} [to] - Navigation destination URL
+ * @property {Object|null} [formValue] - Form value summary for inputs and selections
+ * @property {Object|null} [selection] - Custom option/menu selection summary
+ * @property {Object} [scroll] - Scroll position details
+ * @property {Object} [pageSnapshot] - Semantic page snapshot
  */
 
 /**

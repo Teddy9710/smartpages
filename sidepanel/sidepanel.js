@@ -71,6 +71,7 @@ class SidePanelManager {
     this._bindButton('btn-copy', () => this.copyDocument());
     this._bindButton('btn-download', () => this.downloadDocument());
     this._bindButton('btn-export-html', () => this.exportHtmlDocument());
+    this._bindButton('btn-clear-cache', () => this.clearRecordingCache());
     this._bindButton('btn-ai-optimize', () => this.openOptimizeDialog());
     this._bindButton('btn-revert-optimization', () => this.revertOptimization());
     this._bindButton('btn-close-optimize', () => this.closeOptimizeDialog());
@@ -180,6 +181,7 @@ class SidePanelManager {
   _showDescriptionSelector() {
     this.setState(StateViews.DESCRIPTION);
     this._renderDescriptionOptions();
+    this._renderStepEditor();
   }
 
   showErrorState(message) {
@@ -219,6 +221,10 @@ class SidePanelManager {
       copy: 'Copy',
       download: 'Download',
       html: 'HTML',
+      imageMode: 'Images',
+      imageInline: 'Inline',
+      imageLinked: 'Package',
+      clearCache: 'Clear Cache',
       emptyTitle: 'No recording yet',
       emptyDesc: 'Start recording from the current tab, then generate a document here.',
       start: 'Start Recording',
@@ -227,7 +233,9 @@ class SidePanelManager {
       optimizeTitle: 'AI Optimize',
       optimizePlaceholder: 'Tell AI how to improve this document...',
       cancel: 'Cancel',
-      runOptimize: 'Start Optimization'
+      runOptimize: 'Start Optimization',
+      stepsTitle: 'Recorded Steps',
+      stepsSummary: 'Delete, reorder, or rewrite step notes before generation.'
     } : {
       title: '文档生成器',
       subtitle: '将浏览器操作流程转换为文档',
@@ -249,6 +257,10 @@ class SidePanelManager {
       copy: '复制',
       download: '下载',
       html: 'HTML',
+      imageMode: '图片',
+      imageInline: '内联',
+      imageLinked: '资源包',
+      clearCache: '清理缓存',
       emptyTitle: '还没有录制内容',
       emptyDesc: '从当前标签页开始录制，然后在这里生成文档。',
       start: '开始录制',
@@ -257,7 +269,9 @@ class SidePanelManager {
       optimizeTitle: 'AI 优化',
       optimizePlaceholder: '告诉 AI 你想如何改进这份文档...',
       cancel: '取消',
-      runOptimize: '开始优化'
+      runOptimize: '开始优化',
+      stepsTitle: '录制步骤',
+      stepsSummary: '生成前可删除、排序或改写步骤说明。'
     };
 
     const set = (selector, value) => {
@@ -284,7 +298,9 @@ class SidePanelManager {
     setButton('#sidepanel-refresh-documents', text.refresh);
     set('#loading-text', text.loading);
     set('#description-state h2', text.descTitle);
-    set('.custom-input label', text.custom);
+    set('.custom-input label span', text.custom);
+    set('#step-editor-title', text.stepsTitle);
+    set('#step-editor-summary', text.stepsSummary);
     const custom = document.getElementById('custom-description');
     if (custom) custom.placeholder = text.customPlaceholder;
     setButton('#btn-generate', text.generate);
@@ -295,6 +311,13 @@ class SidePanelManager {
     setButton('#btn-copy', text.copy);
     setButton('#btn-download', text.download);
     setButton('#btn-export-html', text.html);
+    set('#export-image-mode-label', text.imageMode);
+    const imageMode = document.getElementById('export-image-mode');
+    if (imageMode) {
+      imageMode.querySelector('option[value="inline"]').textContent = text.imageInline;
+      imageMode.querySelector('option[value="linked"]').textContent = text.imageLinked;
+    }
+    setButton('#btn-clear-cache', text.clearCache);
     set('#empty-state h2', text.emptyTitle);
     set('#empty-state p', text.emptyDesc);
     setButton('#btn-start-here', text.start);
@@ -331,6 +354,135 @@ class SidePanelManager {
     });
   }
 
+  _renderStepEditor() {
+    const container = document.getElementById('recorded-steps-list');
+    const summary = document.getElementById('step-editor-summary');
+    if (!container) return;
+
+    const steps = this.session?.steps || [];
+    const isEn = this.language === 'en-US';
+    if (summary) {
+      summary.textContent = steps.length
+        ? (isEn
+          ? `${steps.length} steps will be sent to AI. You can clean the flow first.`
+          : `将发送 ${steps.length} 个步骤给 AI。生成前可先清理流程。`)
+        : (isEn ? 'No recorded steps are available.' : '暂无可编辑的录制步骤。');
+    }
+
+    container.replaceChildren();
+    if (!steps.length) {
+      container.appendChild(createElement('div', { className: 'step-editor-empty' }, isEn ? 'No steps recorded.' : '暂无录制步骤。'));
+      return;
+    }
+
+    steps.forEach((step, index) => {
+      const stepNumber = index + 1;
+      const textarea = createElement('textarea', {
+        className: 'step-action-input',
+        value: this._getStepEditableAction(step),
+        'aria-label': isEn ? `Edit step ${stepNumber}` : `编辑步骤 ${stepNumber}`
+      });
+      textarea.addEventListener('input', () => {
+        step.action = textarea.value.trim();
+      });
+
+      const header = createElement('div', { className: 'step-editor-item-header' }, [
+        createElement('div', { className: 'step-editor-title' }, [
+          createElement('strong', { textContent: isEn ? `Step ${stepNumber}` : `步骤 ${stepNumber}` }),
+          createElement('span', { textContent: this._getStepTypeLabel(step.type) })
+        ]),
+        createElement('div', { className: 'step-editor-actions' }, [
+          createElement('button', {
+            type: 'button',
+            className: 'step-action-btn',
+            textContent: isEn ? 'Up' : '上移',
+            disabled: index === 0,
+            onclick: () => this._moveStep(index, -1)
+          }),
+          createElement('button', {
+            type: 'button',
+            className: 'step-action-btn',
+            textContent: isEn ? 'Down' : '下移',
+            disabled: index === steps.length - 1,
+            onclick: () => this._moveStep(index, 1)
+          }),
+          createElement('button', {
+            type: 'button',
+            className: 'step-action-btn step-action-danger',
+            textContent: isEn ? 'Delete' : '删除',
+            onclick: () => this._deleteStep(index)
+          })
+        ])
+      ]);
+
+      const meta = createElement('div', { className: 'step-editor-meta' }, this._getStepMeta(step));
+      container.appendChild(createElement('article', { className: 'step-editor-item' }, [
+        header,
+        textarea,
+        meta
+      ]));
+    });
+  }
+
+  _getStepEditableAction(step) {
+    if (!step) return '';
+    if (step.action) return step.action;
+    if (step.type === 'navigate') {
+      return this.language === 'en-US'
+        ? `Navigate from ${step.from || 'current page'} to ${step.to || 'new page'}`
+        : `从 ${step.from || '当前页'} 跳转到 ${step.to || '新页面'}`;
+    }
+    if (step.type === 'scroll') {
+      const percentY = Number.isFinite(step.scroll?.percentY) ? step.scroll.percentY : 0;
+      return this.language === 'en-US'
+        ? `Scroll to about ${percentY}% of the page`
+        : `滚动到页面约 ${percentY}% 位置`;
+    }
+    return step.elementName || step.text || step.selector || '';
+  }
+
+  _getStepMeta(step) {
+    const parts = [];
+    const isEn = this.language === 'en-US';
+    if (step.elementName || step.text) parts.push(`${isEn ? 'Element' : '元件'}: ${step.elementName || step.text}`);
+    if (step.selector) parts.push(`${isEn ? 'Selector' : '选择器'}: ${step.selector}`);
+    if (step.from || step.to) {
+      parts.push(`${isEn ? 'Page' : '页面'}: ${step.from || (isEn ? 'current page' : '当前页')} -> ${step.to || (isEn ? 'new page' : '新页面')}`);
+    }
+    if (step.scroll) {
+      const scroll = step.scroll;
+      parts.push(`${isEn ? 'Scroll' : '滚动'}: x=${scroll.x || 0}, y=${scroll.y || 0}, ${scroll.percentY || 0}%`);
+    }
+    const formValueText = this._formatFormValue(step.formValue);
+    if (formValueText !== '未记录') parts.push(`${isEn ? 'Value' : '值'}: ${formValueText}`);
+    const selectionText = this._formatSelection(step.selection);
+    if (selectionText !== '未记录') parts.push(`${isEn ? 'Selection' : '选择'}: ${selectionText}`);
+    return parts.join(' · ') || (isEn ? 'No additional metadata' : '无更多元数据');
+  }
+
+  _getStepTypeLabel(type) {
+    const labels = this.language === 'en-US'
+      ? { click: 'Click', input: 'Input', change: 'Change', submit: 'Submit', navigate: 'Navigation', scroll: 'Scroll' }
+      : { click: '点击', input: '输入', change: '变更', submit: '提交', navigate: '跳转', scroll: '滚动' };
+    return labels[type] || (this.language === 'en-US' ? 'Action' : '操作');
+  }
+
+  _moveStep(index, offset) {
+    const steps = this.session?.steps;
+    const targetIndex = index + offset;
+    if (!Array.isArray(steps) || targetIndex < 0 || targetIndex >= steps.length) return;
+    const [step] = steps.splice(index, 1);
+    steps.splice(targetIndex, 0, step);
+    this._renderStepEditor();
+  }
+
+  _deleteStep(index) {
+    const steps = this.session?.steps;
+    if (!Array.isArray(steps) || index < 0 || index >= steps.length) return;
+    steps.splice(index, 1);
+    this._renderStepEditor();
+  }
+
   // ========================================================================
   // ACTIONS
   // ========================================================================
@@ -363,8 +515,12 @@ class SidePanelManager {
       const config = await loadConfig();
       this.config = config;
       if (!config.apiKey) throw new ExtensionError('请先在设置中配置API密钥', 'CONFIG_ERROR');
+      if (!this.session?.steps?.length) throw new ExtensionError('没有可生成文档的录制步骤', 'EMPTY_STEPS');
 
-      const prompt = this._limitPromptForModel(this._buildGenerationPrompt(description, selectedValue, config), config.maxInputTokens);
+      const prompt = this._limitPromptForModel(
+        this._sanitizePromptForModel(this._buildGenerationPrompt(description, selectedValue, config)),
+        config.maxInputTokens
+      );
       const request = buildModelApiRequest(config, prompt, {
         temperature: 0.7,
         maxTokens: config.maxTokens || DEFAULT_MAX_TOKENS
@@ -520,6 +676,19 @@ class SidePanelManager {
         ].join('\n');
       }
 
+      if (step.type === 'scroll') {
+        const scroll = step.scroll || {};
+        return [
+          `步骤 ${num}｜页面滚动`,
+          `- 操作描述：${step.action || '滚动页面以查看后续内容'}`,
+          `- 滚动位置：x=${Number.isFinite(scroll.x) ? scroll.x : 0}, y=${Number.isFinite(scroll.y) ? scroll.y : 0}`,
+          `- 页面进度：纵向约 ${Number.isFinite(scroll.percentY) ? scroll.percentY : 0}%`,
+          `- 视口尺寸：${scroll.viewportWidth || '未知'} x ${scroll.viewportHeight || '未知'}`,
+          `- 页面语义快照：\n${this._formatPageSnapshot(step.pageSnapshot)}`,
+          `- 截图：${screenshotMarker}`
+        ].join('\n');
+      }
+
       const actionTypeLabel = {
         click: '用户点击',
         input: '用户输入',
@@ -534,6 +703,8 @@ class SidePanelManager {
         `- 元件角色：${step.elementRole || '未知'}`,
         `- 元件类型：${step.elementType || step.tagName || '未知'}`,
         `- 元件状态：${this._formatElementState(step.elementState)}`,
+        `- 表单值：${this._formatFormValue(step.formValue)}`,
+        `- 选择项：${this._formatSelection(step.selection)}`,
         `- HTML 标签：${step.tagName || '未知'}`,
         `- CSS 选择器：${step.selector || '未记录'}`,
         `- 原始点击选择器：${step.rawSelector || step.selector || '未记录'}`,
@@ -549,6 +720,43 @@ class SidePanelManager {
     const entries = Object.entries(state).filter(([, value]) => value !== undefined && value !== null && value !== '');
     if (!entries.length) return '未记录';
     return entries.map(([key, value]) => `${key}=${value}`).join(', ');
+  }
+
+  _formatFormValue(formValue) {
+    if (!formValue || typeof formValue !== 'object') return '未记录';
+
+    if (formValue.kind === 'select') {
+      const selectedText = Array.isArray(formValue.selectedText) ? formValue.selectedText.filter(Boolean) : [];
+      const selectedValue = Array.isArray(formValue.selectedValue) ? formValue.selectedValue.filter(Boolean) : [];
+      if (selectedText.length) return `已选择：${selectedText.join('、')}`;
+      if (selectedValue.length) return `已选择值：${selectedValue.join('、')}`;
+      return '未选择';
+    }
+
+    if (formValue.kind === 'checkbox' || formValue.kind === 'radio') {
+      const state = formValue.checked ? '已选中' : '未选中';
+      const label = formValue.label ? `，选项：${formValue.label}` : '';
+      const value = formValue.value ? `，值：${formValue.value}` : '';
+      return `${state}${label}${value}`;
+    }
+
+    if (formValue.isSensitive) {
+      return formValue.valueLength ? `已输入敏感内容（${formValue.valueLength} 个字符，已脱敏）` : '未输入';
+    }
+
+    if (formValue.value) return `输入内容：${formValue.value}`;
+    if (Number.isFinite(formValue.valueLength)) return formValue.valueLength ? `已输入 ${formValue.valueLength} 个字符` : '未输入';
+    return '未记录';
+  }
+
+  _formatSelection(selection) {
+    if (!selection || typeof selection !== 'object') return '未记录';
+    const parts = [];
+    if (selection.containerLabel) parts.push(`容器：${selection.containerLabel}`);
+    if (selection.selectedText) parts.push(`选项：${selection.selectedText}`);
+    if (selection.selectedValue) parts.push(`值：${selection.selectedValue}`);
+    if (selection.selectedState) parts.push(`状态：${selection.selectedState}`);
+    return parts.length ? parts.join('，') : '未记录';
   }
 
   _formatPageSnapshot(snapshot) {
@@ -689,12 +897,23 @@ class SidePanelManager {
         var imgTag = format === 'html'
           ? '<img alt="' + '步骤' + stepNumber + '截图" src="' + step.screenshot + '">'
           : '![' + '步骤' + stepNumber + '截图](' + step.screenshot + ')';
-        result = result.split(placeholder).join(imgTag);
-        result = result.split(englishPlaceholder).join(imgTag);
-        result = result.replace(new RegExp('截图占位[：:]?\\s*步骤\\s*' + stepNumber + '\\s*截图', 'g'), imgTag);
-        result = result.replace(new RegExp('步骤\\s*' + stepNumber + '\\s*截图', 'g'), imgTag);
-        result = result.replace(new RegExp('截图\\s*' + stepNumber + '(?![\\]\\)])', 'g'), imgTag);
-        result = result.replace(new RegExp('Screenshot\\s*' + stepNumber + '(?![\\]\\)])', 'gi'), imgTag);
+        if (format === 'html') {
+          result = result.replace(
+            new RegExp('(<img\\b[^>]*?\\bsrc=["\\\'])\\s*(?:\\[截图' + stepNumber + '\\]|\\[Screenshot\\s*' + stepNumber + '\\]|截图\\s*' + stepNumber + '|Screenshot\\s*' + stepNumber + ')\\s*(["\\\'][^>]*>)', 'gi'),
+            '$1' + step.screenshot + '$2'
+          );
+          result = result.split(placeholder).join(imgTag);
+          result = result.split(englishPlaceholder).join(imgTag);
+          result = result.replace(new RegExp('(?<![="\\\'>])截图\\s*' + stepNumber + '(?![\\]\\)<])', 'g'), imgTag);
+          result = result.replace(new RegExp('(?<![="\\\'>])Screenshot\\s*' + stepNumber + '(?![\\]\\)<])', 'gi'), imgTag);
+        } else {
+          result = result.split(placeholder).join(imgTag);
+          result = result.split(englishPlaceholder).join(imgTag);
+          result = result.replace(new RegExp('截图占位[：:]?\\s*步骤\\s*' + stepNumber + '\\s*截图', 'g'), imgTag);
+          result = result.replace(new RegExp('步骤\\s*' + stepNumber + '\\s*截图', 'g'), imgTag);
+          result = result.replace(new RegExp('截图\\s*' + stepNumber + '(?![\\]\\)])', 'g'), imgTag);
+          result = result.replace(new RegExp('Screenshot\\s*' + stepNumber + '(?![\\]\\)])', 'gi'), imgTag);
+        }
       }
     });
     return result;
@@ -727,6 +946,28 @@ class SidePanelManager {
         return this._getScreenshotMarkerFromAlt(altMatch?.[2] || '') || nextMarker();
       })
       .replace(/data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=]+/gi, '[图片内容已省略]');
+  }
+
+  _sanitizePromptForModel(content) {
+    return this._sanitizeSensitiveText(content);
+  }
+
+  _sanitizeSensitiveText(content) {
+    let value = String(content || '');
+    const labeledSecretPattern = /((?:api[-_\s]?key|secret|token|access[-_\s]?token|refresh[-_\s]?token|authorization|bearer|password|passwd|pwd|验证码|校验码|动态码|密码|口令|密钥|令牌|身份证|证件号|手机号|手机|电话|邮箱|email|phone)\s*[:：=]\s*)([^,\s;，。]+)/gi;
+
+    value = value
+      .replace(labeledSecretPattern, '$1[已脱敏]')
+      .replace(/\b(?:sk|rk|pk)-[A-Za-z0-9_-]{16,}\b/g, '[API Key 已脱敏]')
+      .replace(/\bAIza[A-Za-z0-9_-]{20,}\b/g, '[API Key 已脱敏]')
+      .replace(/\bgh[pousr]_[A-Za-z0-9_]{20,}\b/g, '[Token 已脱敏]')
+      .replace(/\bxox[baprs]-[A-Za-z0-9-]{20,}\b/g, '[Token 已脱敏]')
+      .replace(/\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\b/g, '[JWT 已脱敏]')
+      .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[邮箱已脱敏]')
+      .replace(/(^|[^\d])((?:\+?86[-\s]?)?1[3-9]\d{9})(?!\d)/g, '$1[手机号已脱敏]')
+      .replace(/(^|[^\d])(\d{17}[\dXx])(?!\d)/g, '$1[身份证号已脱敏]');
+
+    return value;
   }
 
   _limitPromptForModel(content, maxInputTokens = DEFAULT_MAX_INPUT_TOKENS) {
@@ -1040,12 +1281,14 @@ class SidePanelManager {
 
       const request = buildModelApiRequest(
         config,
-        this._limitPromptForModel(
-          this._buildOptimizationPrompt(
-            this._limitPromptForModel(this._prepareContentForModel(currentContent), config.maxInputTokens),
-            instruction
-          ),
-          config.maxInputTokens
+        this._sanitizePromptForModel(
+          this._limitPromptForModel(
+            this._buildOptimizationPrompt(
+              this._limitPromptForModel(this._prepareContentForModel(currentContent), config.maxInputTokens),
+              instruction
+            ),
+            config.maxInputTokens
+          )
         ),
         { temperature: 0.5, maxTokens: config.maxTokens || DEFAULT_MAX_TOKENS }
       );
@@ -1153,6 +1396,10 @@ ${markdown}`;
     const content = document.getElementById('markdown-editor')?.value;
     if (!content) return;
     const format = this._getOutputFormat();
+    if (format === 'html' && this._getHtmlImageMode() === 'linked') {
+      this.exportHtmlDocument();
+      return;
+    }
     const extension = format === 'html' ? 'html' : format === 'text' ? 'txt' : 'md';
     const mimeType = format === 'html'
       ? 'text/html;charset=utf-8'
@@ -1173,6 +1420,10 @@ ${markdown}`;
     if (!content) return;
 
     const html = this._buildStandaloneHtmlFromCurrentContent(content);
+    if (this._getHtmlImageMode() === 'linked') {
+      this._exportHtmlWithLinkedImages(html);
+      return;
+    }
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = createElement('a', { href: url, download: `document_${Date.now()}.html` });
@@ -1182,15 +1433,222 @@ ${markdown}`;
     this._showNotification('HTML 文件已导出！', 'success');
   }
 
+  _getHtmlImageMode() {
+    return document.getElementById('export-image-mode')?.value === 'linked' ? 'linked' : 'inline';
+  }
+
+  _exportHtmlWithLinkedImages(html) {
+    const baseName = `document_${Date.now()}`;
+    const assetDir = `${baseName}_assets`;
+    const assets = [];
+    let assetIndex = 0;
+    const linkedHtml = String(html || '').replace(/src=(["'])(data:image\/([a-z0-9.+-]+);base64,[a-z0-9+/=]+)\1/gi, (_match, quote, dataUrl, extHint) => {
+      assetIndex += 1;
+      const ext = this._getImageExtension(dataUrl, extHint);
+      const filename = `${assetDir}/screenshot_${String(assetIndex).padStart(2, '0')}.${ext}`;
+      assets.push({ filename, dataUrl });
+      return `src=${quote}${filename}${quote}`;
+    });
+
+    const readme = [
+      'Smart Page Scribe HTML 导出说明',
+      '',
+      `HTML 文件：${baseName}.html`,
+      `图片文件夹：${assetDir}/`,
+      '',
+      '请保持 HTML 文件和图片文件夹的相对位置不变。',
+      '如果移动或分享文档，请一起移动 HTML 文件和整个图片文件夹，否则 HTML 中的图片会无法显示。',
+      '',
+      `本次导出图片数量：${assets.length}`
+    ].join('\n');
+    const files = [
+      { name: `${baseName}.html`, blob: new Blob([linkedHtml], { type: 'text/html;charset=utf-8' }) },
+      { name: `${assetDir}/README.txt`, blob: new Blob([readme], { type: 'text/plain;charset=utf-8' }) },
+      ...assets.map(asset => ({ name: asset.filename, blob: this._dataUrlToBlob(asset.dataUrl) }))
+    ];
+    this._buildZip(files).then(zipBlob => {
+      this._downloadBlob(`${baseName}_package.zip`, zipBlob);
+      this._showNotification(`HTML 资源包已导出：${baseName}_package.zip。解压后打开 ${baseName}.html。`, 'success');
+    }).catch(error => {
+      console.error('[Scribe:SidePanel] Failed to build HTML package:', error);
+      this._showNotification('HTML 资源包生成失败，请重试', 'error');
+    });
+  }
+
+  async _buildZip(files) {
+    const encoder = new TextEncoder();
+    const chunks = [];
+    const centralDirectory = [];
+    let offset = 0;
+
+    for (const file of files) {
+      const nameBytes = encoder.encode(file.name.replace(/\\/g, '/'));
+      const data = new Uint8Array(await file.blob.arrayBuffer());
+      const crc = this._crc32(data);
+      const localHeader = this._createZipLocalHeader(nameBytes, data.length, crc);
+      chunks.push(localHeader, data);
+      centralDirectory.push({
+        nameBytes,
+        crc,
+        size: data.length,
+        offset
+      });
+      offset += localHeader.length + data.length;
+    }
+
+    const centralStart = offset;
+    centralDirectory.forEach(entry => {
+      const header = this._createZipCentralHeader(entry.nameBytes, entry.size, entry.crc, entry.offset);
+      chunks.push(header);
+      offset += header.length;
+    });
+    chunks.push(this._createZipEndRecord(centralDirectory.length, offset - centralStart, centralStart));
+    return new Blob(chunks, { type: 'application/zip' });
+  }
+
+  _createZipLocalHeader(nameBytes, size, crc) {
+    const header = new Uint8Array(30 + nameBytes.length);
+    const view = new DataView(header.buffer);
+    view.setUint32(0, 0x04034b50, true);
+    view.setUint16(4, 20, true);
+    view.setUint16(6, 0, true);
+    view.setUint16(8, 0, true);
+    view.setUint16(10, 0, true);
+    view.setUint16(12, 0, true);
+    view.setUint32(14, crc, true);
+    view.setUint32(18, size, true);
+    view.setUint32(22, size, true);
+    view.setUint16(26, nameBytes.length, true);
+    view.setUint16(28, 0, true);
+    header.set(nameBytes, 30);
+    return header;
+  }
+
+  _createZipCentralHeader(nameBytes, size, crc, offset) {
+    const header = new Uint8Array(46 + nameBytes.length);
+    const view = new DataView(header.buffer);
+    view.setUint32(0, 0x02014b50, true);
+    view.setUint16(4, 20, true);
+    view.setUint16(6, 20, true);
+    view.setUint16(8, 0, true);
+    view.setUint16(10, 0, true);
+    view.setUint16(12, 0, true);
+    view.setUint16(14, 0, true);
+    view.setUint32(16, crc, true);
+    view.setUint32(20, size, true);
+    view.setUint32(24, size, true);
+    view.setUint16(28, nameBytes.length, true);
+    view.setUint16(30, 0, true);
+    view.setUint16(32, 0, true);
+    view.setUint16(34, 0, true);
+    view.setUint16(36, 0, true);
+    view.setUint32(38, 0, true);
+    view.setUint32(42, offset, true);
+    header.set(nameBytes, 46);
+    return header;
+  }
+
+  _createZipEndRecord(fileCount, centralSize, centralOffset) {
+    const header = new Uint8Array(22);
+    const view = new DataView(header.buffer);
+    view.setUint32(0, 0x06054b50, true);
+    view.setUint16(4, 0, true);
+    view.setUint16(6, 0, true);
+    view.setUint16(8, fileCount, true);
+    view.setUint16(10, fileCount, true);
+    view.setUint32(12, centralSize, true);
+    view.setUint32(16, centralOffset, true);
+    view.setUint16(20, 0, true);
+    return header;
+  }
+
+  _crc32(bytes) {
+    if (!this._crcTable) {
+      this._crcTable = Array.from({ length: 256 }, (_value, index) => {
+        let c = index;
+        for (let k = 0; k < 8; k += 1) {
+          c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+        }
+        return c >>> 0;
+      });
+    }
+    let crc = 0xffffffff;
+    for (let i = 0; i < bytes.length; i += 1) {
+      crc = this._crcTable[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+    }
+    return (crc ^ 0xffffffff) >>> 0;
+  }
+
+  _downloadBlob(filename, blob) {
+    const url = URL.createObjectURL(blob);
+    if (chrome?.downloads?.download) {
+      chrome.downloads.download({ url, filename, saveAs: false }, () => {
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      });
+      return;
+    }
+    const a = createElement('a', { href: url, download: filename });
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  }
+
+  _dataUrlToBlob(dataUrl) {
+    const match = String(dataUrl || '').match(/^data:([^;,]+);base64,(.*)$/);
+    if (!match) return new Blob([], { type: 'application/octet-stream' });
+    const mimeType = match[1];
+    const binary = atob(match[2]);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new Blob([bytes], { type: mimeType });
+  }
+
+  _getImageExtension(dataUrl, extHint) {
+    const mime = String(dataUrl || '').match(/^data:image\/([^;,]+)/i)?.[1] || extHint || 'jpg';
+    if (mime === 'jpeg') return 'jpg';
+    if (mime === 'svg+xml') return 'svg';
+    return mime.replace(/[^a-z0-9]/gi, '').toLowerCase() || 'jpg';
+  }
+
+  async clearRecordingCache() {
+    try {
+      const before = await sendMessage({ type: 'GET_STORAGE_USAGE' }).catch(() => null);
+      const response = await sendMessage({ type: 'CLEAR_RECORDING_CACHE' });
+      if (response?.error) throw new ExtensionError(response.error, 'CACHE_CLEAR_ERROR');
+      const after = await sendMessage({ type: 'GET_STORAGE_USAGE' }).catch(() => null);
+      const saved = before && after ? Math.max(0, before.bytes - after.bytes) : 0;
+      const savedText = saved > 0 ? `，释放约 ${this._formatBytes(saved)}` : '';
+      this._showNotification(`录制缓存已清理${savedText}`, 'success');
+    } catch (error) {
+      console.error('[Scribe:SidePanel] Failed to clear recording cache:', error);
+      this._showNotification(this._formatUserFacingError(error, '清理录制缓存失败'), 'error');
+    }
+  }
+
+  _formatBytes(bytes) {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let value = bytes;
+    let unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024;
+      unitIndex += 1;
+    }
+    return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+  }
+
   _buildStandaloneHtmlFromCurrentContent(content) {
     const format = this._getOutputFormat();
+    const contentWithScreenshots = this._injectScreenshots(content, format);
     if (format === 'html') {
-      return this._ensureStandaloneHtml(content);
+      return this._ensureStandaloneHtml(contentWithScreenshots);
     }
     if (format === 'text') {
-      return this._buildStandaloneHtmlFromBody(`<pre>${this._escapeHtml(content)}</pre>`, 'SmartPages Document');
+      return this._buildStandaloneHtmlFromBody(`<pre>${this._escapeHtml(contentWithScreenshots)}</pre>`, 'SmartPages Document');
     }
-    return this._buildStandaloneHtml(content);
+    return this._buildStandaloneHtml(contentWithScreenshots);
   }
 
   _buildStandaloneHtml(markdown) {
@@ -1239,6 +1697,7 @@ ${markdown}`;
       display: block;
       max-width: 100%;
       height: auto;
+      object-fit: contain;
       margin: 16px 0;
       border: 1px solid var(--border);
       border-radius: 6px;

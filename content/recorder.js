@@ -36,6 +36,15 @@
   /** @constant {number} THROTTLE_DELAY - Throttle delay for event frequency */
   const THROTTLE_DELAY = 200;
 
+  /** @constant {number} SCROLL_DEBOUNCE_DELAY - Wait for scrolling to settle */
+  const SCROLL_DEBOUNCE_DELAY = 700;
+
+  /** @constant {number} MIN_SCROLL_DELTA - Minimum movement before recording scroll */
+  const MIN_SCROLL_DELTA = 120;
+
+  /** @constant {number} POINTER_FALLBACK_DELAY - Wait for click after pointerdown */
+  const POINTER_FALLBACK_DELAY = 350;
+
   /** @constant {number} SELECTOR_MAX_DEPTH - Maximum depth for selector path */
   const SELECTOR_MAX_DEPTH = 5;
 
@@ -63,6 +72,12 @@
 
   /** @type {number} Timestamp of last recorded action */
   let lastRecordedAction = 0;
+
+  /** @type {{x:number,y:number}} Last recorded scroll position */
+  let lastRecordedScroll = { x: window.scrollX || 0, y: window.scrollY || 0 };
+
+  /** @type {{target: Element, timerId: number}|null} Pending pointer fallback */
+  let pendingPointerFallback = null;
 
   /** @type {Map<Element, number>} Last input record time by element */
   const lastInputRecordTimes = new Map();
@@ -127,6 +142,14 @@
       if (String(error?.message || '').includes('Extension context invalidated')) {
         stopListening();
       }
+    });
+  }
+
+  function sendRecordedStep(step) {
+    if (!step || !step.type) return;
+    sendMessage({
+      type: 'ADD_STEP',
+      step
     });
   }
 
@@ -303,6 +326,8 @@
     if (!element) return '';
 
     const tag = element.tagName || '';
+    const inputType = (element.getAttribute('type') || '').toLowerCase();
+    const canExposeValue = tag !== 'INPUT' || !['password', 'hidden'].includes(inputType);
     const candidates = [
       element.getAttribute('aria-label'),
       getAriaLabelledByText(element),
@@ -310,14 +335,14 @@
       element.getAttribute('title'),
       element.getAttribute('alt'),
       element.getAttribute('placeholder'),
-      element.getAttribute('value'),
+      canExposeValue ? element.getAttribute('value') : '',
       element.getAttribute('data-label'),
       element.getAttribute('data-title'),
       element.getAttribute('data-name'),
       element.getAttribute('data-testid'),
       element.getAttribute('data-test'),
       element.getAttribute('data-cy'),
-      tag === 'INPUT' || tag === 'TEXTAREA' ? element.value : '',
+      canExposeValue && (tag === 'INPUT' || tag === 'TEXTAREA') ? element.value : '',
       element.innerText,
       element.textContent
     ];
@@ -349,6 +374,31 @@
       return 'textbox';
     }
     return tag || 'unknown';
+  }
+
+  function shouldUsePointerFallback(element) {
+    if (!element) return false;
+    const role = getElementRole(element);
+    const tag = element.tagName ? element.tagName.toLowerCase() : '';
+    return [
+      'button',
+      'link',
+      'tab',
+      'menuitem',
+      'option',
+      'checkbox',
+      'radio',
+      'switch',
+      'treeitem',
+      'gridcell'
+    ].includes(role) || ['button', 'a', 'summary'].includes(tag) || Boolean(element.getAttribute?.('onclick'));
+  }
+
+  function clearPointerFallback() {
+    if (pendingPointerFallback?.timerId) {
+      clearTimeout(pendingPointerFallback.timerId);
+    }
+    pendingPointerFallback = null;
   }
 
   function getElementState(element) {
@@ -437,38 +487,47 @@
   }
 
   function capturePageSnapshot() {
-    const headings = collectVisibleTexts('h1, h2, h3, [role="heading"]', element => element.textContent, 10);
-    const buttons = collectVisibleTexts('button, [role="button"], input[type="button"], input[type="submit"]', getElementText);
-    const links = collectVisibleTexts('a[href], [role="link"]', getElementText, 10);
-    const tabs = collectVisibleTexts('[role="tab"]', getElementText, 10);
-    const inputs = collectVisibleTexts('input, textarea, [role="textbox"], [contenteditable="true"]', element => {
-      const name = getElementText(element);
-      const placeholder = element.getAttribute('placeholder') || '';
-      return name || placeholder;
-    }, 10);
-    const selects = collectVisibleTexts('select, [role="combobox"], [role="listbox"]', getElementText, 8);
-    const landmarks = collectVisibleTexts('main, nav, aside, header, footer, [role="main"], [role="navigation"], [role="complementary"]', element => {
-      const role = element.getAttribute('role') || element.tagName.toLowerCase();
-      const label = getElementText(element);
-      return label ? role + ': ' + label : role;
-    }, 8);
-    const visibleText = normalizeElementText(document.body?.innerText || '');
+    try {
+      const headings = collectVisibleTexts('h1, h2, h3, [role="heading"]', element => element.textContent, 10);
+      const buttons = collectVisibleTexts('button, [role="button"], input[type="button"], input[type="submit"]', getElementText);
+      const links = collectVisibleTexts('a[href], [role="link"]', getElementText, 10);
+      const tabs = collectVisibleTexts('[role="tab"]', getElementText, 10);
+      const inputs = collectVisibleTexts('input, textarea, [role="textbox"], [contenteditable="true"]', element => {
+        const name = getElementText(element);
+        const placeholder = element.getAttribute('placeholder') || '';
+        return name || placeholder;
+      }, 10);
+      const selects = collectVisibleTexts('select, [role="combobox"], [role="listbox"]', getElementText, 8);
+      const landmarks = collectVisibleTexts('main, nav, aside, header, footer, [role="main"], [role="navigation"], [role="complementary"]', element => {
+        const role = element.getAttribute('role') || element.tagName.toLowerCase();
+        const label = getElementText(element);
+        return label ? role + ': ' + label : role;
+      }, 8);
+      const visibleText = normalizeElementText(document.body?.innerText || '');
 
-    return {
-      title: document.title || '',
-      url: location.href,
-      headings,
-      landmarks,
-      activeTabs: getActiveTabs(),
-      tabs,
-      buttons,
-      links,
-      inputs,
-      selects,
-      dialogs: getDialogSummaries(),
-      tables: summarizeTables(),
-      visibleTextSummary: visibleText.substring(0, 500)
-    };
+      return {
+        title: document.title || '',
+        url: location.href,
+        headings,
+        landmarks,
+        activeTabs: getActiveTabs(),
+        tabs,
+        buttons,
+        links,
+        inputs,
+        selects,
+        dialogs: getDialogSummaries(),
+        tables: summarizeTables(),
+        visibleTextSummary: visibleText.substring(0, 500)
+      };
+    } catch (error) {
+      console.warn('[Scribe:Content] Failed to capture page snapshot:', error);
+      return {
+        title: document.title || '',
+        url: location.href,
+        snapshotError: String(error?.message || error)
+      };
+    }
   }
 
   /**
@@ -480,6 +539,109 @@
     return {
       x: event.clientX || 0,
       y: event.clientY || 0
+    };
+  }
+
+  function getScrollInfo() {
+    const doc = document.documentElement || document.body;
+    const maxX = Math.max(0, (doc.scrollWidth || 0) - window.innerWidth);
+    const maxY = Math.max(0, (doc.scrollHeight || 0) - window.innerHeight);
+    const x = Math.max(0, Math.round(window.scrollX || window.pageXOffset || 0));
+    const y = Math.max(0, Math.round(window.scrollY || window.pageYOffset || 0));
+    return {
+      x,
+      y,
+      maxX,
+      maxY,
+      percentX: maxX ? Math.round((x / maxX) * 100) : 0,
+      percentY: maxY ? Math.round((y / maxY) * 100) : 0,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      documentWidth: doc.scrollWidth || 0,
+      documentHeight: doc.scrollHeight || 0
+    };
+  }
+
+  function buildScrollActionDescription(scrollInfo, previousScroll) {
+    const deltaY = scrollInfo.y - previousScroll.y;
+    const deltaX = scrollInfo.x - previousScroll.x;
+    if (Math.abs(deltaY) >= Math.abs(deltaX)) {
+      if (deltaY > 0) return `向下滚动到页面约 ${scrollInfo.percentY}% 位置`;
+      if (deltaY < 0) return `向上滚动到页面约 ${scrollInfo.percentY}% 位置`;
+    }
+    if (deltaX > 0) return `向右滚动到页面约 ${scrollInfo.percentX}% 位置`;
+    if (deltaX < 0) return `向左滚动到页面约 ${scrollInfo.percentX}% 位置`;
+    return `滚动到页面约 ${scrollInfo.percentY}% 位置`;
+  }
+
+  function maskSensitiveValue(value, inputType = '') {
+    const text = String(value || '');
+    if (!text) return '';
+    if (['password', 'hidden'].includes(inputType)) return '[已脱敏]';
+    return text
+      .replace(/\b(?:sk|rk|pk)-[A-Za-z0-9_-]{8,}\b/g, '[API Key 已脱敏]')
+      .replace(/\bgh[pousr]_[A-Za-z0-9_]{12,}\b/g, '[Token 已脱敏]')
+      .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{8,}\b/g, '[JWT 已脱敏]')
+      .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[邮箱已脱敏]')
+      .replace(/(^|[^\d])((?:\+?86[-\s]?)?1[3-9]\d{9})(?!\d)/g, '$1[手机号已脱敏]')
+      .replace(/(^|[^\d])(\d{17}[\dXx])(?!\d)/g, '$1[身份证号已脱敏]');
+  }
+
+  function getFormValueSummary(element) {
+    if (!element) return null;
+    const tag = element.tagName ? element.tagName.toLowerCase() : '';
+    const type = (element.getAttribute('type') || '').toLowerCase();
+
+    if (tag === 'select') {
+      const selectedOptions = Array.from(element.selectedOptions || []);
+      return {
+        kind: 'select',
+        multiple: Boolean(element.multiple),
+        selectedText: selectedOptions.map(option => normalizeElementText(option.textContent || option.label || option.value)).filter(Boolean),
+        selectedValue: selectedOptions.map(option => maskSensitiveValue(option.value, type)).filter(Boolean)
+      };
+    }
+
+    if (type === 'checkbox' || type === 'radio') {
+      return {
+        kind: type,
+        checked: Boolean(element.checked),
+        value: maskSensitiveValue(element.value, type),
+        label: getElementText(element)
+      };
+    }
+
+    if (tag === 'input' || tag === 'textarea' || element.getAttribute('contenteditable') === 'true') {
+      const rawValue = element.getAttribute('contenteditable') === 'true'
+        ? element.innerText || element.textContent || ''
+        : element.value || '';
+      const maskedValue = maskSensitiveValue(rawValue, type);
+      return {
+        kind: type || tag,
+        value: maskedValue,
+        valueLength: rawValue.length,
+        isSensitive: ['password', 'hidden'].includes(type)
+      };
+    }
+
+    return null;
+  }
+
+  function getSelectionSummary(element) {
+    if (!element) return null;
+    const role = getElementRole(element);
+    const selectableRoles = ['option', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'treeitem', 'gridcell', 'tab'];
+    if (!selectableRoles.includes(role)) return null;
+
+    const parent = element.closest?.('[role="listbox"], [role="menu"], [role="tree"], [role="tablist"], [role="grid"], [role="combobox"]');
+    const containerLabel = parent ? getElementText(parent) : '';
+    const selected = element.getAttribute('aria-selected') ?? element.getAttribute('aria-checked') ?? element.getAttribute('aria-current');
+    return {
+      kind: role,
+      selectedText: getElementText(element),
+      selectedValue: maskSensitiveValue(element.getAttribute('data-value') || element.getAttribute('value') || element.getAttribute('aria-value text') || ''),
+      selectedState: selected !== null ? selected : '',
+      containerLabel
     };
   }
 
@@ -524,6 +686,10 @@
   function createInteractionStep(type, target, event) {
     const elementInfo = getElementInfo(target);
     const coords = event ? getEventCoordinates(event) : { x: 0, y: 0 };
+    const formValue = ['input', 'change', 'submit'].includes(type)
+      ? getFormValueSummary(elementInfo.element || target)
+      : null;
+    const selection = type === 'click' ? getSelectionSummary(elementInfo.element || target) : null;
     const action = type === 'input'
       ? buildInputActionDescription(elementInfo)
       : type === 'change'
@@ -541,11 +707,35 @@
       elementRole: elementInfo.role,
       elementType: elementInfo.inputType || elementInfo.role,
       elementState: elementInfo.state,
+      formValue,
+      selection,
       pageSnapshot: capturePageSnapshot(),
       action,
       x: coords.x,
       y: coords.y
     };
+  }
+
+  function safeCreateInteractionStep(type, target, event) {
+    try {
+      return createInteractionStep(type, target, event);
+    } catch (error) {
+      console.warn('[Scribe:Content] Failed to create full interaction step, falling back to minimal step:', error);
+      return {
+        type,
+        timestamp: Date.now(),
+        tagName: target?.tagName?.toLowerCase?.() || 'unknown',
+        text: normalizeElementText(target?.innerText || target?.textContent || ''),
+        action: type === 'click' ? '点击页面元素' : '页面操作',
+        pageSnapshot: {
+          title: document.title || '',
+          url: location.href,
+          snapshotError: String(error?.message || error)
+        },
+        x: event?.clientX || 0,
+        y: event?.clientY || 0
+      };
+    }
   }
 
   function buildInputActionDescription(elementInfo) {
@@ -623,6 +813,11 @@
     if (!isListening) return;
 
     const now = Date.now();
+    const target = event.target;
+    const elementInfo = getElementInfo(target);
+    if (pendingPointerFallback?.target === (elementInfo.element || target)) {
+      clearPointerFallback();
+    }
 
     // Debounce: prevent recording same element too quickly
     if (event.target === lastElement && now - lastClickTime < DEBOUNCE_DELAY) {
@@ -636,25 +831,47 @@
       return;
     }
 
-    const target = event.target;
-    const elementInfo = getElementInfo(target);
-
     // Update tracking variables
     lastElement = elementInfo.element || target;
     lastClickTime = now;
     lastRecordedAction = now;
 
-    const step = createInteractionStep('click', target, event);
-
-    // Send to background (async, don't await)
-    sendMessage({
-      type: 'ADD_STEP',
-      step: step
-    });
+    const step = safeCreateInteractionStep('click', target, event);
+    sendRecordedStep(step);
 
     // Show visual feedback
     showClickFeedback(step.x, step.y);
   }, THROTTLE_DELAY);
+
+  const recordPointerDown = function(event) {
+    if (!isListening || event.button !== 0) return;
+    const target = event.target;
+    const elementInfo = getElementInfo(target);
+    const interactiveTarget = elementInfo.element || target;
+    if (!shouldUsePointerFallback(interactiveTarget)) return;
+
+    clearPointerFallback();
+    pendingPointerFallback = {
+      target: interactiveTarget,
+      timerId: setTimeout(() => {
+        if (!isListening) return;
+        const now = Date.now();
+        if (interactiveTarget === lastElement && now - lastClickTime < DEBOUNCE_DELAY) return;
+        if (now - lastRecordedAction < THROTTLE_DELAY) return;
+
+        lastElement = interactiveTarget;
+        lastClickTime = now;
+        lastRecordedAction = now;
+
+        const step = safeCreateInteractionStep('click', target, event);
+        step.action = step.action || '点击页面控件';
+        step.triggerEvent = 'pointerdown';
+        sendRecordedStep(step);
+        showClickFeedback(step.x, step.y);
+        pendingPointerFallback = null;
+      }, POINTER_FALLBACK_DELAY)
+    };
+  };
 
   const recordInput = debounce(function(event) {
     if (!isListening) return;
@@ -664,21 +881,42 @@
     const lastTime = lastInputRecordTimes.get(target) || 0;
     if (now - lastTime < 800) return;
     lastInputRecordTimes.set(target, now);
-    sendMessage({ type: 'ADD_STEP', step: createInteractionStep('input', target, event) });
+    sendRecordedStep(safeCreateInteractionStep('input', target, event));
   }, 600);
 
   const recordChange = function(event) {
     if (!isListening) return;
     const target = event.target;
     if (!target || !['SELECT', 'INPUT', 'TEXTAREA'].includes(target.tagName)) return;
-    sendMessage({ type: 'ADD_STEP', step: createInteractionStep('change', target, event) });
+    sendRecordedStep(safeCreateInteractionStep('change', target, event));
   };
 
   const recordSubmit = function(event) {
     if (!isListening) return;
     const target = event.target;
-    sendMessage({ type: 'ADD_STEP', step: createInteractionStep('submit', target, event) });
+    sendRecordedStep(safeCreateInteractionStep('submit', target, event));
   };
+
+  const recordScroll = debounce(function() {
+    if (!isListening) return;
+
+    const scrollInfo = getScrollInfo();
+    const deltaX = Math.abs(scrollInfo.x - lastRecordedScroll.x);
+    const deltaY = Math.abs(scrollInfo.y - lastRecordedScroll.y);
+    if (deltaX < MIN_SCROLL_DELTA && deltaY < MIN_SCROLL_DELTA) return;
+
+    const previousScroll = lastRecordedScroll;
+    lastRecordedScroll = { x: scrollInfo.x, y: scrollInfo.y };
+    lastRecordedAction = Date.now();
+
+    sendRecordedStep({
+      type: 'scroll',
+      timestamp: Date.now(),
+      action: buildScrollActionDescription(scrollInfo, previousScroll),
+      scroll: scrollInfo,
+      pageSnapshot: capturePageSnapshot()
+    });
+  }, SCROLL_DEBOUNCE_DELAY);
 
   /**
    * Records a navigation event
@@ -695,10 +933,7 @@
       to: to
     };
 
-    sendMessage({
-      type: 'ADD_STEP',
-      step: step
-    });
+    sendRecordedStep(step);
   }
 
   // ==========================================================================
@@ -775,13 +1010,17 @@
     isListening = true;
 
     // Use capture phase for more reliable event interception
+    document.addEventListener('pointerdown', recordPointerDown, true);
     document.addEventListener('click', recordClick, true);
     document.addEventListener('input', recordInput, true);
     document.addEventListener('change', recordChange, true);
     document.addEventListener('submit', recordSubmit, true);
+    window.addEventListener('scroll', recordScroll, { passive: true });
 
     // Start URL observation
     observeUrlChanges();
+    lastUrl = location.href;
+    lastRecordedScroll = { x: window.scrollX || 0, y: window.scrollY || 0 };
 
     console.log('[Scribe:Content] Recording started');
   }
@@ -797,10 +1036,12 @@
 
     isListening = false;
 
+    document.removeEventListener('pointerdown', recordPointerDown, true);
     document.removeEventListener('click', recordClick, true);
     document.removeEventListener('input', recordInput, true);
     document.removeEventListener('change', recordChange, true);
     document.removeEventListener('submit', recordSubmit, true);
+    window.removeEventListener('scroll', recordScroll);
 
     // Stop URL observation
     removeUrlObservers();
@@ -809,6 +1050,8 @@
     lastElement = null;
     lastClickTime = 0;
     lastRecordedAction = 0;
+    lastRecordedScroll = { x: window.scrollX || 0, y: window.scrollY || 0 };
+    clearPointerFallback();
     lastInputRecordTimes.clear();
 
     console.log('[Scribe:Content] Recording stopped');

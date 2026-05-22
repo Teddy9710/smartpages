@@ -14,6 +14,38 @@ interface RecordedStep {
   timestamp: number;
   screenshot?: string;
   description?: string;
+  action?: string;
+  formValue?: {
+    kind: string;
+    multiple?: boolean;
+    selectedText?: string[];
+    selectedValue?: string[];
+    checked?: boolean;
+    value?: string;
+    valueLength?: number;
+    isSensitive?: boolean;
+    label?: string;
+  } | null;
+  selection?: {
+    kind: string;
+    selectedText?: string;
+    selectedValue?: string;
+    selectedState?: string;
+    containerLabel?: string;
+  } | null;
+  scroll?: {
+    x: number;
+    y: number;
+    maxX: number;
+    maxY: number;
+    percentX: number;
+    percentY: number;
+    viewportWidth: number;
+    viewportHeight: number;
+    documentWidth: number;
+    documentHeight: number;
+  };
+  pageSnapshot?: unknown;
 }
 
 /** A recording session */
