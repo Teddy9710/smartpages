@@ -15,7 +15,7 @@
   <img alt="Chrome Extension MV3" src="https://img.shields.io/badge/Chrome%20Extension-MV3-2563eb">
   <img alt="Vanilla JavaScript" src="https://img.shields.io/badge/JavaScript-ES2022-f7df1e">
   <img alt="Markdown HTML" src="https://img.shields.io/badge/Export-Markdown%20%2F%20HTML-14b8a6">
-  <img alt="License" src="https://img.shields.io/badge/License-Apache%202.0-111827">
+  <img alt="License" src="https://img.shields.io/badge/License-GPL%20v3-111827">
 </p>
 
 ---
@@ -297,4 +297,4 @@ node validate.js    # Validate syntax for core JS files
 
 ## License
 
-[Apache License 2.0](LICENSE)
+[GPL v3](LICENSE)
