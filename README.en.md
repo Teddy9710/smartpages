@@ -197,11 +197,29 @@ Best for using the extension directly without caring about the build process.
 Best for development, release, or checking the packaged output.
 
 ```bash
+git clone https://github.com/Teddy9710/smartpages.git
+cd smartpages
 npm install
 npm run build
 ```
 
-Then load the `dist/` directory from the extensions management page.
+Then load the built output from the browser extensions page:
+
+1. Open the extensions management page:
+   - Chrome: `chrome://extensions/`
+   - Edge: `edge://extensions/`
+2. Enable Developer mode.
+3. Click "Load unpacked".
+4. Select the `dist/` folder inside the project. Do not select the project root.
+5. After changing code, run `npm run build` again, then click the extension's refresh button on the extensions page.
+
+For development, you can also use watch mode:
+
+```bash
+npm run dev
+```
+
+`npm run dev` keeps rebuilding `dist/`, but the browser usually still needs a manual extension refresh to load the latest files.
 
 ---
 

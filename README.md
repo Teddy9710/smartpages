@@ -197,11 +197,29 @@ POST {Base URL}/messages
 适合开发、发布或确认打包产物的场景。
 
 ```bash
+git clone https://github.com/Teddy9710/smartpages.git
+cd smartpages
 npm install
 npm run build
 ```
 
-然后在扩展管理页加载 `dist/` 目录。
+然后在浏览器扩展管理页加载构建产物：
+
+1. 打开扩展管理页：
+   - Chrome: `chrome://extensions/`
+   - Edge: `edge://extensions/`
+2. 开启“开发者模式”。
+3. 点击“加载已解压的扩展程序”。
+4. 选择项目中的 `dist/` 文件夹，不要选择项目根目录。
+5. 后续修改代码后，重新运行 `npm run build`，再回到扩展管理页点击该扩展的“刷新”按钮。
+
+开发时也可以使用 watch 构建：
+
+```bash
+npm run dev
+```
+
+`npm run dev` 会持续更新 `dist/`，但浏览器通常仍需要手动刷新扩展才能加载最新内容。
 
 ---
 
