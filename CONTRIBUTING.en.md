@@ -2,20 +2,18 @@
 
 Thank you for your interest in SmartPages! We welcome Issues, Pull Requests, and suggestions.
 
-## Important: Contributor License Agreement (CLA)
+## Contributor License Agreement (CLA)
 
 **By submitting a Pull Request, you agree to the following terms:**
 
-1. **Copyright Transfer**: You agree to assign all rights (including but not limited to copyright and commercial rights) of the submitted code to the project owner (Hongru Wang / 汪鸿儒).
-
-2. **Grant of License**: If copyright transfer is not permitted under your local laws, you grant the project owner an **exclusive, perpetual, irrevocable, worldwide, royalty-free** license to the submitted code, including the right to:
-   - Use, copy, modify, merge, publish, distribute, sublicense, and sell
-   - Re-license your code under any license (including commercial licenses) to third parties
+1. **Grant of License**: You grant the project owner (Hongru Wang / 汪鸿儒) a **non-exclusive, perpetual, irrevocable, worldwide, royalty-free** license to the submitted code, including the right to:
+   - Use, copy, modify, merge, publish, distribute, sublicense
+   - Re-license your code as part of the project under any license (including commercial licenses) to third parties
    - Create derivative works based on your code
 
-3. **Originality Warranty**: You warrant that the submitted code is your original work, or that you have the right to submit it without infringing any third party's intellectual property rights.
+2. **You Retain Copyright**: You retain full copyright and ownership of your submitted code. You are free to use the same code in your own other projects.
 
-4. **No Obligation**: The project owner is not obligated to use, retain, or attribute any code you submit.
+3. **Originality Warranty**: You warrant that the submitted code is your original work, or that you have the right to submit it without infringing any third party's intellectual property rights.
 
 ---
 
