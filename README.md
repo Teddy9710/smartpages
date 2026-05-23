@@ -313,6 +313,10 @@ node validate.js    # 核心 JS 文件语法校验
 
 ---
 
+## 贡献
+
+欢迎贡献代码！提交 Pull Request 前请阅读 [贡献者许可协议 (CLA)](CONTRIBUTING.md)。
+
 ## License
 
 SmartPages 采用**双许可（Dual License）**模式：

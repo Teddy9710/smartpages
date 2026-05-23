@@ -313,6 +313,10 @@ node validate.js    # Validate syntax for core JS files
 
 ---
 
+## Contributing
+
+Contributions are welcome! Please read the [Contributor License Agreement (CLA)](CONTRIBUTING.en.md) before submitting a Pull Request.
+
 ## License
 
 SmartPages uses a **Dual License** model:
