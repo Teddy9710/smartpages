@@ -315,4 +315,13 @@ node validate.js    # Validate syntax for core JS files
 
 ## License
 
-[GPL v3](LICENSE)
+SmartPages uses a **Dual License** model:
+
+| Use Case | License | Details |
+| --- | --- | --- |
+| Personal / Educational / Non-commercial | [GPL v3](LICENSE) | Free to use, modify, and distribute; derivative works must also be open-sourced |
+| Commercial Use | Commercial License | Requires a separate commercial license from the author |
+
+- The copyright holder (Hongru Wang / 汪鸿儒) retains all commercial rights and may use this software commercially without restriction.
+- Unauthorized commercial use — including integration into commercial products, SaaS services, or enterprise deployments — is prohibited.
+- For commercial licensing inquiries, please contact the author via GitHub Issues.

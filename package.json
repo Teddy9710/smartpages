@@ -16,7 +16,7 @@
     "documentation",
     "ai"
   ],
-  "author": "",
+  "author": "汪鸿儒 (Hongru Wang)",
   "license": "GPL-3.0",
   "main": "diagnostic-tool.js",
   "directories": {
