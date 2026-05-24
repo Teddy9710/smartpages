@@ -8,6 +8,7 @@
 
 <p align="center">
   <strong>浏览器操作录制 + AI 文档生成助手</strong><br>
+  <small>An open-source alternative to Scribe & Tango. Record once, AI writes the doc.</small><br>
   记录网页操作流程，自动生成可直接编辑、可优化、可导出的操作文档。
 </p>
 

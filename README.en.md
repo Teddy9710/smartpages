@@ -8,6 +8,7 @@
 
 <p align="center">
   <strong>Browser workflow recording + AI document generation</strong><br>
+  <small>An open-source alternative to Scribe & Tango. Record once, AI writes the doc.</small><br>
   Record web operations and turn them into editable, optimizable, exportable documentation.
 </p>
 
