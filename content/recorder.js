@@ -88,6 +88,18 @@
   /** @type {Element|null} Cached feedback style element */
   let feedbackStyleElement = null;
 
+  /** @type {{pushState: Function, replaceState: Function}|null} Original history methods */
+  let originalHistoryMethods = null;
+
+  /** @type {boolean} Whether this script wrapped history methods */
+  let historyWrapped = false;
+
+  /** @type {Array<Object>} Steps waiting to be delivered to the service worker */
+  const pendingStepQueue = [];
+
+  /** @type {boolean} Whether the pending step queue is being flushed */
+  let isFlushingStepQueue = false;
+
   // ==========================================================================
   // UTILITY FUNCTIONS
   // ==========================================================================
@@ -135,22 +147,41 @@
     if (!chrome?.runtime?.id) {
       console.warn('[Scribe:Content] Extension context invalidated; refresh the page to continue recording.');
       stopListening();
-      return;
+      return Promise.reject(new Error('Extension context invalidated'));
     }
-    chrome.runtime.sendMessage(message).catch(error => {
+    return chrome.runtime.sendMessage(message).catch(error => {
       console.error('[Scribe:Content] Failed to send message:', error);
       if (String(error?.message || '').includes('Extension context invalidated')) {
         stopListening();
       }
+      throw error;
     });
   }
 
   function sendRecordedStep(step) {
     if (!step || !step.type) return;
-    sendMessage({
+    pendingStepQueue.push({
       type: 'ADD_STEP',
       step
     });
+    flushRecordedStepQueue();
+  }
+
+  async function flushRecordedStepQueue() {
+    if (isFlushingStepQueue || !pendingStepQueue.length || !isListening) return;
+    isFlushingStepQueue = true;
+    try {
+      while (pendingStepQueue.length && isListening) {
+        const message = pendingStepQueue[0];
+        await sendMessage(message);
+        pendingStepQueue.shift();
+      }
+    } catch (error) {
+      console.warn('[Scribe:Content] Step delivery paused; will retry.', error);
+      setTimeout(flushRecordedStepQueue, 500);
+    } finally {
+      isFlushingStepQueue = false;
+    }
   }
 
   // ==========================================================================
@@ -809,7 +840,7 @@
    * Throttled and debounced to prevent excessive recording
    * @param {MouseEvent} event - Click event
    */
-  const recordClick = throttle(function(event) {
+  function recordClick(event) {
     if (!isListening) return;
 
     const now = Date.now();
@@ -841,7 +872,7 @@
 
     // Show visual feedback
     showClickFeedback(step.x, step.y);
-  }, THROTTLE_DELAY);
+  }
 
   const recordPointerDown = function(event) {
     if (!isListening || event.button !== 0) return;
@@ -969,18 +1000,24 @@
    * Overrides history.pushState and history.replaceState
    */
   function overrideHistoryMethods() {
-    const originalPushState = history.pushState;
-    const originalReplaceState = history.replaceState;
+    if (historyWrapped) return;
+    if (!originalHistoryMethods) {
+      originalHistoryMethods = {
+        pushState: history.pushState,
+        replaceState: history.replaceState
+      };
+    }
 
     history.pushState = function(...args) {
-      originalPushState.apply(this, args);
+      originalHistoryMethods.pushState.apply(this, args);
       handleUrlChange();
     };
 
     history.replaceState = function(...args) {
-      originalReplaceState.apply(this, args);
+      originalHistoryMethods.replaceState.apply(this, args);
       handleUrlChange();
     };
+    historyWrapped = true;
   }
 
   /**
@@ -990,8 +1027,11 @@
     window.removeEventListener('hashchange', handleUrlChange, false);
     window.removeEventListener('popstate', handleUrlChange, false);
 
-    // Note: We don't restore original history methods as it's complex
-    // and the page will reload on next navigation anyway
+    if (historyWrapped && originalHistoryMethods) {
+      history.pushState = originalHistoryMethods.pushState;
+      history.replaceState = originalHistoryMethods.replaceState;
+      historyWrapped = false;
+    }
   }
 
   // ==========================================================================
@@ -1053,6 +1093,13 @@
     lastRecordedScroll = { x: window.scrollX || 0, y: window.scrollY || 0 };
     clearPointerFallback();
     lastInputRecordTimes.clear();
+    pendingStepQueue.length = 0;
+    isFlushingStepQueue = false;
+
+    if (feedbackStyleElement) {
+      feedbackStyleElement.remove();
+      feedbackStyleElement = null;
+    }
 
     console.log('[Scribe:Content] Recording stopped');
   }

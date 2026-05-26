@@ -1,7 +1,7 @@
 // 文档存储管理器
 class DocumentStorage {
   constructor() {
-    this.storageKey = 'uploadedDocuments';
+    this.storageKey = 'documents';
     this.docsFolder = 'docs/';
   }
 
@@ -261,7 +261,7 @@ class DocumentStorage {
 
   // 生成唯一ID
   generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+    return Date.now().toString(36) + Math.random().toString(36).substring(2, 11);
   }
 
   // 导出文档为文件

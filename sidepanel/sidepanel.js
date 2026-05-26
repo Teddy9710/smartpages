@@ -48,6 +48,7 @@ class SidePanelManager {
       getApi: () => this.documentApi
     });
     this.cleanupFunctions = [];
+    this.toastContainer = null;
     this.init();
   }
 
@@ -593,7 +594,11 @@ class SidePanelManager {
   }
 
   _getOutputFormat(config = this.config) {
-    const format = typeof config === 'string' ? config : config?.outputFormat;
+    if (typeof config === 'string') return this._normalizeOutputFormat(config);
+    return this._normalizeOutputFormat(config?.outputFormat);
+  }
+
+  _normalizeOutputFormat(format) {
     return ['markdown', 'html', 'text'].includes(format) ? format : 'markdown';
   }
 
@@ -888,6 +893,29 @@ class SidePanelManager {
 
   _injectScreenshots(content, format = this._getOutputFormat()) {
     if (!this.session?.steps?.length) return content;
+    return this._injectScreenshotPlaceholders(content, format);
+  }
+
+  _injectScreenshotPlaceholders(content, format = this._getOutputFormat()) {
+    if (!this.session?.steps?.length) return content;
+    let safeResult = String(content || '');
+    this.session.steps.forEach((step, index) => {
+      if (!step.screenshot) return;
+      const stepNumber = index + 1;
+      const placeholder = '[' + '鎴浘' + stepNumber + ']';
+      const englishPlaceholder = '[Screenshot ' + stepNumber + ']';
+      const imgTag = format === 'html'
+        ? '<img alt="' + '姝ラ' + stepNumber + '鎴浘" src="' + step.screenshot + '">'
+        : '![' + '姝ラ' + stepNumber + '鎴浘](' + step.screenshot + ')';
+      safeResult = safeResult.replace(
+        new RegExp('(<img\\b[^>]*?\\bsrc=["\\\'])\\s*(?:\\[' + '鎴浘' + stepNumber + '\\]|\\[Screenshot\\s*' + stepNumber + '\\])\\s*(["\\\'][^>]*>)', 'gi'),
+        '$1' + step.screenshot + '$2'
+      );
+      safeResult = safeResult.split(placeholder).join(imgTag);
+      safeResult = safeResult.split(englishPlaceholder).join(imgTag);
+    });
+    return safeResult;
+
     var result = content;
     this.session.steps.forEach(function(step, index) {
       var stepNumber = index + 1;
@@ -1779,8 +1807,66 @@ ${bodyHtml}
   // UTILITY METHODS
   // ========================================================================
 
-  _showError(message) { alert(message); }
-  _showNotification(message, type) { alert(message); }
+  _showError(message) { this._showNotification(message, 'error'); }
+
+  _showNotification(message, type = 'info') {
+    const container = this._getToastContainer();
+    const toast = document.createElement('div');
+    toast.className = `smartpages-toast smartpages-toast-${type || 'info'}`;
+    toast.textContent = String(message || '');
+    container.appendChild(toast);
+    setTimeout(() => toast.classList.add('visible'), 0);
+    setTimeout(() => {
+      toast.classList.remove('visible');
+      setTimeout(() => toast.remove(), 200);
+    }, type === 'error' ? 5000 : 3000);
+  }
+
+  _getToastContainer() {
+    if (this.toastContainer?.isConnected) return this.toastContainer;
+    const styleId = 'smartpages-toast-style';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        .smartpages-toast-container {
+          position: fixed;
+          top: 16px;
+          right: 16px;
+          z-index: 2147483647;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          max-width: min(360px, calc(100vw - 32px));
+          pointer-events: none;
+        }
+        .smartpages-toast {
+          padding: 10px 12px;
+          border-radius: 6px;
+          background: #1f2937;
+          color: #fff;
+          box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+          font-size: 13px;
+          line-height: 1.4;
+          opacity: 0;
+          transform: translateY(-4px);
+          transition: opacity 0.18s ease, transform 0.18s ease;
+          word-break: break-word;
+        }
+        .smartpages-toast.visible {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        .smartpages-toast-success { background: #047857; }
+        .smartpages-toast-error { background: #b91c1c; }
+      `;
+      document.head.appendChild(style);
+    }
+    this.toastContainer = document.createElement('div');
+    this.toastContainer.className = 'smartpages-toast-container';
+    document.body.appendChild(this.toastContainer);
+    return this.toastContainer;
+  }
 
   _formatUserFacingError(error, fallback) {
     if (error?.code === 'EXTENSION_CONTEXT_INVALIDATED') {
@@ -1795,6 +1881,8 @@ ${bodyHtml}
   cleanup() {
     this.cleanupFunctions.forEach(fn => fn());
     this.cleanupFunctions = [];
+    this.toastContainer?.remove();
+    this.toastContainer = null;
   }
 }
 

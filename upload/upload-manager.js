@@ -31,50 +31,32 @@ class DocumentUploadManager {
       throw new Error(`不支持的文件格式: ${file.name}`);
     }
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('filename', file.name);
-    formData.append('size', file.size);
-    formData.append('type', file.type);
-
-    // 添加额外选项
-    if (options.description) {
-      formData.append('description', options.description);
-    }
-    if (options.tags) {
-      formData.append('tags', JSON.stringify(options.tags));
-    }
-    if (options.metadata) {
-      formData.append('metadata', JSON.stringify(options.metadata));
-    }
-
     try {
       // 模拟上传进度
       const progressCallback = options.progressCallback || (() => {});
       progressCallback(0);
 
-      // 模拟上传过程
-      for (let i = 0; i <= 100; i += 10) {
-        await new Promise(resolve => setTimeout(resolve, 50));
-        progressCallback(i);
+      const uploader = typeof DocumentUploader !== 'undefined' ? new DocumentUploader() : null;
+      if (!uploader) {
+        throw new Error('DocumentUploader is not available');
       }
 
-      // 实际上传请求
-      const response = await fetch('/api/upload-document', {
-        method: 'POST',
-        body: formData,
-        // 注意：实际部署时需要替换为真实的API端点
+      progressCallback(50);
+      const documentData = await uploader.readDocumentContent(file);
+      const result = await uploader.saveDocument({
+        ...documentData,
+        description: options.description || '',
+        tags: options.tags || [],
+        metadata: options.metadata || {}
       });
-
-      if (!response.ok) {
-        throw new Error(`上传失败: ${response.statusText}`);
+      if (!result?.id) {
+        throw new Error('Document upload failed');
       }
-
-      const result = await response.json();
+      progressCallback(100);
       return {
         success: true,
-        fileId: result.fileId,
-        url: result.url,
+        fileId: result.id,
+        url: '',
         filename: file.name,
         size: file.size,
         type: file.type

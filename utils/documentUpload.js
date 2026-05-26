@@ -7,6 +7,9 @@ class DocumentUploader {
   constructor() {
     this.supportedFormats = ['pdf', 'docx', 'txt', 'md', 'html', 'htm', 'rtf', 'xlsx', 'pptx'];
     this.uploadDir = 'docs';
+    this.storageKey = 'documents';
+    this._docIndex = new Map();
+    this._docsCache = null;
   }
 
   /**
@@ -117,7 +120,7 @@ class DocumentUploader {
         id: this._generateId()
       };
       existingDocs.push(newDoc);
-      await chrome.storage.local.set({ documents: existingDocs });
+      await this._saveDocuments(existingDocs);
       return newDoc;
     } catch (error) {
       throw new Error('保存文档失败: ' + error.message);
@@ -129,13 +132,16 @@ class DocumentUploader {
    */
   async getStoredDocuments() {
     try {
-      const result = await chrome.storage.local.get(['documents']);
-      // Maintain index for O(1) lookups
-      if (result.documents) {
-        this._docIndex = new Map();
-        result.documents.forEach((doc, i) => this._docIndex.set(doc.id, i));
+      const result = await chrome.storage.local.get([this.storageKey, 'uploadedDocuments']);
+      let documents = result[this.storageKey] || [];
+      if (!documents.length && Array.isArray(result.uploadedDocuments) && result.uploadedDocuments.length) {
+        documents = result.uploadedDocuments;
+        await this._saveDocuments(documents);
+      } else {
+        this._rebuildIndex(documents);
       }
-      return result.documents || [];
+      this._docsCache = documents;
+      return documents;
     } catch (error) {
       console.error('获取文档列表失败:', error);
       return [];
@@ -149,7 +155,7 @@ class DocumentUploader {
     try {
       const existingDocs = await this.getStoredDocuments();
       const updatedDocs = existingDocs.filter(doc => doc.id !== docId);
-      await chrome.storage.local.set({ documents: updatedDocs });
+      await this._saveDocuments(updatedDocs);
       return true;
     } catch (error) {
       throw new Error('删除文档失败: ' + error.message);
@@ -172,11 +178,13 @@ class DocumentUploader {
    * O(1) 获取单文档（使用内存索引）
    */
   async getDocumentById(docId) {
-    const docs = await this.getStoredDocuments();
-    if (this._docIndex?.has(docId)) {
-      return docs[this._docIndex.get(docId)] || null;
+    if (!this._docsCache) {
+      await this.getStoredDocuments();
     }
-    return docs.find(doc => doc.id === docId) || null;
+    if (this._docIndex?.has(docId)) {
+      return this._docsCache[this._docIndex.get(docId)] || null;
+    }
+    return null;
   }
 
   /**
@@ -187,14 +195,27 @@ class DocumentUploader {
     const docs = await this.getStoredDocuments();
     const updated = transformFn(docs);
     if (updated !== docs) {
-      await chrome.storage.local.set({ documents: updated });
+      await this._saveDocuments(updated);
     }
     return updated;
   }
 
   /** @private 生成唯一ID */
+  _rebuildIndex(documents) {
+    this._docIndex = new Map();
+    (documents || []).forEach((doc, i) => {
+      if (doc?.id) this._docIndex.set(doc.id, i);
+    });
+  }
+
+  async _saveDocuments(documents) {
+    await chrome.storage.local.set({ [this.storageKey]: documents });
+    this._docsCache = documents;
+    this._rebuildIndex(documents);
+  }
+
   _generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+    return Date.now().toString(36) + Math.random().toString(36).substring(2, 11);
   }
 }
 

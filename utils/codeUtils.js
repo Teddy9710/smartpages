@@ -5,12 +5,15 @@
 
 function detectCodeType(code) {
   if (!code || typeof code !== 'string') return 'unknown';
-  if (code.includes('#include') || code.includes('#define') || code.includes('int main')) return 'c_cpp';
-  if (code.includes('public class') || code.includes('private') || code.includes('protected')) return 'java';
-  if (code.includes('<!DOCTYPE html>') || code.includes('<html>') || code.includes('<div')) return 'html';
-  if (code.includes('def ') || code.includes('import ') && code.includes('from ')) return 'python';
-  if (code.includes('function') || code.includes('const ') || code.includes('let ') || code.includes('var ')) return 'javascript';
-  if (code.includes('{') && code.includes('}')) return 'general';
+  const value = code.trim();
+  const has = pattern => pattern.test(value);
+  if (has(/^\s*#\s*include\b/m) || has(/^\s*#\s*define\b/m) || has(/\bint\s+main\s*\(/)) return 'c_cpp';
+  if (has(/^\s*package\s+[\w.]+\s*;/m) || has(/\bpublic\s+class\s+\w+/) || has(/\bSystem\.out\./)) return 'java';
+  if (has(/<!DOCTYPE html/i) || has(/<html[\s>]/i) || has(/<\/?(div|span|section|main|body)\b/i)) return 'html';
+  if (has(/^\s*(def|class)\s+\w+/m) || has(/^\s*from\s+\w[\w.]*\s+import\s+/m) || has(/^\s*import\s+\w[\w.]*/m)) return 'python';
+  if (has(/^\s*interface\s+\w+/m) || has(/^\s*type\s+\w+\s*=/m) || has(/:\s*(string|number|boolean)\b/)) return 'typescript';
+  if (has(/\b(function|const|let|var)\b/) || has(/=>/) || has(/\bconsole\.log\s*\(/)) return 'javascript';
+  if (has(/[{};]/)) return 'general';
   return 'unknown';
 }
 

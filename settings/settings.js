@@ -120,7 +120,7 @@ class SettingsManager {
     this.docUI = new DocUIHelper({
       api: this.api,
       source: '',
-      onNotify: (msg, type) => alert(msg),
+      onNotify: (msg, type) => this._showToast(msg, type),
       getApi: () => this.api,
       actions: this._getReferenceDocumentActions()
     });
@@ -177,8 +177,9 @@ class SettingsManager {
 
     const smartDescCheckbox = document.getElementById('smart-description');
     if (smartDescCheckbox) {
-      smartDescCheckbox.addEventListener('change', (e) => { this.config.smartDescription = e.target.checked; });
-      this.cleanupFunctions.push(() => { smartDescCheckbox.removeEventListener('change', this.config.smartDescription); });
+      const handler = (e) => { this.config.smartDescription = e.target.checked; };
+      smartDescCheckbox.addEventListener('change', handler);
+      this.cleanupFunctions.push(() => smartDescCheckbox.removeEventListener('change', handler));
     }
     this._bindDocumentUploadEvents();
   }
@@ -649,6 +650,30 @@ class SettingsManager {
   // ========================================================================
 
   _initDocumentManagement() { this.docUI.loadDocumentsList(); }
+
+  _showToast(message, type = 'info') {
+    const existing = document.getElementById('settings-toast');
+    existing?.remove();
+    const toast = document.createElement('div');
+    toast.id = 'settings-toast';
+    toast.textContent = String(message || '');
+    toast.style.cssText = [
+      'position:fixed',
+      'top:16px',
+      'right:16px',
+      'z-index:2147483647',
+      'max-width:min(360px,calc(100vw - 32px))',
+      'padding:10px 12px',
+      'border-radius:6px',
+      'background:' + (type === 'error' ? '#b91c1c' : type === 'success' ? '#047857' : '#1f2937'),
+      'color:#fff',
+      'font-size:13px',
+      'line-height:1.4',
+      'box-shadow:0 8px 24px rgba(15,23,42,0.18)'
+    ].join(';');
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), type === 'error' ? 5000 : 3000);
+  }
 }
 
 // ============================================================================

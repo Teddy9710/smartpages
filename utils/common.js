@@ -173,9 +173,12 @@ function storagePromise(area, method, data) {
  * // returns: '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;'
  */
 function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+  return String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 /**
@@ -234,11 +237,12 @@ function generateDocumentId() {
  * // returns: '1.5 KB'
  */
 function formatFileSize(bytes) {
-  if (bytes === 0) return '0 Bytes';
+  const size = Number(bytes);
+  if (!Number.isFinite(size) || size <= 0) return '0 Bytes';
   const k = 1024;
   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  const i = Math.min(Math.floor(Math.log(size) / Math.log(k)), sizes.length - 1);
+  return parseFloat((size / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
 /**
@@ -484,6 +488,11 @@ function buildModelApiRequest(config = {}, prompt, options = {}) {
   const maxTokens = options.maxTokens || config.maxTokens || DEFAULT_MAX_TOKENS;
   const temperature = options.temperature ?? 0.7;
   const model = config.modelName || (apiFormat === 'anthropic' ? 'claude-sonnet-4-20250514' : 'gpt-4o-mini');
+  const apiKey = String(config.apiKey || '').trim();
+
+  if (!apiKey) {
+    throw new ExtensionError('API Key is required. Please configure it in settings.', 'API_KEY_MISSING');
+  }
 
   if (apiFormat === 'anthropic') {
     return {
@@ -492,7 +501,7 @@ function buildModelApiRequest(config = {}, prompt, options = {}) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': config.apiKey,
+          'x-api-key': apiKey,
           'anthropic-version': '2023-06-01'
         },
         body: JSON.stringify({
@@ -511,7 +520,7 @@ function buildModelApiRequest(config = {}, prompt, options = {}) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.apiKey}`
+        'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
         model,
@@ -561,6 +570,8 @@ async function sendMessage(message) {
           ? '扩展上下文已失效，请刷新当前页面后重试'
           : msg;
         reject(new ExtensionError(friendly, code));
+      } else if (response === undefined) {
+        reject(new ExtensionError('No response from extension background service worker.', 'MESSAGE_NO_RESPONSE'));
       } else {
         resolve(response);
       }
@@ -642,27 +653,21 @@ function showNotification(title, message, type = 'basic', iconUrl) {
  */
 function detectCodeType(code) {
   if (!code || typeof code !== 'string') return 'unknown';
+  const value = code.trim();
+  const has = pattern => pattern.test(value);
 
-  const patterns = {
-    'c_cpp': ['#include', '#define', 'printf('],
-    'java': ['public class', 'private ', 'protected ', 'System.out'],
-    'python': ['def ', 'import ', 'from ', 'print(', '__init__'],
-    'javascript': ['function ', 'const ', 'let ', '=>', 'console.log'],
-    'typescript': ['interface ', 'type ', ': string', ': number'],
-    'html': ['<!DOCTYPE html', '<html', '<div', '<span'],
-    'css': ['@media', '@keyframes', '{', '}'],
-    'sql': ['SELECT ', 'FROM ', 'WHERE ', 'INSERT INTO'],
-    'php': ['<?php', '$', 'function ', 'echo '],
-    'ruby': ['def ', 'require ', 'puts ', '@'],
-    'go': ['func ', 'package ', 'import (', ':='],
-    'rust': ['fn ', 'let ', 'impl ', 'pub fn']
-  };
-
-  for (const [lang, indicators] of Object.entries(patterns)) {
-    if (indicators.some(pattern => code.includes(pattern))) {
-      return lang;
-    }
-  }
+  if (has(/^\s*#\s*include\b/m) || has(/^\s*#\s*define\b/m) || has(/\bint\s+main\s*\(/)) return 'c_cpp';
+  if (has(/^\s*package\s+[\w.]+\s*;/m) || has(/\bpublic\s+class\s+\w+/) || has(/\bSystem\.out\./)) return 'java';
+  if (has(/^\s*(def|class)\s+\w+/m) || has(/^\s*from\s+\w[\w.]*\s+import\s+/m) || has(/^\s*import\s+\w[\w.]*/m)) return 'python';
+  if (has(/^\s*interface\s+\w+/m) || has(/^\s*type\s+\w+\s*=/m) || has(/:\s*(string|number|boolean)\b/)) return 'typescript';
+  if (has(/\b(function|const|let|var)\b/) || has(/=>/) || has(/\bconsole\.log\s*\(/)) return 'javascript';
+  if (has(/<!DOCTYPE html/i) || has(/<html[\s>]/i) || has(/<\/?(div|span|section|main|body)\b/i)) return 'html';
+  if (has(/^\s*@(?:media|keyframes)\b/m) || has(/^\s*[.#]?[a-z][\w-]*\s*\{[^}]*\}/im)) return 'css';
+  if (has(/\b(SELECT|FROM|WHERE|INSERT\s+INTO|UPDATE|DELETE\s+FROM)\b/i)) return 'sql';
+  if (has(/<\?php/) || has(/\$\w+/)) return 'php';
+  if (has(/^\s*def\s+\w+/m) || has(/^\s*require\s+['"]/m) || has(/\bputs\s+/)) return 'ruby';
+  if (has(/^\s*package\s+\w+/m) || has(/\bfunc\s+\w+\s*\(/) || has(/:=/)) return 'go';
+  if (has(/\bfn\s+\w+\s*\(/) || has(/\bimpl\s+\w+/) || has(/\bpub\s+fn\b/)) return 'rust';
 
   return 'unknown';
 }
