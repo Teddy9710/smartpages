@@ -580,7 +580,7 @@ class SidePanelManager {
 
     const styleReference = this._buildStyleReferencePrompt(docType, config);
     if (styleReference) {
-      prompt += styleReference;
+      prompt = `${styleReference}\n\n${prompt}`;
     }
 
     prompt += `\n\n${outputFormatInstruction}`;
