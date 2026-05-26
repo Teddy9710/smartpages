@@ -893,7 +893,27 @@ class SidePanelManager {
 
   _injectScreenshots(content, format = this._getOutputFormat()) {
     if (!this.session?.steps?.length) return content;
-    return this._injectScreenshotPlaceholders(content, format);
+    return this._injectScreenshotPlaceholdersFixed(content, format);
+  }
+
+  _injectScreenshotPlaceholdersFixed(content, format = this._getOutputFormat()) {
+    let result = String(content || '');
+    this.session.steps.forEach((step, index) => {
+      if (!step.screenshot) return;
+      const stepNumber = index + 1;
+      const placeholder = `[截图${stepNumber}]`;
+      const englishPlaceholder = `[Screenshot ${stepNumber}]`;
+      const imgTag = format === 'html'
+        ? `<img alt="步骤${stepNumber}截图" src="${step.screenshot}">`
+        : `![步骤${stepNumber}截图](${step.screenshot})`;
+      result = result.replace(
+        new RegExp('(<img\\b[^>]*?\\bsrc=["\\\'])\\s*(?:\\[截图' + stepNumber + '\\]|\\[Screenshot\\s*' + stepNumber + '\\])\\s*(["\\\'][^>]*>)', 'gi'),
+        '$1' + step.screenshot + '$2'
+      );
+      result = result.split(placeholder).join(imgTag);
+      result = result.split(englishPlaceholder).join(imgTag);
+    });
+    return result;
   }
 
   _injectScreenshotPlaceholders(content, format = this._getOutputFormat()) {
