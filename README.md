@@ -19,6 +19,10 @@
   <img alt="License" src="https://img.shields.io/badge/License-GPL%20v3-111827">
 </p>
 
+<p align="center">
+  <img src="docs/assets/smartpages-demo-zh.gif" width="860" alt="SmartPages 中文演示">
+</p>
+
 ---
 
 ## 项目简介
