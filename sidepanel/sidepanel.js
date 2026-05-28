@@ -327,6 +327,62 @@ class SidePanelManager {
       stepsTitle: '录制步骤',
       stepsSummary: '生成前可删除、排序或改写步骤说明。'
     };
+    Object.assign(text, isEn ? {
+      cropTitle: 'Crop Image',
+      cropClose: 'Close',
+      cropReset: 'Reset',
+      cropApply: 'Apply Crop',
+      cropHint: 'Drag on the image to choose the crop area.',
+      cropLoadFailed: 'Unable to load this image for cropping.',
+      cropSelectLarger: 'Choose a larger crop area first.',
+      cropSelectLargerShort: 'Choose a larger crop area.',
+      cropSelected: 'Crop area selected. Apply when ready.',
+      cropFailed: 'Cropping failed. Try another image.',
+      cropDone: 'Image cropped.',
+      startFailed: 'Failed to start recording',
+      customRequired: 'Please enter a custom description',
+      generating: 'Generating document...',
+      generationFailed: 'Failed to generate document. Please try again.',
+      copyDone: 'Document copied to clipboard.',
+      copyFailed: 'Copy failed. Please select the text manually.',
+      contentRequired: 'Please generate or enter document content first.',
+      optimizeDone: 'Document optimized. You can revert to the previous version anytime.',
+      optimizeFailed: 'Optimization failed. Please try again.',
+      reverted: 'Reverted to the previous version.',
+      htmlExported: 'HTML file exported.',
+      htmlPackageDone: 'HTML package exported: {{filename}}. Unzip it and open {{html}}.',
+      htmlPackageFailed: 'Failed to generate HTML package. Please try again.',
+      cacheCleared: 'Recording cache cleared{{savedText}}',
+      clearCacheFailed: 'Failed to clear recording cache.'
+    } : {
+      cropTitle: '裁剪图片',
+      cropClose: '关闭',
+      cropReset: '重置',
+      cropApply: '应用裁剪',
+      cropHint: '在图片上拖拽选择裁剪区域。',
+      cropLoadFailed: '无法加载这张图片进行裁剪。',
+      cropSelectLarger: '请先选择更大的裁剪区域。',
+      cropSelectLargerShort: '请选择更大的裁剪区域。',
+      cropSelected: '已选择裁剪区域，确认后应用。',
+      cropFailed: '裁剪失败，请换一张图片重试。',
+      cropDone: '图片已裁剪。',
+      startFailed: '启动录制失败',
+      customRequired: '请输入自定义描述',
+      generating: '正在生成文档...',
+      generationFailed: '生成文档失败，请重试',
+      copyDone: '文档已复制到剪贴板。',
+      copyFailed: '复制失败，请手动选择文本',
+      contentRequired: '请先生成或输入文档内容',
+      optimizeDone: '文档已优化，可随时回退到优化前版本',
+      optimizeFailed: '优化失败，请重试',
+      reverted: '已回退到优化前版本',
+      htmlExported: 'HTML 文件已导出。',
+      htmlPackageDone: 'HTML 资源包已导出：{{filename}}。解压后打开 {{html}}。',
+      htmlPackageFailed: 'HTML 资源包生成失败，请重试',
+      cacheCleared: '录制缓存已清理{{savedText}}',
+      clearCacheFailed: '清理录制缓存失败'
+    });
+    this.uiText = text;
 
     const set = (selector, value) => {
       const el = document.querySelector(selector);
@@ -382,6 +438,16 @@ class SidePanelManager {
     if (optimizeInstruction) optimizeInstruction.placeholder = text.optimizePlaceholder;
     setButton('#btn-cancel-optimize', text.cancel);
     setButton('#btn-run-optimize', text.runOptimize);
+    set('#image-crop-title', text.cropTitle);
+    set('#image-crop-status', text.cropHint);
+    setButton('#btn-reset-image-crop', text.cropReset);
+    setButton('#btn-cancel-image-crop', text.cancel);
+    setButton('#btn-apply-image-crop', text.cropApply);
+    const closeCrop = document.getElementById('btn-close-image-crop');
+    if (closeCrop) {
+      closeCrop.title = text.cropClose;
+      closeCrop.setAttribute('aria-label', text.cropClose);
+    }
   }
 
   // ========================================================================
@@ -549,7 +615,7 @@ class SidePanelManager {
       if (response?.error) throw new ExtensionError(response.error, 'RECORDING_ERROR');
       window.close();
     } catch (error) {
-      this._showError('启动录制失败: ' + error.message);
+      this._showError(`${this._t('startFailed')}: ${error.message}`);
     }
   }
 
@@ -559,13 +625,13 @@ class SidePanelManager {
       let description = '';
       if (selectedValue === 'custom') {
         description = document.getElementById('custom-description')?.value?.trim();
-        if (!description) { this._showError('请输入自定义描述'); return; }
+        if (!description) { this._showError(this._t('customRequired')); return; }
       } else {
         const selectedDesc = DefaultDescriptions.find(d => d.value === selectedValue);
         description = selectedDesc?.description || '';
       }
 
-      this.showLoadingState('正在生成文档...');
+      this.showLoadingState(this._t('generating'));
       const config = await loadConfig();
       this.config = config;
       if (!config.apiKey) throw new ExtensionError('请先在设置中配置API密钥', 'CONFIG_ERROR');
@@ -599,7 +665,7 @@ class SidePanelManager {
       this._resetOptimizationState();
     } catch (error) {
       console.error('[Scribe:SidePanel] Generation failed:', error);
-      this.showErrorState(this._formatUserFacingError(error, '生成文档失败，请重试'));
+      this.showErrorState(this._formatUserFacingError(error, this._t('generationFailed')));
     }
   }
 
@@ -1138,7 +1204,7 @@ class SidePanelManager {
       img.dataset.imageEditable = 'true';
       img.contentEditable = 'false';
       img.setAttribute('tabindex', '0');
-      img.setAttribute('title', this.language === 'en-US' ? 'Click to crop image' : '点击裁剪图片');
+      img.setAttribute('title', this._t('cropTitle'));
     });
   }
 
@@ -1166,11 +1232,11 @@ class SidePanelManager {
         canvasScale: 1
       };
       document.getElementById('image-crop-modal')?.classList.remove('hidden');
-      this._setImageCropStatus(this.language === 'en-US' ? 'Drag on the image to choose the crop area.' : '在图片上拖拽选择裁剪区域。');
+      this._setImageCropStatus(this._t('cropHint'));
       this._drawImageCropCanvas();
     } catch (error) {
       console.error('[Scribe:SidePanel] Failed to open image crop dialog:', error);
-      this._showNotification(this.language === 'en-US' ? 'Unable to load this image for cropping.' : '无法加载这张图片进行裁剪。', 'error');
+      this._showNotification(this._t('cropLoadFailed'), 'error');
     }
   }
 
@@ -1192,14 +1258,14 @@ class SidePanelManager {
     this.imageCropState.rect = null;
     this.imageCropState.start = null;
     this.imageCropState.isDragging = false;
-    this._setImageCropStatus(this.language === 'en-US' ? 'Drag on the image to choose the crop area.' : '在图片上拖拽选择裁剪区域。');
+    this._setImageCropStatus(this._t('cropHint'));
     this._drawImageCropCanvas();
   }
 
   applyImageCrop() {
     const { imageElement, sourceImage, rect } = this.imageCropState;
     if (!imageElement || !sourceImage || !rect || rect.width < 4 || rect.height < 4) {
-      this._setImageCropStatus(this.language === 'en-US' ? 'Choose a larger crop area first.' : '请先选择更大的裁剪区域。');
+      this._setImageCropStatus(this._t('cropSelectLarger'));
       return;
     }
 
@@ -1229,10 +1295,10 @@ class SidePanelManager {
       imageElement.dataset.cropRect = `${Math.round(rect.x)},${Math.round(rect.y)},${Math.round(rect.width)},${Math.round(rect.height)}`;
       this._syncPreviewToEditor();
       this.closeImageCropDialog();
-      this._showNotification(this.language === 'en-US' ? 'Image cropped.' : '图片已裁剪。', 'success');
+      this._showNotification(this._t('cropDone'), 'success');
     } catch (error) {
       console.error('[Scribe:SidePanel] Failed to crop image:', error);
-      this._setImageCropStatus(this.language === 'en-US' ? 'Cropping failed. Try another image.' : '裁剪失败，请换一张图片重试。');
+      this._setImageCropStatus(this._t('cropFailed'));
     }
   }
 
@@ -1313,9 +1379,9 @@ class SidePanelManager {
     const rect = this.imageCropState.rect;
     if (!rect || rect.width < 4 || rect.height < 4) {
       this.imageCropState.rect = null;
-      this._setImageCropStatus(this.language === 'en-US' ? 'Choose a larger crop area.' : '请选择更大的裁剪区域。');
+      this._setImageCropStatus(this._t('cropSelectLargerShort'));
     } else {
-      this._setImageCropStatus(this.language === 'en-US' ? 'Crop area selected. Apply when ready.' : '已选择裁剪区域，确认后应用。');
+      this._setImageCropStatus(this._t('cropSelected'));
     }
     this._drawImageCropCanvas();
   }
@@ -1552,16 +1618,16 @@ class SidePanelManager {
     if (!content) return;
     try {
       await navigator.clipboard.writeText(content);
-      this._showNotification('文档已复制到剪贴板！', 'success');
+      this._showNotification(this._t('copyDone'), 'success');
     } catch (error) {
-      this._showNotification('复制失败，请手动选择文本', 'error');
+      this._showNotification(this._t('copyFailed'), 'error');
     }
   }
 
   openOptimizeDialog() {
     const content = this._getEditorContent();
     if (!content) {
-      this._showNotification('请先生成或输入文档内容', 'error');
+      this._showNotification(this._t('contentRequired'), 'error');
       return;
     }
 
@@ -1569,7 +1635,9 @@ class SidePanelManager {
     const instruction = document.getElementById('optimize-instruction');
     const status = document.getElementById('optimize-status');
     if (instruction && !instruction.value.trim()) {
-      instruction.value = '请让文档内容更完整、更清晰，补充必要背景、操作目的、页面反馈、注意事项和常见问题；保留所有截图占位与 Markdown 格式。';
+      instruction.value = this.language === 'en-US'
+        ? 'Make the document clearer and more complete. Add necessary background, operation goals, page feedback, notes, and FAQs. Preserve all screenshot placeholders and formatting.'
+        : '请让文档内容更完整、更清晰，补充必要背景、操作目的、页面反馈、注意事项和常见问题；保留所有截图占位与 Markdown 格式。';
     }
     if (status) {
       status.textContent = '';
@@ -1591,18 +1659,18 @@ class SidePanelManager {
     const currentContent = this._getEditorContent();
     const instruction = document.getElementById('optimize-instruction')?.value.trim();
     if (!currentContent) {
-      this._setOptimizeStatus('请先生成或输入文档内容', 'error');
+      this._setOptimizeStatus(this._t('contentRequired'), 'error');
       return;
     }
     if (!instruction) {
-      this._setOptimizeStatus('请输入优化要求', 'error');
+      this._setOptimizeStatus(this.language === 'en-US' ? 'Please enter optimization instructions.' : '请输入优化要求', 'error');
       return;
     }
 
     try {
       this.isOptimizing = true;
       this._setOptimizeControls(true);
-      this._setOptimizeStatus('正在调用 AI 优化文档...', 'success');
+      this._setOptimizeStatus(this.language === 'en-US' ? 'Optimizing with AI...' : '正在调用 AI 优化文档...', 'success');
 
       const config = await loadConfig();
       this.config = config;
@@ -1647,10 +1715,10 @@ class SidePanelManager {
       this._setRevertVisible(true);
       this.switchToPreview();
       this.closeOptimizeDialog(true);
-      this._showNotification('文档已优化，可随时回退到优化前版本', 'success');
+      this._showNotification(this._t('optimizeDone'), 'success');
     } catch (error) {
       console.error('[Scribe:SidePanel] Optimization failed:', error);
-      this._setOptimizeStatus(this._formatUserFacingError(error, '优化失败，请重试'), 'error');
+      this._setOptimizeStatus(this._formatUserFacingError(error, this._t('optimizeFailed')), 'error');
     } finally {
       this.isOptimizing = false;
       this._setOptimizeControls(false);
@@ -1663,12 +1731,32 @@ class SidePanelManager {
     this.originalBeforeOptimization = null;
     this._setRevertVisible(false);
     this.switchToPreview();
-    this._showNotification('已回退到优化前版本', 'success');
+    this._showNotification(this._t('reverted'), 'success');
   }
 
   _buildOptimizationPrompt(markdown, instruction) {
     const format = this._getOutputFormat();
     const formatName = format === 'html' ? 'HTML' : format === 'text' ? '纯文本' : 'Markdown';
+    if (this.language === 'en-US') {
+      const englishFormatName = format === 'html' ? 'HTML' : format === 'text' ? 'plain text' : 'Markdown';
+      return `You are a senior product documentation editor. Improve the following ${englishFormatName} document according to the user's request.
+
+User optimization request:
+${instruction}
+
+Hard requirements:
+- Output only the complete improved ${englishFormatName} document. Do not include explanations or conversational text.
+- Preserve all screenshot references and [Screenshot N] / [截图N] placeholders. Do not delete, renumber, or rewrite image links.
+- To keep the request compact, original screenshot images may have been replaced with placeholders. Keep those placeholders so the app can restore the real screenshots after the response.
+- Keep factual boundaries. Do not invent account numbers, amounts, order IDs, API return values, or other details that cannot be inferred from the original document.
+- You may restructure the document, clarify wording, add necessary background, add notes, and add FAQs.
+- Write in clear English for non-technical readers unless the user explicitly asks for another language.
+
+${this._getOutputFormatInstruction(format)}
+
+Original ${englishFormatName} document:
+${markdown}`;
+    }
     return `你是一名资深产品文档编辑。请根据用户要求优化下面的 ${formatName} 文档。
 
 用户优化要求：
@@ -1717,7 +1805,9 @@ ${markdown}`;
     const instruction = document.getElementById('optimize-instruction');
     if (runButton) {
       runButton.disabled = disabled;
-      runButton.textContent = disabled ? '优化中...' : '开始优化';
+      runButton.textContent = disabled
+        ? (this.language === 'en-US' ? 'Optimizing...' : '优化中...')
+        : (this.uiText?.runOptimize || (this.language === 'en-US' ? 'Start Optimization' : '开始优化'));
     }
     if (cancelButton) cancelButton.disabled = disabled;
     if (closeButton) closeButton.disabled = disabled;
@@ -1763,7 +1853,7 @@ ${markdown}`;
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
-    this._showNotification('HTML 文件已导出！', 'success');
+    this._showNotification(this._t('htmlExported'), 'success');
   }
 
   _getHtmlImageMode() {
@@ -1801,10 +1891,10 @@ ${markdown}`;
     ];
     this._buildZip(files).then(zipBlob => {
       this._downloadBlob(`${baseName}_package.zip`, zipBlob);
-      this._showNotification(`HTML 资源包已导出：${baseName}_package.zip。解压后打开 ${baseName}.html。`, 'success');
+      this._showNotification(this._t('htmlPackageDone', { filename: `${baseName}_package.zip`, html: `${baseName}.html` }), 'success');
     }).catch(error => {
       console.error('[Scribe:SidePanel] Failed to build HTML package:', error);
-      this._showNotification('HTML 资源包生成失败，请重试', 'error');
+      this._showNotification(this._t('htmlPackageFailed'), 'error');
     });
   }
 
@@ -1953,10 +2043,10 @@ ${markdown}`;
       const after = await sendMessage({ type: 'GET_STORAGE_USAGE' }).catch(() => null);
       const saved = before && after ? Math.max(0, before.bytes - after.bytes) : 0;
       const savedText = saved > 0 ? `，释放约 ${this._formatBytes(saved)}` : '';
-      this._showNotification(`录制缓存已清理${savedText}`, 'success');
+      this._showNotification(this._t('cacheCleared', { savedText }), 'success');
     } catch (error) {
       console.error('[Scribe:SidePanel] Failed to clear recording cache:', error);
-      this._showNotification(this._formatUserFacingError(error, '清理录制缓存失败'), 'error');
+      this._showNotification(this._formatUserFacingError(error, this._t('clearCacheFailed')), 'error');
     }
   }
 
@@ -2111,6 +2201,14 @@ ${bodyHtml}
   // ========================================================================
   // UTILITY METHODS
   // ========================================================================
+
+  _t(key, replacements = {}) {
+    let value = this.uiText?.[key] || key;
+    Object.entries(replacements).forEach(([name, replacement]) => {
+      value = value.replaceAll(`{{${name}}}`, String(replacement ?? ''));
+    });
+    return value;
+  }
 
   _showError(message) { this._showNotification(message, 'error'); }
 

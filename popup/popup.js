@@ -321,11 +321,11 @@ class PopupManager {
         await this._refreshState();
         window.close();
       } else {
-        this._showError(response?.error || '启动录制失败');
+        this._showError(response?.error || this._t('startFailed'));
       }
     } catch (error) {
       console.error('[Scribe:Popup] Failed to start recording:', error);
-      this._showError('启动录制失败，请重试');
+      this._showError(this._t('startFailedRetry'));
     } finally {
       this.isStartingRecording = false;
     }
@@ -363,12 +363,12 @@ class PopupManager {
         await this._delay(100);
         await this._refreshState();
       } else {
-        this._showError(response?.error || '停止录制失败');
+        this._showError(response?.error || this._t('stopFailed'));
         await this._refreshState();
       }
     } catch (error) {
       console.error('[Scribe:Popup] Failed to stop recording:', error);
-      this._showError('停止录制失败，请重试');
+      this._showError(this._t('stopFailedRetry'));
       await this._refreshState();
     } finally {
       this.isStoppingRecording = false;
@@ -397,7 +397,7 @@ class PopupManager {
       window.close();
     } catch (error) {
       console.error('[Scribe:Popup] Failed to open editor:', error);
-      this._showError('无法打开编辑器');
+      this._showError(this._t('openEditorFailed'));
     }
   }
 
@@ -411,8 +411,21 @@ class PopupManager {
       await this._refreshState();
     } catch (error) {
       console.error('[Scribe:Popup] Failed to reset recording:', error);
-      this._showError('重置失败，请重试');
+      this._showError(this._t('resetFailedRetry'));
     }
+  }
+
+  _t(key) {
+    const isEn = this.language === 'en-US';
+    const messages = {
+      startFailed: isEn ? 'Failed to start recording' : '启动录制失败',
+      startFailedRetry: isEn ? 'Failed to start recording. Please try again.' : '启动录制失败，请重试',
+      stopFailed: isEn ? 'Failed to stop recording' : '停止录制失败',
+      stopFailedRetry: isEn ? 'Failed to stop recording. Please try again.' : '停止录制失败，请重试',
+      openEditorFailed: isEn ? 'Unable to open editor' : '无法打开编辑器',
+      resetFailedRetry: isEn ? 'Reset failed. Please try again.' : '重置失败，请重试'
+    };
+    return messages[key] || key;
   }
 
   /**

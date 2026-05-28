@@ -282,12 +282,16 @@ class SettingsManager {
   }
 
   _getReferenceDocumentActions() {
+    const isEn = (this.config.appLanguage || DEFAULT_APP_LANGUAGE) === 'en-US';
+    const labels = isEn
+      ? ['Use as Style Guide', 'User Guide Example', 'Tutorial Example', 'Test Case Example', 'Bug Report Example']
+      : ['设为风格指南', '用户指南示例', '教程示例', '测试示例', '问题示例'];
     return [
-      { label: '设为风格指南', className: 'apply', onClick: (doc) => this._applyReferenceDocument(doc, 'style-guide') },
-      { label: '用户指南示例', className: 'apply', onClick: (doc) => this._applyReferenceDocument(doc, 'example-user-guide') },
-      { label: '教程示例', className: 'apply', onClick: (doc) => this._applyReferenceDocument(doc, 'example-tutorial') },
-      { label: '测试示例', className: 'apply', onClick: (doc) => this._applyReferenceDocument(doc, 'example-testing') },
-      { label: '问题示例', className: 'apply', onClick: (doc) => this._applyReferenceDocument(doc, 'example-bug-report') }
+      { label: labels[0], className: 'apply', onClick: (doc) => this._applyReferenceDocument(doc, 'style-guide') },
+      { label: labels[1], className: 'apply', onClick: (doc) => this._applyReferenceDocument(doc, 'example-user-guide') },
+      { label: labels[2], className: 'apply', onClick: (doc) => this._applyReferenceDocument(doc, 'example-tutorial') },
+      { label: labels[3], className: 'apply', onClick: (doc) => this._applyReferenceDocument(doc, 'example-testing') },
+      { label: labels[4], className: 'apply', onClick: (doc) => this._applyReferenceDocument(doc, 'example-bug-report') }
     ];
   }
 
@@ -295,17 +299,26 @@ class SettingsManager {
     try {
       const result = await this.api.getDocumentContent(doc.id);
       if (!result.success) {
-        this._showTestResult('读取参考文档失败：' + result.message, 'error');
+        this._showTestResult(this._settingsMessage('readReferenceFailed') + result.message, 'error');
         return;
       }
       const target = document.getElementById(targetId);
       if (!target) return;
       target.value = result.document.content || '';
       target.focus();
-      this._showTestResult('已填入参考文档，请点击保存配置生效', 'success');
+      this._showTestResult(this._settingsMessage('referenceApplied'), 'success');
     } catch (error) {
-      this._showTestResult('读取参考文档失败：' + error.message, 'error');
+      this._showTestResult(this._settingsMessage('readReferenceFailed') + error.message, 'error');
     }
+  }
+
+  _settingsMessage(key) {
+    const isEn = (this.config.appLanguage || DEFAULT_APP_LANGUAGE) === 'en-US';
+    const messages = {
+      readReferenceFailed: isEn ? 'Failed to read reference document: ' : '读取参考文档失败：',
+      referenceApplied: isEn ? 'Reference document filled in. Click Save Settings to apply it.' : '已填入参考文档，请点击保存配置生效'
+    };
+    return messages[key] || key;
   }
 
   _applyApiProvider(providerId) {
@@ -403,23 +416,24 @@ class SettingsManager {
     const inputKeyValue = apiKeyInput?.value || '';
     if (inputKeyValue !== maskApiKey(apiKey)) apiKey = inputKeyValue.trim();
 
-    if (!apiKey) { this._showTestResult('请输入API Key', 'error'); return; }
-    if (apiKey.length < MIN_API_KEY_LENGTH) { this._showTestResult('API Key长度不足，请检查', 'error'); return; }
+    const isEn = (appLanguageSelect?.value || this.config.appLanguage || DEFAULT_APP_LANGUAGE) === 'en-US';
+    if (!apiKey) { this._showTestResult(isEn ? 'Please enter an API Key' : '请输入API Key', 'error'); return; }
+    if (apiKey.length < MIN_API_KEY_LENGTH) { this._showTestResult(isEn ? 'API Key is too short. Please check it.' : 'API Key长度不足，请检查', 'error'); return; }
     const maxTokens = this._parseMaxTokens(maxTokensInput?.value);
     if (!maxTokens) {
-      this._showTestResult(`最大输出 Token 需要在 ${MIN_MAX_TOKENS}-${MAX_MAX_TOKENS} 之间`, 'error');
+      this._showTestResult(isEn ? `Max Output Tokens must be between ${MIN_MAX_TOKENS} and ${MAX_MAX_TOKENS}` : `最大输出 Token 需要在 ${MIN_MAX_TOKENS}-${MAX_MAX_TOKENS} 之间`, 'error');
       return;
     }
     const maxInputTokens = this._parseMaxInputTokens(maxInputTokensInput?.value);
     if (!maxInputTokens) {
-      this._showTestResult(`最大输入 Token 需要在 ${MIN_MAX_INPUT_TOKENS}-${MAX_MAX_INPUT_TOKENS} 之间`, 'error');
+      this._showTestResult(isEn ? `Max Input Tokens must be between ${MIN_MAX_INPUT_TOKENS} and ${MAX_MAX_INPUT_TOKENS}` : `最大输入 Token 需要在 ${MIN_MAX_INPUT_TOKENS}-${MAX_MAX_INPUT_TOKENS} 之间`, 'error');
       return;
     }
 
     const promptMode = promptModeSelect?.value || DEFAULT_PROMPT_MODE;
     const customPrompt = customPromptInput?.value.trim() || DEFAULT_PROMPT_TEMPLATE;
     if (promptMode === 'custom' && !customPrompt) {
-      this._showTestResult('请输入自定义提示词，或切换为追加模式', 'error');
+      this._showTestResult(isEn ? 'Please enter a custom prompt or switch to append mode' : '请输入自定义提示词，或切换为追加模式', 'error');
       return;
     }
 
@@ -457,10 +471,10 @@ class SettingsManager {
         documentExamples: this.config.documentExamples
       });
       if (apiKeyInput) { apiKeyInput.dataset.fullKey = this.config.apiKey; apiKeyInput.value = maskApiKey(this.config.apiKey); }
-      this._showTestResult('✅ 配置已保存', 'success');
+      this._showTestResult(isEn ? '✅ Settings saved' : '✅ 配置已保存', 'success');
       setTimeout(() => this._hideTestResult(), 3000);
     } catch (error) {
-      this._showTestResult('保存失败：' + error.message, 'error');
+      this._showTestResult((isEn ? 'Save failed: ' : '保存失败：') + error.message, 'error');
     }
   }
 
@@ -491,15 +505,16 @@ class SettingsManager {
     const baseUrl = baseUrlInput?.value.trim() || 'https://api.openai.com/v1';
     const modelName = modelNameInput?.value.trim() || 'gpt-3.5-turbo';
 
-    if (!apiKey) { this._showTestResult('请先输入API Key', 'error'); return; }
-    if (apiKey.length < MIN_API_KEY_LENGTH) { this._showTestResult('API Key长度不足，请检查', 'error'); return; }
+    const isEn = (this.config.appLanguage || DEFAULT_APP_LANGUAGE) === 'en-US';
+    if (!apiKey) { this._showTestResult(isEn ? 'Please enter an API Key first' : '请先输入API Key', 'error'); return; }
+    if (apiKey.length < MIN_API_KEY_LENGTH) { this._showTestResult(isEn ? 'API Key is too short. Please check it.' : 'API Key长度不足，请检查', 'error'); return; }
     const urlValidation = validateUrl(baseUrl);
     if (!urlValidation.valid) { this._showTestResult(urlValidation.error, 'error'); return; }
     const apiFormat = (ApiProviders[apiProviderSelect?.value] || ApiProviders.custom).apiFormat || DEFAULT_API_FORMAT;
 
     const originalText = testBtn.innerHTML;
     testBtn.disabled = true;
-    testBtn.innerHTML = '<span class="icon icon-loading" aria-hidden="true"></span> 测试中...';
+    testBtn.innerHTML = `<span class="icon icon-loading" aria-hidden="true"></span> ${isEn ? 'Testing...' : '测试中...'}`;
 
     try {
       const request = buildModelApiRequest(
@@ -512,13 +527,13 @@ class SettingsManager {
         request.fetchOptions,
         API_TEST_TIMEOUT
       );
-      if (response.ok) this._showTestResult('✅ 连接成功！API配置有效', 'success');
+      if (response.ok) this._showTestResult(isEn ? '✅ Connection successful. API settings are valid.' : '✅ 连接成功！API配置有效', 'success');
       else {
         const errorData = await response.json().catch(() => ({}));
-        this._showTestResult('连接失败：' + (errorData.error?.message || response.statusText || '未知错误'), 'error');
+        this._showTestResult((isEn ? 'Connection failed: ' : '连接失败：') + (errorData.error?.message || response.statusText || (isEn ? 'Unknown error' : '未知错误')), 'error');
       }
     } catch (error) {
-      this._showTestResult('连接失败：' + ((error.name === 'AbortError') ? '连接超时，请检查网络连接或API地址' : error.message), 'error');
+      this._showTestResult((isEn ? 'Connection failed: ' : '连接失败：') + ((error.name === 'AbortError') ? (isEn ? 'Connection timed out. Check your network or API URL.' : '连接超时，请检查网络连接或API地址') : error.message), 'error');
     } finally {
       testBtn.disabled = false;
       testBtn.innerHTML = originalText;
@@ -597,6 +612,59 @@ class SettingsManager {
       show: '显示',
       hide: '隐藏'
     };
+    Object.assign(text, isEn ? {
+      languageHelp: 'Switch the display language for the main extension pages.',
+      outputText: 'Plain Text (.txt)',
+      outputHelp: 'Markdown is the default. Choose HTML when you want downloadable HTML that follows your reference document structure.',
+      promptAppendLabel: 'Additional Requirements',
+      promptAppendPlaceholder: 'For example: add a troubleshooting section; clearly describe page feedback for each step; use a more formal tone.',
+      customPromptLabel: 'Custom Prompt',
+      customPromptHelp: 'If placeholders are missing, SmartPages will append the recording context and steps to the end of the prompt.',
+      defaultPromptLabel: 'Default Prompt',
+      defaultPromptHelp: 'Available placeholders: {{taskDescription}}, {{sessionInfo}}, {{steps}}, {{documentTypeInstructions}}, {{styleGuide}}, {{documentExample}}, {{outputFormatInstruction}}',
+      styleGuideLabel: 'Style Guide',
+      styleGuidePlaceholder: 'For example: use concise English; keep headings under 18 words; start steps with verbs; keep a professional tone; preserve all screenshot placeholders.',
+      styleGuideHelp: 'Supports plain text, Markdown, or HTML. Used to control tone, wording, headings, tables, layout hierarchy, and screenshot placeholder rules.',
+      examplesLabel: 'Example Documents',
+      exampleUserGuide: 'User Guide Example',
+      exampleTutorial: 'Tutorial Example',
+      exampleTesting: 'Test Case Example',
+      exampleBugReport: 'Bug Report Example',
+      examplePlaceholder: 'Paste an example document. Markdown and HTML are supported.',
+      examplesHelp: 'Generation uses the example matching the current document type first. Examples teach structure, tone, layout, and granularity without copying facts.',
+      uploadedDocsTitle: 'Uploaded Reference Documents',
+      docsLoading: 'Loading documents...',
+      aboutHeading: 'About',
+      aboutVersion: 'Version 1.0.0',
+      aboutDesc: 'Record browser workflows and automatically generate documentation.',
+      aboutFeature: 'New feature: document upload and management.'
+    } : {
+      languageHelp: '切换扩展主要页面的显示语言。',
+      outputText: '纯文本 (.txt)',
+      outputHelp: '默认使用 Markdown。选择 HTML 时会参考风格文档的版式层级并生成可下载的 HTML 文档。',
+      promptAppendLabel: '追加要求',
+      promptAppendPlaceholder: '例如：请增加故障排查章节；每个步骤都写清楚页面反馈；语气更正式。',
+      customPromptLabel: '自定义提示词',
+      customPromptHelp: '如果缺少占位符，系统会自动把录制上下文和步骤附加到提示词末尾。',
+      defaultPromptLabel: '默认提示词',
+      defaultPromptHelp: '可用占位符：{{taskDescription}}、{{sessionInfo}}、{{steps}}、{{documentTypeInstructions}}、{{styleGuide}}、{{documentExample}}、{{outputFormatInstruction}}',
+      styleGuideLabel: '风格指南',
+      styleGuidePlaceholder: '例如：使用简体中文；标题不超过 18 个字；步骤用动宾短语；语气专业、简洁；保留所有截图占位。',
+      styleGuideHelp: '支持纯文本、Markdown 或 HTML。用于控制语气、措辞、标题、表格、版式层级和截图占位规则。',
+      examplesLabel: '示例文档',
+      exampleUserGuide: '用户操作指南示例',
+      exampleTutorial: '教程文档示例',
+      exampleTesting: '测试用例示例',
+      exampleBugReport: '问题报告示例',
+      examplePlaceholder: '粘贴一份示例文档，支持 Markdown 或 HTML。',
+      examplesHelp: '生成时会优先使用当前文档类型对应的示例；示例只用于学习结构、语气、版式层级和颗粒度，不会照抄事实内容。',
+      uploadedDocsTitle: '已上传的参考文档',
+      docsLoading: '正在加载文档列表...',
+      aboutHeading: '关于',
+      aboutVersion: '版本 1.0.0',
+      aboutDesc: '智能录制网页操作并自动生成文档。',
+      aboutFeature: '新增功能：文档上传与管理。'
+    });
 
     document.title = `${text.title} - SmartPages`;
     const set = (selector, value) => {
@@ -617,6 +685,7 @@ class SettingsManager {
     set('.section:nth-of-type(1) h2', text.apiHeading);
     set('.section:nth-of-type(1) .section-desc', text.apiDesc);
     set('label[for="app-language"]', text.language);
+    set('label[for="app-language"] + select + .help-text', text.languageHelp);
     set('label[for="api-provider"]', text.provider);
     set('#api-provider + .help-text', text.providerHelp);
     set('label[for="base-url"]', text.baseUrl);
@@ -626,7 +695,28 @@ class SettingsManager {
     set('label[for="max-tokens"]', text.maxTokens);
     set('label[for="max-input-tokens"]', text.maxInputTokens);
     set('label[for="output-format"]', text.outputFormat);
+    const outputTextOption = document.querySelector('#output-format option[value="text"]');
+    if (outputTextOption) outputTextOption.textContent = text.outputText;
+    set('#output-format + .help-text', text.outputHelp);
     set('label[for="prompt-mode"]', text.promptMode);
+    set('label[for="default-prompt-preview"]', text.defaultPromptLabel);
+    set('#default-prompt-preview + .help-text', text.defaultPromptHelp);
+    set('label[for="prompt-append"]', text.promptAppendLabel);
+    const promptAppend = document.getElementById('prompt-append');
+    if (promptAppend) promptAppend.placeholder = text.promptAppendPlaceholder;
+    set('label[for="custom-prompt"]', text.customPromptLabel);
+    set('#custom-prompt + .help-text', text.customPromptHelp);
+    set('label[for="style-guide"]', text.styleGuideLabel);
+    const styleGuide = document.getElementById('style-guide');
+    if (styleGuide) styleGuide.placeholder = text.styleGuidePlaceholder;
+    set('#style-guide + .help-text', text.styleGuideHelp);
+    set('.form-group > label:not([for])', text.examplesLabel);
+    set('label[for="example-user-guide"]', text.exampleUserGuide);
+    set('label[for="example-tutorial"]', text.exampleTutorial);
+    set('label[for="example-testing"]', text.exampleTesting);
+    set('label[for="example-bug-report"]', text.exampleBugReport);
+    document.querySelectorAll('.example-textarea').forEach(el => { el.placeholder = text.examplePlaceholder; });
+    set('.example-grid + .help-text', text.examplesHelp);
     setButton('#btn-test', text.test);
     setButton('#btn-save', text.save);
     set('.section:nth-of-type(2) h2', text.docsHeading);
@@ -638,9 +728,21 @@ class SettingsManager {
     const search = document.getElementById('search-documents');
     if (search) search.placeholder = text.search;
     setButton('#refresh-documents', text.refresh);
+    set('.documents-list-container h3', text.uploadedDocsTitle);
+    set('.loading-placeholder', text.docsLoading);
     set('.section:nth-of-type(3) h2', text.smartHeading);
     set('.switch-title', text.smartTitle);
     set('.switch-desc', text.smartDesc);
+    set('.section:nth-of-type(4) h2', text.aboutHeading);
+    const aboutParagraphs = document.querySelectorAll('.about p');
+    if (aboutParagraphs[1]) aboutParagraphs[1].textContent = text.aboutVersion;
+    if (aboutParagraphs[2]) aboutParagraphs[2].textContent = text.aboutDesc;
+    if (aboutParagraphs[3]) {
+      aboutParagraphs[3].replaceChildren(
+        createElement('strong', { textContent: isEn ? 'New feature:' : '新增功能:' }),
+        document.createTextNode(` ${text.aboutFeature.replace(/^(New feature:|新增功能：)\s*/i, '')}`)
+      );
+    }
     const toggle = document.getElementById('btn-toggle-key');
     if (toggle) toggle.textContent = document.getElementById('api-key')?.type === 'text' ? text.hide : text.show;
   }
