@@ -168,6 +168,27 @@
       </div>
     </div>
 
+    <div id="image-crop-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="image-crop-title">
+      <div class="modal-backdrop"></div>
+      <div class="modal-panel image-crop-panel">
+        <div class="modal-header">
+          <h2 id="image-crop-title">Crop image</h2>
+          <button id="btn-close-image-crop" class="btn-icon icon-close" title="Close" aria-label="Close"></button>
+        </div>
+        <div class="modal-body image-crop-body">
+          <div class="image-crop-stage">
+            <canvas id="image-crop-canvas" class="image-crop-canvas"></canvas>
+          </div>
+          <p id="image-crop-status" class="image-crop-status">Drag on the image to choose the crop area.</p>
+        </div>
+        <div class="modal-actions">
+          <button id="btn-reset-image-crop" class="btn btn-secondary">Reset</button>
+          <button id="btn-cancel-image-crop" class="btn btn-secondary">Cancel</button>
+          <button id="btn-apply-image-crop" class="btn btn-primary">Apply crop</button>
+        </div>
+      </div>
+    </div>
+
     <div id="empty-state" class="state-view active">
       <div class="empty-content">
         <div class="empty-icon" aria-hidden="true"></div>

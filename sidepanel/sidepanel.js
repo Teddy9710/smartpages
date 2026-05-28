@@ -1,3 +1,4 @@
+/* eslint-disable no-unreachable */
 /**
  * SmartPages - Side Panel Manager
  *
@@ -49,6 +50,15 @@ class SidePanelManager {
     });
     this.cleanupFunctions = [];
     this.toastContainer = null;
+    this.imageCropState = {
+      imageElement: null,
+      sourceImage: null,
+      rect: null,
+      isDragging: false,
+      start: null,
+      displayScale: 1,
+      canvasScale: 1
+    };
     this.init();
   }
 
@@ -80,7 +90,12 @@ class SidePanelManager {
     this._bindButton('btn-run-optimize', () => this.optimizeCurrentDocument());
     this._bindButton('btn-documents', () => this.showDocumentsPanel());
     this._bindButton('btn-close-documents', () => this.hideDocumentsPanel());
+    this._bindButton('btn-close-image-crop', () => this.closeImageCropDialog());
+    this._bindButton('btn-cancel-image-crop', () => this.closeImageCropDialog());
+    this._bindButton('btn-reset-image-crop', () => this.resetImageCropSelection());
+    this._bindButton('btn-apply-image-crop', () => this.applyImageCrop());
     this._bindEditorEvents();
+    this._bindImageCropEvents();
     this._bindDocumentUploadEvents('sidepanel');
   }
 
@@ -111,9 +126,47 @@ class SidePanelManager {
 
     if (preview) {
       const handlePreviewInput = debounce(() => this._syncPreviewToEditor(), 120);
+      const handlePreviewClick = (event) => {
+        const image = event.target?.closest?.('img[data-image-editable="true"]');
+        if (!image || !preview.contains(image)) return;
+        event.preventDefault();
+        this.openImageCropDialog(image);
+      };
+      const handlePreviewKeydown = (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const image = event.target?.closest?.('img[data-image-editable="true"]');
+        if (!image || !preview.contains(image)) return;
+        event.preventDefault();
+        this.openImageCropDialog(image);
+      };
       preview.addEventListener('input', handlePreviewInput);
+      preview.addEventListener('click', handlePreviewClick);
+      preview.addEventListener('keydown', handlePreviewKeydown);
       this.cleanupFunctions.push(() => preview.removeEventListener('input', handlePreviewInput));
+      this.cleanupFunctions.push(() => preview.removeEventListener('click', handlePreviewClick));
+      this.cleanupFunctions.push(() => preview.removeEventListener('keydown', handlePreviewKeydown));
     }
+  }
+
+  _bindImageCropEvents() {
+    const canvas = document.getElementById('image-crop-canvas');
+    if (!canvas) return;
+
+    const handlePointerDown = (event) => this._startImageCropDrag(event);
+    const handlePointerMove = (event) => this._moveImageCropDrag(event);
+    const handlePointerUp = (event) => this._endImageCropDrag(event);
+
+    canvas.addEventListener('pointerdown', handlePointerDown);
+    canvas.addEventListener('pointermove', handlePointerMove);
+    canvas.addEventListener('pointerup', handlePointerUp);
+    canvas.addEventListener('pointercancel', handlePointerUp);
+
+    this.cleanupFunctions.push(() => {
+      canvas.removeEventListener('pointerdown', handlePointerDown);
+      canvas.removeEventListener('pointermove', handlePointerMove);
+      canvas.removeEventListener('pointerup', handlePointerUp);
+      canvas.removeEventListener('pointercancel', handlePointerUp);
+    });
   }
 
   _bindDocumentUploadEvents(source) {
@@ -1056,6 +1109,7 @@ class SidePanelManager {
     if (previewDiv && typeof marked !== 'undefined') {
       marked.setOptions({ breaks: true, gfm: true });
       safeSetInnerHTML(previewDiv, marked.parse(markdown), true);
+      this._attachImageEditing(previewDiv);
     }
   }
 
@@ -1063,12 +1117,240 @@ class SidePanelManager {
     const previewDiv = document.getElementById('markdown-preview');
     if (!previewDiv) return;
     safeSetInnerHTML(previewDiv, this._extractHtmlBody(html), true);
+    this._attachImageEditing(previewDiv);
   }
 
   _renderText(text) {
     const previewDiv = document.getElementById('markdown-preview');
     if (!previewDiv) return;
     previewDiv.textContent = text || '';
+  }
+
+  _attachImageEditing(root) {
+    if (!root) return;
+    root.querySelectorAll('img').forEach((img, index) => {
+      if (!img.getAttribute('src')) return;
+      if (!img.dataset.originalSrc) img.dataset.originalSrc = img.getAttribute('src') || '';
+      if (!img.dataset.imageId) img.dataset.imageId = `img_${Date.now()}_${index}`;
+      if (/^data:image\//i.test(img.getAttribute('src') || '') && !this._isKnownSessionScreenshot(img.getAttribute('src'))) {
+        img.dataset.imageEdited = 'true';
+      }
+      img.dataset.imageEditable = 'true';
+      img.contentEditable = 'false';
+      img.setAttribute('tabindex', '0');
+      img.setAttribute('title', this.language === 'en-US' ? 'Click to crop image' : '点击裁剪图片');
+    });
+  }
+
+  _isKnownSessionScreenshot(src) {
+    if (!src || !Array.isArray(this.session?.steps)) return false;
+    return this.session.steps.some(step => step?.screenshot === src);
+  }
+
+  async openImageCropDialog(imageElement) {
+    const src = imageElement?.getAttribute('src');
+    if (!src) return;
+
+    try {
+      const sourceImage = await this._loadImageForCrop(src);
+      const canvas = document.getElementById('image-crop-canvas');
+      if (!canvas) return;
+
+      this.imageCropState = {
+        imageElement,
+        sourceImage,
+        rect: null,
+        isDragging: false,
+        start: null,
+        displayScale: this._getImageCropDisplayScale(sourceImage),
+        canvasScale: 1
+      };
+      document.getElementById('image-crop-modal')?.classList.remove('hidden');
+      this._setImageCropStatus(this.language === 'en-US' ? 'Drag on the image to choose the crop area.' : '在图片上拖拽选择裁剪区域。');
+      this._drawImageCropCanvas();
+    } catch (error) {
+      console.error('[Scribe:SidePanel] Failed to open image crop dialog:', error);
+      this._showNotification(this.language === 'en-US' ? 'Unable to load this image for cropping.' : '无法加载这张图片进行裁剪。', 'error');
+    }
+  }
+
+  closeImageCropDialog() {
+    document.getElementById('image-crop-modal')?.classList.add('hidden');
+    this.imageCropState = {
+      imageElement: null,
+      sourceImage: null,
+      rect: null,
+      isDragging: false,
+      start: null,
+      displayScale: 1,
+      canvasScale: 1
+    };
+  }
+
+  resetImageCropSelection() {
+    if (!this.imageCropState.sourceImage) return;
+    this.imageCropState.rect = null;
+    this.imageCropState.start = null;
+    this.imageCropState.isDragging = false;
+    this._setImageCropStatus(this.language === 'en-US' ? 'Drag on the image to choose the crop area.' : '在图片上拖拽选择裁剪区域。');
+    this._drawImageCropCanvas();
+  }
+
+  applyImageCrop() {
+    const { imageElement, sourceImage, rect } = this.imageCropState;
+    if (!imageElement || !sourceImage || !rect || rect.width < 4 || rect.height < 4) {
+      this._setImageCropStatus(this.language === 'en-US' ? 'Choose a larger crop area first.' : '请先选择更大的裁剪区域。');
+      return;
+    }
+
+    try {
+      const output = document.createElement('canvas');
+      output.width = Math.round(rect.width);
+      output.height = Math.round(rect.height);
+      const ctx = output.getContext('2d');
+      ctx.drawImage(
+        sourceImage,
+        rect.x,
+        rect.y,
+        rect.width,
+        rect.height,
+        0,
+        0,
+        output.width,
+        output.height
+      );
+
+      const croppedSrc = output.toDataURL('image/png');
+      if (!imageElement.dataset.originalSrc) {
+        imageElement.dataset.originalSrc = imageElement.getAttribute('src') || croppedSrc;
+      }
+      imageElement.setAttribute('src', croppedSrc);
+      imageElement.dataset.imageEdited = 'true';
+      imageElement.dataset.cropRect = `${Math.round(rect.x)},${Math.round(rect.y)},${Math.round(rect.width)},${Math.round(rect.height)}`;
+      this._syncPreviewToEditor();
+      this.closeImageCropDialog();
+      this._showNotification(this.language === 'en-US' ? 'Image cropped.' : '图片已裁剪。', 'success');
+    } catch (error) {
+      console.error('[Scribe:SidePanel] Failed to crop image:', error);
+      this._setImageCropStatus(this.language === 'en-US' ? 'Cropping failed. Try another image.' : '裁剪失败，请换一张图片重试。');
+    }
+  }
+
+  _loadImageForCrop(src) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = src;
+    });
+  }
+
+  _getImageCropDisplayScale(image) {
+    const maxWidth = Math.min(760, Math.max(320, window.innerWidth - 96));
+    const maxHeight = Math.min(520, Math.max(240, window.innerHeight - 260));
+    return Math.min(1, maxWidth / image.naturalWidth, maxHeight / image.naturalHeight);
+  }
+
+  _drawImageCropCanvas() {
+    const canvas = document.getElementById('image-crop-canvas');
+    const image = this.imageCropState.sourceImage;
+    if (!canvas || !image) return;
+
+    const scale = this.imageCropState.displayScale || 1;
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    const rect = this.imageCropState.rect;
+    if (!rect || rect.width <= 0 || rect.height <= 0) return;
+
+    const x = rect.x * scale;
+    const y = rect.y * scale;
+    const width = rect.width * scale;
+    const height = rect.height * scale;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.42)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(x, y, width, height);
+    ctx.strokeStyle = '#2563eb';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x + 1, y + 1, Math.max(0, width - 2), Math.max(0, height - 2));
+    ctx.restore();
+  }
+
+  _startImageCropDrag(event) {
+    const point = this._getImageCropPoint(event);
+    if (!point) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    this.imageCropState.isDragging = true;
+    this.imageCropState.start = point;
+    this.imageCropState.rect = { x: point.x, y: point.y, width: 0, height: 0 };
+    this._drawImageCropCanvas();
+  }
+
+  _moveImageCropDrag(event) {
+    if (!this.imageCropState.isDragging || !this.imageCropState.start) return;
+    const point = this._getImageCropPoint(event);
+    if (!point) return;
+    event.preventDefault();
+    this.imageCropState.rect = this._normalizeImageCropRect(this.imageCropState.start, point);
+    this._drawImageCropCanvas();
+  }
+
+  _endImageCropDrag(event) {
+    if (!this.imageCropState.isDragging) return;
+    const point = this._getImageCropPoint(event);
+    if (point && this.imageCropState.start) {
+      this.imageCropState.rect = this._normalizeImageCropRect(this.imageCropState.start, point);
+    }
+    this.imageCropState.isDragging = false;
+    event.currentTarget?.releasePointerCapture?.(event.pointerId);
+    const rect = this.imageCropState.rect;
+    if (!rect || rect.width < 4 || rect.height < 4) {
+      this.imageCropState.rect = null;
+      this._setImageCropStatus(this.language === 'en-US' ? 'Choose a larger crop area.' : '请选择更大的裁剪区域。');
+    } else {
+      this._setImageCropStatus(this.language === 'en-US' ? 'Crop area selected. Apply when ready.' : '已选择裁剪区域，确认后应用。');
+    }
+    this._drawImageCropCanvas();
+  }
+
+  _getImageCropPoint(event) {
+    const canvas = document.getElementById('image-crop-canvas');
+    const image = this.imageCropState.sourceImage;
+    if (!canvas || !image) return null;
+
+    const bounds = canvas.getBoundingClientRect();
+    const scale = this.imageCropState.displayScale || 1;
+    const cssScaleX = bounds.width ? canvas.width / bounds.width : 1;
+    const cssScaleY = bounds.height ? canvas.height / bounds.height : 1;
+    const x = Math.max(0, Math.min(image.naturalWidth, ((event.clientX - bounds.left) * cssScaleX) / scale));
+    const y = Math.max(0, Math.min(image.naturalHeight, ((event.clientY - bounds.top) * cssScaleY) / scale));
+    return { x, y };
+  }
+
+  _normalizeImageCropRect(start, end) {
+    const image = this.imageCropState.sourceImage;
+    const x1 = Math.max(0, Math.min(start.x, end.x));
+    const y1 = Math.max(0, Math.min(start.y, end.y));
+    const x2 = Math.min(image.naturalWidth, Math.max(start.x, end.x));
+    const y2 = Math.min(image.naturalHeight, Math.max(start.y, end.y));
+    return {
+      x: x1,
+      y: y1,
+      width: Math.max(0, x2 - x1),
+      height: Math.max(0, y2 - y1)
+    };
+  }
+
+  _setImageCropStatus(message) {
+    const status = document.getElementById('image-crop-status');
+    if (status) status.textContent = message;
   }
 
   _syncPreviewToEditor() {
@@ -1152,6 +1434,9 @@ class SidePanelManager {
       const alt = node.getAttribute('alt') || '';
       const src = node.getAttribute('src') || '';
       if (/^data:image\//i.test(src)) {
+        if (node.dataset?.imageEdited === 'true' || !this._isKnownSessionScreenshot(src)) {
+          return `![${alt.replace(/\]/g, '\\]')}](${src})`;
+        }
         return this._getScreenshotMarkerFromAlt(alt) || '[截图]';
       }
       return src ? `![${alt}](${src})` : '';
