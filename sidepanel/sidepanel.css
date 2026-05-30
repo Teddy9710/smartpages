@@ -766,6 +766,34 @@ body {
   gap: 12px;
 }
 
+.image-edit-toolbar {
+  display: inline-flex;
+  width: fit-content;
+  padding: 3px;
+  background: #eef2f7;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+}
+
+.image-edit-mode {
+  min-width: 86px;
+  padding: 7px 12px;
+  color: #475569;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+
+.image-edit-mode.active {
+  color: #0f172a;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
+}
+
 .image-crop-stage {
   display: grid;
   place-items: center;

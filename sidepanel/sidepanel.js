@@ -35,6 +35,21 @@ const DefaultDescriptions = [
 // ============================================================================
 
 class SidePanelManager {
+  static getAutoHighlightRect(point, image) {
+    const imageWidth = Math.max(0, image?.naturalWidth || 0);
+    const imageHeight = Math.max(0, image?.naturalHeight || 0);
+    if (!point || imageWidth <= 0 || imageHeight <= 0) {
+      return { x: 0, y: 0, width: 0, height: 0 };
+    }
+
+    const shortSide = Math.min(imageWidth, imageHeight);
+    const targetSize = Math.round(Math.min(220, Math.max(80, shortSide * 0.18)));
+    const size = Math.min(targetSize, shortSide);
+    const x = Math.min(Math.max(0, Math.round(point.x - size / 2)), imageWidth - size);
+    const y = Math.min(Math.max(0, Math.round(point.y - size / 2)), imageHeight - size);
+    return { x, y, width: size, height: size };
+  }
+
   constructor() {
     this.currentState = StateViews.EMPTY;
     this.session = null;
@@ -56,6 +71,7 @@ class SidePanelManager {
       rect: null,
       isDragging: false,
       start: null,
+      mode: 'crop',
       displayScale: 1,
       canvasScale: 1
     };
@@ -94,6 +110,8 @@ class SidePanelManager {
     this._bindButton('btn-cancel-image-crop', () => this.closeImageCropDialog());
     this._bindButton('btn-reset-image-crop', () => this.resetImageCropSelection());
     this._bindButton('btn-apply-image-crop', () => this.applyImageCrop());
+    this._bindButton('btn-image-mode-crop', () => this.setImageEditMode('crop'));
+    this._bindButton('btn-image-mode-box', () => this.setImageEditMode('box'));
     this._bindEditorEvents();
     this._bindImageCropEvents();
     this._bindDocumentUploadEvents('sidepanel');
@@ -329,6 +347,9 @@ class SidePanelManager {
     };
     Object.assign(text, isEn ? {
       cropTitle: 'Crop Image',
+      imageEditTitle: 'Edit Image',
+      imageEditTooltip: 'Click to edit image',
+      imageEditModeLabel: 'Image editing mode',
       cropClose: 'Close',
       cropReset: 'Reset',
       cropApply: 'Apply Crop',
@@ -356,6 +377,9 @@ class SidePanelManager {
       clearCacheFailed: 'Failed to clear recording cache.'
     } : {
       cropTitle: '裁剪图片',
+      imageEditTitle: '编辑图片',
+      imageEditTooltip: '点击编辑图片',
+      imageEditModeLabel: '图片编辑模式',
       cropClose: '关闭',
       cropReset: '重置',
       cropApply: '应用裁剪',
@@ -381,6 +405,27 @@ class SidePanelManager {
       htmlPackageFailed: 'HTML 资源包生成失败，请重试',
       cacheCleared: '录制缓存已清理{{savedText}}',
       clearCacheFailed: '清理录制缓存失败'
+    });
+    Object.assign(text, isEn ? {
+      cropMode: 'Crop',
+      boxMode: 'Box',
+      boxApply: 'Apply Box',
+      boxHint: 'Click to auto-place a highlight box, or drag to choose an area.',
+      boxSelectLarger: 'Choose a larger box area first.',
+      boxSelectLargerShort: 'Choose a larger box area.',
+      boxSelected: 'Highlight box selected. Apply when ready.',
+      boxFailed: 'Adding the highlight box failed. Try another image.',
+      boxDone: 'Highlight box added.'
+    } : {
+      cropMode: '裁剪',
+      boxMode: '框选',
+      boxApply: '应用框选',
+      boxHint: '点击自动放置高亮框，或拖拽选择区域。',
+      boxSelectLarger: '请先选择更大的框选区域。',
+      boxSelectLargerShort: '请选择更大的框选区域。',
+      boxSelected: '已选择高亮框，确认后应用。',
+      boxFailed: '添加高亮框失败，请换一张图片重试。',
+      boxDone: '已添加高亮框。'
     });
     this.uiText = text;
 
@@ -438,11 +483,14 @@ class SidePanelManager {
     if (optimizeInstruction) optimizeInstruction.placeholder = text.optimizePlaceholder;
     setButton('#btn-cancel-optimize', text.cancel);
     setButton('#btn-run-optimize', text.runOptimize);
-    set('#image-crop-title', text.cropTitle);
+    set('#image-crop-title', text.imageEditTitle);
     set('#image-crop-status', text.cropHint);
     setButton('#btn-reset-image-crop', text.cropReset);
     setButton('#btn-cancel-image-crop', text.cancel);
     setButton('#btn-apply-image-crop', text.cropApply);
+    setButton('#btn-image-mode-crop', text.cropMode);
+    setButton('#btn-image-mode-box', text.boxMode);
+    document.querySelector('.image-edit-toolbar')?.setAttribute('aria-label', text.imageEditModeLabel);
     const closeCrop = document.getElementById('btn-close-image-crop');
     if (closeCrop) {
       closeCrop.title = text.cropClose;
@@ -1204,7 +1252,7 @@ class SidePanelManager {
       img.dataset.imageEditable = 'true';
       img.contentEditable = 'false';
       img.setAttribute('tabindex', '0');
-      img.setAttribute('title', this._t('cropTitle'));
+      img.setAttribute('title', this._t('imageEditTooltip'));
     });
   }
 
@@ -1228,12 +1276,12 @@ class SidePanelManager {
         rect: null,
         isDragging: false,
         start: null,
+        mode: 'crop',
         displayScale: this._getImageCropDisplayScale(sourceImage),
         canvasScale: 1
       };
       document.getElementById('image-crop-modal')?.classList.remove('hidden');
-      this._setImageCropStatus(this._t('cropHint'));
-      this._drawImageCropCanvas();
+      this.setImageEditMode('crop', { preserveSelection: true });
     } catch (error) {
       console.error('[Scribe:SidePanel] Failed to open image crop dialog:', error);
       this._showNotification(this._t('cropLoadFailed'), 'error');
@@ -1248,9 +1296,29 @@ class SidePanelManager {
       rect: null,
       isDragging: false,
       start: null,
+      mode: 'crop',
       displayScale: 1,
       canvasScale: 1
     };
+  }
+
+  setImageEditMode(mode, options = {}) {
+    if (!this.imageCropState.sourceImage) return;
+    const nextMode = mode === 'box' ? 'box' : 'crop';
+    this.imageCropState.mode = nextMode;
+    if (!options.preserveSelection) {
+      this.imageCropState.rect = null;
+      this.imageCropState.start = null;
+      this.imageCropState.isDragging = false;
+    }
+    document.getElementById('btn-image-mode-crop')?.classList.toggle('active', nextMode === 'crop');
+    document.getElementById('btn-image-mode-box')?.classList.toggle('active', nextMode === 'box');
+    const applyButton = document.getElementById('btn-apply-image-crop');
+    if (applyButton) {
+      applyButton.textContent = nextMode === 'box' ? this._t('boxApply') : this._t('cropApply');
+    }
+    this._setImageCropStatus(nextMode === 'box' ? this._t('boxHint') : this._t('cropHint'));
+    this._drawImageCropCanvas();
   }
 
   resetImageCropSelection() {
@@ -1258,33 +1326,40 @@ class SidePanelManager {
     this.imageCropState.rect = null;
     this.imageCropState.start = null;
     this.imageCropState.isDragging = false;
-    this._setImageCropStatus(this._t('cropHint'));
+    this._setImageCropStatus(this.imageCropState.mode === 'box' ? this._t('boxHint') : this._t('cropHint'));
     this._drawImageCropCanvas();
   }
 
   applyImageCrop() {
-    const { imageElement, sourceImage, rect } = this.imageCropState;
+    const { imageElement, sourceImage, rect, mode } = this.imageCropState;
     if (!imageElement || !sourceImage || !rect || rect.width < 4 || rect.height < 4) {
-      this._setImageCropStatus(this._t('cropSelectLarger'));
+      this._setImageCropStatus(mode === 'box' ? this._t('boxSelectLarger') : this._t('cropSelectLarger'));
       return;
     }
 
     try {
       const output = document.createElement('canvas');
-      output.width = Math.round(rect.width);
-      output.height = Math.round(rect.height);
       const ctx = output.getContext('2d');
-      ctx.drawImage(
-        sourceImage,
-        rect.x,
-        rect.y,
-        rect.width,
-        rect.height,
-        0,
-        0,
-        output.width,
-        output.height
-      );
+      if (mode === 'box') {
+        output.width = sourceImage.naturalWidth;
+        output.height = sourceImage.naturalHeight;
+        ctx.drawImage(sourceImage, 0, 0);
+        this._drawHighlightBox(ctx, rect, output.width, output.height);
+      } else {
+        output.width = Math.round(rect.width);
+        output.height = Math.round(rect.height);
+        ctx.drawImage(
+          sourceImage,
+          rect.x,
+          rect.y,
+          rect.width,
+          rect.height,
+          0,
+          0,
+          output.width,
+          output.height
+        );
+      }
 
       const croppedSrc = output.toDataURL('image/png');
       if (!imageElement.dataset.originalSrc) {
@@ -1292,14 +1367,31 @@ class SidePanelManager {
       }
       imageElement.setAttribute('src', croppedSrc);
       imageElement.dataset.imageEdited = 'true';
+      imageElement.dataset.imageEditOperation = mode === 'box' ? 'box' : 'crop';
       imageElement.dataset.cropRect = `${Math.round(rect.x)},${Math.round(rect.y)},${Math.round(rect.width)},${Math.round(rect.height)}`;
       this._syncPreviewToEditor();
       this.closeImageCropDialog();
-      this._showNotification(this._t('cropDone'), 'success');
+      this._showNotification(mode === 'box' ? this._t('boxDone') : this._t('cropDone'), 'success');
     } catch (error) {
-      console.error('[Scribe:SidePanel] Failed to crop image:', error);
-      this._setImageCropStatus(this._t('cropFailed'));
+      console.error('[Scribe:SidePanel] Failed to edit image:', error);
+      this._setImageCropStatus(mode === 'box' ? this._t('boxFailed') : this._t('cropFailed'));
     }
+  }
+
+  _drawHighlightBox(ctx, rect, imageWidth, imageHeight, minLineWidth = 4) {
+    const lineWidth = Math.max(minLineWidth, Math.round(Math.min(imageWidth, imageHeight) * 0.008));
+    const x = Math.max(lineWidth / 2, rect.x);
+    const y = Math.max(lineWidth / 2, rect.y);
+    const width = Math.min(rect.width, imageWidth - x - lineWidth / 2);
+    const height = Math.min(rect.height, imageHeight - y - lineWidth / 2);
+    ctx.save();
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.12)';
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = lineWidth;
+    ctx.lineJoin = 'round';
+    ctx.fillRect(x, y, width, height);
+    ctx.strokeRect(x, y, width, height);
+    ctx.restore();
   }
 
   _loadImageForCrop(src) {
@@ -1338,6 +1430,11 @@ class SidePanelManager {
     const width = rect.width * scale;
     const height = rect.height * scale;
 
+    if (this.imageCropState.mode === 'box') {
+      this._drawHighlightBox(ctx, { x, y, width, height }, canvas.width, canvas.height, 2);
+      return;
+    }
+
     ctx.save();
     ctx.fillStyle = 'rgba(15, 23, 42, 0.42)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1371,17 +1468,24 @@ class SidePanelManager {
   _endImageCropDrag(event) {
     if (!this.imageCropState.isDragging) return;
     const point = this._getImageCropPoint(event);
-    if (point && this.imageCropState.start) {
-      this.imageCropState.rect = this._normalizeImageCropRect(this.imageCropState.start, point);
+    const start = this.imageCropState.start;
+    if (point && start) {
+      const clickThreshold = 6 / (this.imageCropState.displayScale || 1);
+      const movedDistance = Math.hypot(point.x - start.x, point.y - start.y);
+      if (this.imageCropState.mode === 'box' && movedDistance <= clickThreshold) {
+        this.imageCropState.rect = SidePanelManager.getAutoHighlightRect(point, this.imageCropState.sourceImage);
+      } else {
+        this.imageCropState.rect = this._normalizeImageCropRect(start, point);
+      }
     }
     this.imageCropState.isDragging = false;
     event.currentTarget?.releasePointerCapture?.(event.pointerId);
     const rect = this.imageCropState.rect;
     if (!rect || rect.width < 4 || rect.height < 4) {
       this.imageCropState.rect = null;
-      this._setImageCropStatus(this._t('cropSelectLargerShort'));
+      this._setImageCropStatus(this.imageCropState.mode === 'box' ? this._t('boxSelectLargerShort') : this._t('cropSelectLargerShort'));
     } else {
-      this._setImageCropStatus(this._t('cropSelected'));
+      this._setImageCropStatus(this.imageCropState.mode === 'box' ? this._t('boxSelected') : this._t('cropSelected'));
     }
     this._drawImageCropCanvas();
   }
