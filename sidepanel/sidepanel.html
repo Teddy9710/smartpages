@@ -123,6 +123,12 @@
         <button id="btn-export-html" class="btn-tool" title="导出HTML文件">
           <span class="icon icon-html" aria-hidden="true">HTML</span> HTML
         </button>
+        <button id="btn-export-word" class="btn-tool" title="导出Word文件">
+          <span class="icon icon-word" aria-hidden="true">DOC</span> Word
+        </button>
+        <button id="btn-export-pdf" class="btn-tool" title="导出PDF文件">
+          <span class="icon icon-pdf" aria-hidden="true">PDF</span> PDF
+        </button>
         <label class="toolbar-select" title="HTML图片导出方式">
           <span id="export-image-mode-label">图片</span>
           <select id="export-image-mode">
@@ -130,6 +136,18 @@
             <option value="linked">资源包</option>
           </select>
         </label>
+        <label class="toolbar-select" title="HTML样式来源">
+          <span id="export-style-mode-label">样式</span>
+          <select id="export-style-mode">
+            <option value="default">默认</option>
+            <option value="upload">上传CSS</option>
+            <option value="ai" disabled>AI生成</option>
+          </select>
+        </label>
+        <button id="btn-upload-html-css" class="btn-tool hidden" title="上传CSS样式">
+          <span class="icon icon-css" aria-hidden="true">CSS</span> CSS
+        </button>
+        <input type="file" id="html-css-file" accept=".css,text/css" style="display: none;">
         <button id="btn-clear-cache" class="btn-tool" title="清理录制缓存">
           <span class="icon icon-clean" aria-hidden="true"></span> 清理缓存
         </button>
@@ -179,6 +197,8 @@
           <div class="image-edit-toolbar" role="group" aria-label="Image editing mode">
             <button id="btn-image-mode-crop" class="image-edit-mode active" type="button">Crop</button>
             <button id="btn-image-mode-box" class="image-edit-mode" type="button">Box</button>
+            <button id="btn-image-mode-number" class="image-edit-mode" type="button">Number</button>
+            <button id="btn-image-mode-blur" class="image-edit-mode" type="button">Blur</button>
           </div>
           <div class="image-crop-stage">
             <canvas id="image-crop-canvas" class="image-crop-canvas"></canvas>

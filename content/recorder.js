@@ -1142,11 +1142,12 @@
   // INITIALIZATION (Singleton Pattern)
   // ==========================================================================
 
-  // Prevent multiple listeners if script is injected multiple times
-  if (!window.scribeMessageListener) {
-    window.scribeMessageListener = messageHandler;
-    chrome.runtime.onMessage.addListener(messageHandler);
+  // Replace the previous listener when the script is injected again after navigation.
+  if (window.scribeMessageListener) {
+    chrome.runtime.onMessage.removeListener(window.scribeMessageListener);
   }
+  window.scribeMessageListener = messageHandler;
+  chrome.runtime.onMessage.addListener(messageHandler);
 
   // Log initialization
   const logInit = () => {

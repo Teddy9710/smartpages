@@ -35,6 +35,192 @@ const DefaultDescriptions = [
 // ============================================================================
 
 class SidePanelManager {
+  static getImageExtensionFromDataUrl(dataUrl, extHint) {
+    const mime = String(dataUrl || '').match(/^data:image\/([^;,]+)/i)?.[1] || extHint || 'jpg';
+    if (mime === 'jpeg') return 'jpg';
+    if (mime === 'svg+xml') return 'svg';
+    return mime.replace(/[^a-z0-9]/gi, '').toLowerCase() || 'jpg';
+  }
+
+  static extractMarkdownImageAssets(markdown, assetDir) {
+    const assets = [];
+    let assetIndex = 0;
+    const nextAsset = (dataUrl, extHint) => {
+      assetIndex += 1;
+      const ext = SidePanelManager.getImageExtensionFromDataUrl(dataUrl, extHint);
+      const filename = `${assetDir}/screenshot_${String(assetIndex).padStart(2, '0')}.${ext}`;
+      assets.push({ filename, dataUrl });
+      return filename;
+    };
+    let linkedMarkdown = String(markdown || '').replace(
+      /!\[([^\]]*)\]\((data:image\/([a-z0-9.+-]+);base64,[a-z0-9+/=]+)\)/gi,
+      (_match, alt, dataUrl, extHint) => `![${alt}](${nextAsset(dataUrl, extHint)})`
+    );
+    linkedMarkdown = linkedMarkdown.replace(
+      /src=(["'])(data:image\/([a-z0-9.+-]+);base64,[a-z0-9+/=]+)\1/gi,
+      (_match, quote, dataUrl, extHint) => `src=${quote}${nextAsset(dataUrl, extHint)}${quote}`
+    );
+    return { markdown: linkedMarkdown, assets };
+  }
+
+  static sanitizeHtmlExportCss(css) {
+    const normalized = String(css || '').trim();
+    if (!normalized) {
+      return { ok: false, css: '', reason: 'empty' };
+    }
+    if (
+      /@import\b/i.test(normalized) ||
+      /javascript\s*:/i.test(normalized) ||
+      /expression\s*\(/i.test(normalized) ||
+      /<\/?script\b/i.test(normalized) ||
+      /<\/style\b/i.test(normalized)
+    ) {
+      return { ok: false, css: '', reason: 'unsafe' };
+    }
+    return { ok: true, css: normalized };
+  }
+
+  static buildWordDocumentHtml(html, title = 'SmartPages Document') {
+    const value = String(html || '');
+    const bodyHtml = value.match(/<body[^>]*>([\s\S]*?)<\/body>/i)?.[1] || value;
+    const styleHtml = Array.from(value.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi))
+      .map(match => match[1] || '')
+      .join('\n');
+    const parsedTitle = value.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim();
+    const escapedTitle = SidePanelManager.escapeHtml(title || parsedTitle || 'SmartPages Document');
+    return `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta charset="UTF-8">
+  <meta name="ProgId" content="Word.Document">
+  <meta name="Generator" content="SmartPages">
+  <title>${escapedTitle}</title>
+  <!--[if gte mso 9]>
+  <xml>
+    <w:WordDocument>
+      <w:View>Print</w:View>
+      <w:Zoom>100</w:Zoom>
+      <w:DoNotOptimizeForBrowser/>
+    </w:WordDocument>
+  </xml>
+  <![endif]-->
+  <style>
+${styleHtml}
+  </style>
+</head>
+<body>
+${bodyHtml}
+</body>
+</html>`;
+  }
+
+  static buildWordMhtmlDocument(html, title = 'SmartPages Document') {
+    const boundary = '----=_SmartPages_Word_Export';
+    const assets = [];
+    const wordHtml = SidePanelManager.buildWordDocumentHtml(html, title).replace(
+      /src=(["'])(data:image\/([a-z0-9.+-]+);base64,([a-z0-9+/=]+))\1/gi,
+      (_match, quote, _dataUrl, extHint, base64) => {
+        const ext = SidePanelManager.getImageExtensionFromDataUrl(`data:image/${extHint};base64,`, extHint);
+        const mimeType = extHint === 'svg+xml' ? 'image/svg+xml' : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+        const filename = `smartpages-image-${assets.length + 1}.${ext}`;
+        assets.push({ filename, mimeType, base64 });
+        return `src=${quote}cid:${filename}${quote}`;
+      }
+    );
+    const parts = [
+      `MIME-Version: 1.0
+Content-Type: multipart/related; boundary="${boundary}"
+
+--${boundary}
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Location: smartpages-document.html
+
+${SidePanelManager.encodeQuotedPrintable(wordHtml)}`
+    ];
+    assets.forEach(asset => {
+      parts.push(`--${boundary}
+Content-Type: ${asset.mimeType}
+Content-Transfer-Encoding: base64
+Content-Location: ${asset.filename}
+
+${SidePanelManager.wrapBase64(asset.base64)}`);
+    });
+    parts.push(`--${boundary}--`);
+    return parts.join('\n\n');
+  }
+
+  static encodeQuotedPrintable(value) {
+    return String(value || '')
+      .replace(/=/g, '=3D')
+      .replace(/\r?\n/g, '\r\n');
+  }
+
+  static wrapBase64(value) {
+    return String(value || '').replace(/(.{76})/g, '$1\n').trim();
+  }
+
+  static getSafeExportFilename(title, fallback = 'SmartPages文档') {
+    const reservedNames = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+    const normalized = String(title || '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/[\\/:*?"<>|]+/g, '_')
+      .split('').filter(char => char >= ' ').join('')
+      .replace(/\s+/g, ' ')
+      .replace(/^_+|_+$/g, '')
+      .replace(/[. ]+$/g, '')
+      .trim()
+      .slice(0, 120);
+    if (!normalized || reservedNames.test(normalized)) return fallback;
+    return normalized;
+  }
+
+  static buildPdfPrintHtml(html, title = 'SmartPages Document') {
+    const value = String(html || '');
+    const bodyHtml = value.match(/<body[^>]*>([\s\S]*?)<\/body>/i)?.[1] || value;
+    const styleHtml = Array.from(value.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi))
+      .map(match => match[1] || '')
+      .join('\n');
+    const parsedTitle = value.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim();
+    const escapedTitle = SidePanelManager.escapeHtml(title || parsedTitle || 'SmartPages Document');
+    return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapedTitle}</title>
+  <style>
+${styleHtml}
+    @page { size: A4; margin: 16mm; }
+    @media print {
+      html, body { background: #fff !important; }
+      main { min-height: auto !important; box-shadow: none !important; }
+      img { page-break-inside: avoid; break-inside: avoid; }
+      h1, h2, h3 { page-break-after: avoid; break-after: avoid; }
+      table, blockquote, pre { page-break-inside: avoid; break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+${bodyHtml}
+  <script>
+    window.addEventListener('load', () => {
+      setTimeout(() => window.print(), 250);
+    });
+  </script>
+</body>
+</html>`;
+  }
+
+  static escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   static getAutoHighlightRect(point, image) {
     const imageWidth = Math.max(0, image?.naturalWidth || 0);
     const imageHeight = Math.max(0, image?.naturalHeight || 0);
@@ -48,6 +234,17 @@ class SidePanelManager {
     const x = Math.min(Math.max(0, Math.round(point.x - size / 2)), imageWidth - size);
     const y = Math.min(Math.max(0, Math.round(point.y - size / 2)), imageHeight - size);
     return { x, y, width: size, height: size };
+  }
+
+  static normalizeImageEditMode(mode) {
+    return ['crop', 'box', 'number', 'blur'].includes(mode) ? mode : 'crop';
+  }
+
+  static getNextAnnotationNumber(images) {
+    const values = Array.from(images || [])
+      .map(image => Number.parseInt(image?.dataset?.annotationNumber, 10))
+      .filter(Number.isFinite);
+    return values.length ? Math.max(...values) + 1 : 1;
   }
 
   constructor() {
@@ -75,6 +272,11 @@ class SidePanelManager {
       displayScale: 1,
       canvasScale: 1
     };
+    this.htmlExportStyle = {
+      mode: 'default',
+      customCss: '',
+      customName: ''
+    };
     this.init();
   }
 
@@ -98,6 +300,8 @@ class SidePanelManager {
     this._bindButton('btn-copy', () => this.copyDocument());
     this._bindButton('btn-download', () => this.downloadDocument());
     this._bindButton('btn-export-html', () => this.exportHtmlDocument());
+    this._bindButton('btn-export-word', () => this.exportWordDocument());
+    this._bindButton('btn-export-pdf', () => this.exportPdfDocument());
     this._bindButton('btn-clear-cache', () => this.clearRecordingCache());
     this._bindButton('btn-ai-optimize', () => this.openOptimizeDialog());
     this._bindButton('btn-revert-optimization', () => this.revertOptimization());
@@ -112,6 +316,10 @@ class SidePanelManager {
     this._bindButton('btn-apply-image-crop', () => this.applyImageCrop());
     this._bindButton('btn-image-mode-crop', () => this.setImageEditMode('crop'));
     this._bindButton('btn-image-mode-box', () => this.setImageEditMode('box'));
+    this._bindButton('btn-image-mode-number', () => this.setImageEditMode('number'));
+    this._bindButton('btn-image-mode-blur', () => this.setImageEditMode('blur'));
+    this._bindButton('btn-upload-html-css', () => this._openHtmlCssFilePicker());
+    this._bindHtmlExportStyleEvents();
     this._bindEditorEvents();
     this._bindImageCropEvents();
     this._bindDocumentUploadEvents('sidepanel');
@@ -125,6 +333,21 @@ class SidePanelManager {
       this.cleanupFunctions.push(() => button.removeEventListener('click', wrappedHandler));
     } else {
       console.warn(`[Scribe:SidePanel] Button '${buttonId}' not found`);
+    }
+  }
+
+  _bindHtmlExportStyleEvents() {
+    const styleMode = document.getElementById('export-style-mode');
+    const cssFile = document.getElementById('html-css-file');
+    if (styleMode) {
+      const handleStyleModeChange = () => this._handleHtmlExportStyleModeChange();
+      styleMode.addEventListener('change', handleStyleModeChange);
+      this.cleanupFunctions.push(() => styleMode.removeEventListener('change', handleStyleModeChange));
+    }
+    if (cssFile) {
+      const handleCssFileChange = (event) => this._handleHtmlCssFileChange(event);
+      cssFile.addEventListener('change', handleCssFileChange);
+      this.cleanupFunctions.push(() => cssFile.removeEventListener('change', handleCssFileChange));
     }
   }
 
@@ -293,9 +516,18 @@ class SidePanelManager {
       copy: 'Copy',
       download: 'Download',
       html: 'HTML',
+      word: 'Word',
+      pdf: 'PDF',
       imageMode: 'Images',
       imageInline: 'Inline',
       imageLinked: 'Package',
+      styleMode: 'Style',
+      styleDefault: 'Default',
+      styleUpload: 'Upload CSS',
+      styleAi: 'AI CSS',
+      uploadCss: 'Upload CSS',
+      cssLoaded: 'CSS style loaded: {{filename}}.',
+      cssInvalid: 'This CSS cannot be used. Remove @import, javascript:, or expression().',
       clearCache: 'Clear Cache',
       emptyTitle: 'No recording yet',
       emptyDesc: 'Start recording from the current tab, then generate a document here.',
@@ -329,9 +561,18 @@ class SidePanelManager {
       copy: '复制',
       download: '下载',
       html: 'HTML',
+      word: 'Word',
+      pdf: 'PDF',
       imageMode: '图片',
       imageInline: '内联',
       imageLinked: '资源包',
+      styleMode: '样式',
+      styleDefault: '默认',
+      styleUpload: '上传CSS',
+      styleAi: 'AI生成',
+      uploadCss: '上传CSS',
+      cssLoaded: '已加载 CSS 样式：{{filename}}。',
+      cssInvalid: '这份 CSS 暂不能使用，请移除 @import、javascript: 或 expression()。',
       clearCache: '清理缓存',
       emptyTitle: '还没有录制内容',
       emptyDesc: '从当前标签页开始录制，然后在这里生成文档。',
@@ -371,8 +612,12 @@ class SidePanelManager {
       optimizeFailed: 'Optimization failed. Please try again.',
       reverted: 'Reverted to the previous version.',
       htmlExported: 'HTML file exported.',
+      wordExported: 'Word file exported.',
+      pdfOpened: 'PDF print view opened. Choose Save as PDF in the print dialog.',
       htmlPackageDone: 'HTML package exported: {{filename}}. Unzip it and open {{html}}.',
       htmlPackageFailed: 'Failed to generate HTML package. Please try again.',
+      markdownPackageDone: 'Markdown package exported: {{filename}}. Unzip it and open {{markdown}}.',
+      markdownPackageFailed: 'Failed to generate Markdown package. Please try again.',
       cacheCleared: 'Recording cache cleared{{savedText}}',
       clearCacheFailed: 'Failed to clear recording cache.'
     } : {
@@ -401,31 +646,67 @@ class SidePanelManager {
       optimizeFailed: '优化失败，请重试',
       reverted: '已回退到优化前版本',
       htmlExported: 'HTML 文件已导出。',
+      wordExported: 'Word 文件已导出。',
+      pdfOpened: 'PDF 打印页面已打开，请在打印对话框中选择另存为 PDF。',
       htmlPackageDone: 'HTML 资源包已导出：{{filename}}。解压后打开 {{html}}。',
       htmlPackageFailed: 'HTML 资源包生成失败，请重试',
+      markdownPackageDone: 'Markdown 资源包已导出：{{filename}}。解压后打开 {{markdown}}。',
+      markdownPackageFailed: 'Markdown 资源包生成失败，请重试',
       cacheCleared: '录制缓存已清理{{savedText}}',
       clearCacheFailed: '清理录制缓存失败'
     });
     Object.assign(text, isEn ? {
       cropMode: 'Crop',
       boxMode: 'Box',
+      numberMode: 'Number',
+      blurMode: 'Blur',
       boxApply: 'Apply Box',
+      numberApply: 'Apply Number',
+      blurApply: 'Apply Blur',
       boxHint: 'Click to auto-place a highlight box, or drag to choose an area.',
+      numberHint: 'Click to auto-place a numbered marker, or drag to choose an area.',
+      blurHint: 'Drag over sensitive information to blur it.',
       boxSelectLarger: 'Choose a larger box area first.',
+      numberSelectLarger: 'Choose a larger numbered area first.',
+      blurSelectLarger: 'Choose a larger blur area first.',
       boxSelectLargerShort: 'Choose a larger box area.',
+      numberSelectLargerShort: 'Choose a larger numbered area.',
+      blurSelectLargerShort: 'Choose a larger blur area.',
       boxSelected: 'Highlight box selected. Apply when ready.',
+      numberSelected: 'Numbered marker selected. Apply when ready.',
+      blurSelected: 'Blur area selected. Apply when ready.',
       boxFailed: 'Adding the highlight box failed. Try another image.',
-      boxDone: 'Highlight box added.'
+      numberFailed: 'Adding the numbered marker failed. Try another image.',
+      blurFailed: 'Blurring failed. Try another image.',
+      boxDone: 'Highlight box added.',
+      numberDone: 'Numbered marker added.',
+      blurDone: 'Blur added.'
     } : {
       cropMode: '裁剪',
       boxMode: '框选',
+      numberMode: '编号',
+      blurMode: '模糊',
       boxApply: '应用框选',
+      numberApply: '应用编号',
+      blurApply: '应用模糊',
       boxHint: '点击自动放置高亮框，或拖拽选择区域。',
+      numberHint: '点击自动放置编号标注，或拖拽选择区域。',
+      blurHint: '拖拽选择需要模糊遮盖的敏感信息区域。',
       boxSelectLarger: '请先选择更大的框选区域。',
+      numberSelectLarger: '请先选择更大的编号区域。',
+      blurSelectLarger: '请先选择更大的模糊区域。',
       boxSelectLargerShort: '请选择更大的框选区域。',
+      numberSelectLargerShort: '请选择更大的编号区域。',
+      blurSelectLargerShort: '请选择更大的模糊区域。',
       boxSelected: '已选择高亮框，确认后应用。',
+      numberSelected: '已选择编号标注，确认后应用。',
+      blurSelected: '已选择模糊区域，确认后应用。',
       boxFailed: '添加高亮框失败，请换一张图片重试。',
-      boxDone: '已添加高亮框。'
+      numberFailed: '添加编号标注失败，请换一张图片重试。',
+      blurFailed: '模糊处理失败，请换一张图片重试。',
+      boxDone: '已添加高亮框。',
+      numberDone: '已添加编号标注。',
+      blurDone: '已添加模糊遮盖。'
     });
     this.uiText = text;
 
@@ -466,12 +747,22 @@ class SidePanelManager {
     setButton('#btn-copy', text.copy);
     setButton('#btn-download', text.download);
     setButton('#btn-export-html', text.html);
+    setButton('#btn-export-word', text.word);
+    setButton('#btn-export-pdf', text.pdf);
     set('#export-image-mode-label', text.imageMode);
     const imageMode = document.getElementById('export-image-mode');
     if (imageMode) {
       imageMode.querySelector('option[value="inline"]').textContent = text.imageInline;
       imageMode.querySelector('option[value="linked"]').textContent = text.imageLinked;
     }
+    set('#export-style-mode-label', text.styleMode);
+    const styleMode = document.getElementById('export-style-mode');
+    if (styleMode) {
+      styleMode.querySelector('option[value="default"]').textContent = text.styleDefault;
+      styleMode.querySelector('option[value="upload"]').textContent = text.styleUpload;
+      styleMode.querySelector('option[value="ai"]').textContent = text.styleAi;
+    }
+    setButton('#btn-upload-html-css', text.uploadCss);
     setButton('#btn-clear-cache', text.clearCache);
     set('#empty-state h2', text.emptyTitle);
     set('#empty-state p', text.emptyDesc);
@@ -490,6 +781,8 @@ class SidePanelManager {
     setButton('#btn-apply-image-crop', text.cropApply);
     setButton('#btn-image-mode-crop', text.cropMode);
     setButton('#btn-image-mode-box', text.boxMode);
+    setButton('#btn-image-mode-number', text.numberMode);
+    setButton('#btn-image-mode-blur', text.blurMode);
     document.querySelector('.image-edit-toolbar')?.setAttribute('aria-label', text.imageEditModeLabel);
     const closeCrop = document.getElementById('btn-close-image-crop');
     if (closeCrop) {
@@ -1304,7 +1597,7 @@ class SidePanelManager {
 
   setImageEditMode(mode, options = {}) {
     if (!this.imageCropState.sourceImage) return;
-    const nextMode = mode === 'box' ? 'box' : 'crop';
+    const nextMode = SidePanelManager.normalizeImageEditMode(mode);
     this.imageCropState.mode = nextMode;
     if (!options.preserveSelection) {
       this.imageCropState.rect = null;
@@ -1313,11 +1606,13 @@ class SidePanelManager {
     }
     document.getElementById('btn-image-mode-crop')?.classList.toggle('active', nextMode === 'crop');
     document.getElementById('btn-image-mode-box')?.classList.toggle('active', nextMode === 'box');
+    document.getElementById('btn-image-mode-number')?.classList.toggle('active', nextMode === 'number');
+    document.getElementById('btn-image-mode-blur')?.classList.toggle('active', nextMode === 'blur');
     const applyButton = document.getElementById('btn-apply-image-crop');
     if (applyButton) {
-      applyButton.textContent = nextMode === 'box' ? this._t('boxApply') : this._t('cropApply');
+      applyButton.textContent = this._getImageEditText(nextMode, 'Apply');
     }
-    this._setImageCropStatus(nextMode === 'box' ? this._t('boxHint') : this._t('cropHint'));
+    this._setImageCropStatus(this._getImageEditText(nextMode, 'Hint'));
     this._drawImageCropCanvas();
   }
 
@@ -1326,25 +1621,33 @@ class SidePanelManager {
     this.imageCropState.rect = null;
     this.imageCropState.start = null;
     this.imageCropState.isDragging = false;
-    this._setImageCropStatus(this.imageCropState.mode === 'box' ? this._t('boxHint') : this._t('cropHint'));
+    this._setImageCropStatus(this._getImageEditText(this.imageCropState.mode, 'Hint'));
     this._drawImageCropCanvas();
   }
 
   applyImageCrop() {
     const { imageElement, sourceImage, rect, mode } = this.imageCropState;
     if (!imageElement || !sourceImage || !rect || rect.width < 4 || rect.height < 4) {
-      this._setImageCropStatus(mode === 'box' ? this._t('boxSelectLarger') : this._t('cropSelectLarger'));
+      this._setImageCropStatus(this._getImageEditText(mode, 'SelectLarger'));
       return;
     }
 
     try {
       const output = document.createElement('canvas');
       const ctx = output.getContext('2d');
-      if (mode === 'box') {
+      if (['box', 'number', 'blur'].includes(mode)) {
         output.width = sourceImage.naturalWidth;
         output.height = sourceImage.naturalHeight;
         ctx.drawImage(sourceImage, 0, 0);
-        this._drawHighlightBox(ctx, rect, output.width, output.height);
+        if (mode === 'blur') {
+          this._drawBlurArea(ctx, sourceImage, rect);
+        } else if (mode === 'number') {
+          const number = SidePanelManager.getNextAnnotationNumber(document.querySelectorAll('img[data-annotation-number]'));
+          this._drawNumberedHighlight(ctx, rect, output.width, output.height, number);
+          imageElement.dataset.annotationNumber = String(number);
+        } else {
+          this._drawHighlightBox(ctx, rect, output.width, output.height);
+        }
       } else {
         output.width = Math.round(rect.width);
         output.height = Math.round(rect.height);
@@ -1367,15 +1670,21 @@ class SidePanelManager {
       }
       imageElement.setAttribute('src', croppedSrc);
       imageElement.dataset.imageEdited = 'true';
-      imageElement.dataset.imageEditOperation = mode === 'box' ? 'box' : 'crop';
+      imageElement.dataset.imageEditOperation = SidePanelManager.normalizeImageEditMode(mode);
       imageElement.dataset.cropRect = `${Math.round(rect.x)},${Math.round(rect.y)},${Math.round(rect.width)},${Math.round(rect.height)}`;
       this._syncPreviewToEditor();
       this.closeImageCropDialog();
-      this._showNotification(mode === 'box' ? this._t('boxDone') : this._t('cropDone'), 'success');
+      this._showNotification(this._getImageEditText(mode, 'Done'), 'success');
     } catch (error) {
       console.error('[Scribe:SidePanel] Failed to edit image:', error);
-      this._setImageCropStatus(mode === 'box' ? this._t('boxFailed') : this._t('cropFailed'));
+      this._setImageCropStatus(this._getImageEditText(mode, 'Failed'));
     }
+  }
+
+  _getImageEditText(mode, suffix) {
+    const normalized = SidePanelManager.normalizeImageEditMode(mode);
+    const prefix = normalized === 'number' ? 'number' : normalized === 'blur' ? 'blur' : normalized === 'box' ? 'box' : 'crop';
+    return this._t(`${prefix}${suffix}`);
   }
 
   _drawHighlightBox(ctx, rect, imageWidth, imageHeight, minLineWidth = 4) {
@@ -1391,6 +1700,42 @@ class SidePanelManager {
     ctx.lineJoin = 'round';
     ctx.fillRect(x, y, width, height);
     ctx.strokeRect(x, y, width, height);
+    ctx.restore();
+  }
+
+  _drawNumberedHighlight(ctx, rect, imageWidth, imageHeight, number) {
+    this._drawHighlightBox(ctx, rect, imageWidth, imageHeight);
+    const radius = Math.max(14, Math.round(Math.min(imageWidth, imageHeight) * 0.025));
+    const x = Math.min(Math.max(radius + 2, rect.x), imageWidth - radius - 2);
+    const y = Math.min(Math.max(radius + 2, rect.y), imageHeight - radius - 2);
+    ctx.save();
+    ctx.fillStyle = '#ef4444';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = Math.max(3, Math.round(radius * 0.18));
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `700 ${Math.round(radius * 1.1)}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(number), x, y + 1);
+    ctx.restore();
+  }
+
+  _drawBlurArea(ctx, sourceImage, rect) {
+    const x = Math.max(0, Math.round(rect.x));
+    const y = Math.max(0, Math.round(rect.y));
+    const width = Math.max(1, Math.round(Math.min(rect.width, sourceImage.naturalWidth - x)));
+    const height = Math.max(1, Math.round(Math.min(rect.height, sourceImage.naturalHeight - y)));
+    ctx.save();
+    ctx.filter = 'blur(12px)';
+    ctx.drawImage(sourceImage, x, y, width, height, x, y, width, height);
+    ctx.restore();
+    ctx.save();
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.12)';
+    ctx.fillRect(x, y, width, height);
     ctx.restore();
   }
 
@@ -1430,8 +1775,24 @@ class SidePanelManager {
     const width = rect.width * scale;
     const height = rect.height * scale;
 
-    if (this.imageCropState.mode === 'box') {
-      this._drawHighlightBox(ctx, { x, y, width, height }, canvas.width, canvas.height, 2);
+    if (this.imageCropState.mode === 'box' || this.imageCropState.mode === 'number') {
+      if (this.imageCropState.mode === 'number') {
+        this._drawNumberedHighlight(ctx, { x, y, width, height }, canvas.width, canvas.height, '#');
+      } else {
+        this._drawHighlightBox(ctx, { x, y, width, height }, canvas.width, canvas.height, 2);
+      }
+      return;
+    }
+
+    if (this.imageCropState.mode === 'blur') {
+      ctx.save();
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.18)';
+      ctx.fillRect(x, y, width, height);
+      ctx.strokeStyle = '#0f172a';
+      ctx.setLineDash([6, 4]);
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x + 1, y + 1, Math.max(0, width - 2), Math.max(0, height - 2));
+      ctx.restore();
       return;
     }
 
@@ -1472,7 +1833,7 @@ class SidePanelManager {
     if (point && start) {
       const clickThreshold = 6 / (this.imageCropState.displayScale || 1);
       const movedDistance = Math.hypot(point.x - start.x, point.y - start.y);
-      if (this.imageCropState.mode === 'box' && movedDistance <= clickThreshold) {
+      if (['box', 'number'].includes(this.imageCropState.mode) && movedDistance <= clickThreshold) {
         this.imageCropState.rect = SidePanelManager.getAutoHighlightRect(point, this.imageCropState.sourceImage);
       } else {
         this.imageCropState.rect = this._normalizeImageCropRect(start, point);
@@ -1483,9 +1844,9 @@ class SidePanelManager {
     const rect = this.imageCropState.rect;
     if (!rect || rect.width < 4 || rect.height < 4) {
       this.imageCropState.rect = null;
-      this._setImageCropStatus(this.imageCropState.mode === 'box' ? this._t('boxSelectLargerShort') : this._t('cropSelectLargerShort'));
+      this._setImageCropStatus(this._getImageEditText(this.imageCropState.mode, 'SelectLargerShort'));
     } else {
-      this._setImageCropStatus(this.imageCropState.mode === 'box' ? this._t('boxSelected') : this._t('cropSelected'));
+      this._setImageCropStatus(this._getImageEditText(this.imageCropState.mode, 'Selected'));
     }
     this._drawImageCropCanvas();
   }
@@ -1894,6 +2255,53 @@ ${markdown}`;
     document.getElementById('btn-revert-optimization')?.classList.toggle('hidden', !visible);
   }
 
+  _handleHtmlExportStyleModeChange() {
+    const mode = document.getElementById('export-style-mode')?.value === 'upload' ? 'upload' : 'default';
+    this.htmlExportStyle.mode = mode;
+    this._syncHtmlExportStyleControls();
+    if (mode === 'upload' && !this.htmlExportStyle.customCss) {
+      this._openHtmlCssFilePicker();
+    }
+  }
+
+  _syncHtmlExportStyleControls() {
+    document.getElementById('btn-upload-html-css')?.classList.toggle('hidden', this.htmlExportStyle.mode !== 'upload');
+  }
+
+  _openHtmlCssFilePicker() {
+    document.getElementById('html-css-file')?.click();
+  }
+
+  async _handleHtmlCssFileChange(event) {
+    const input = event.target;
+    const file = input?.files?.[0];
+    if (!file) return;
+
+    try {
+      const css = await file.text();
+      const sanitized = SidePanelManager.sanitizeHtmlExportCss(css);
+      if (!sanitized.ok) {
+        this._showNotification(this._t('cssInvalid'), 'error');
+        input.value = '';
+        return;
+      }
+      this.htmlExportStyle = {
+        mode: 'upload',
+        customCss: sanitized.css,
+        customName: file.name || 'custom.css'
+      };
+      const styleMode = document.getElementById('export-style-mode');
+      if (styleMode) styleMode.value = 'upload';
+      this._syncHtmlExportStyleControls();
+      this._showNotification(this._t('cssLoaded', { filename: this.htmlExportStyle.customName }), 'success');
+    } catch (error) {
+      console.error('[Scribe:SidePanel] Failed to load CSS file:', error);
+      this._showNotification(this._t('cssInvalid'), 'error');
+    } finally {
+      if (input) input.value = '';
+    }
+  }
+
   _setOptimizeStatus(message, type) {
     const status = document.getElementById('optimize-status');
     if (!status) return;
@@ -1927,6 +2335,9 @@ ${markdown}`;
       this.exportHtmlDocument();
       return;
     }
+    if (format === 'markdown' && this._exportMarkdownWithLinkedImages(content)) {
+      return;
+    }
     const extension = format === 'html' ? 'html' : format === 'text' ? 'txt' : 'md';
     const mimeType = format === 'html'
       ? 'text/html;charset=utf-8'
@@ -1935,7 +2346,7 @@ ${markdown}`;
         : 'text/markdown;charset=utf-8';
     const blob = new Blob([format === 'html' ? this._buildStandaloneHtmlFromCurrentContent(content) : content], { type: mimeType });
     const url = URL.createObjectURL(blob);
-    const a = createElement('a', { href: url, download: `document_${Date.now()}.${extension}` });
+    const a = createElement('a', { href: url, download: `${this._getExportBaseName(content)}.${extension}` });
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
@@ -1953,19 +2364,85 @@ ${markdown}`;
     }
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
-    const a = createElement('a', { href: url, download: `document_${Date.now()}.html` });
+    const a = createElement('a', { href: url, download: `${this._getExportBaseName(content)}.html` });
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
     this._showNotification(this._t('htmlExported'), 'success');
   }
 
+  exportWordDocument() {
+    this._ensureEditorContentFresh();
+    const content = document.getElementById('markdown-editor')?.value;
+    if (!content) return;
+
+    const html = this._buildStandaloneHtmlFromCurrentContent(content);
+    const title = this._extractDocumentTitle(content);
+    const wordHtml = SidePanelManager.buildWordMhtmlDocument(html, title);
+    this._downloadBlob(
+      `${this._getExportBaseName(content)}.doc`,
+      new Blob([wordHtml], { type: 'application/msword;charset=utf-8' })
+    );
+    this._showNotification(this._t('wordExported'), 'success');
+  }
+
+  exportPdfDocument() {
+    this._ensureEditorContentFresh();
+    const content = document.getElementById('markdown-editor')?.value;
+    if (!content) return;
+
+    const html = this._buildStandaloneHtmlFromCurrentContent(content);
+    const title = this._extractDocumentTitle(content);
+    const pdfHtml = SidePanelManager.buildPdfPrintHtml(html, title);
+    const url = URL.createObjectURL(new Blob([pdfHtml], { type: 'text/html;charset=utf-8' }));
+    if (chrome?.tabs?.create) {
+      chrome.tabs.create({ url }, () => setTimeout(() => URL.revokeObjectURL(url), 30000));
+    } else {
+      const printWindow = window.open(url, '_blank', 'noopener');
+      if (printWindow) setTimeout(() => URL.revokeObjectURL(url), 30000);
+    }
+    this._showNotification(this._t('pdfOpened'), 'success');
+  }
+
   _getHtmlImageMode() {
     return document.getElementById('export-image-mode')?.value === 'linked' ? 'linked' : 'inline';
   }
 
+  _exportMarkdownWithLinkedImages(markdown) {
+    const baseName = this._getExportBaseName(markdown);
+    const assetDir = `${baseName}_assets`;
+    const contentWithScreenshots = this._injectScreenshots(markdown, 'markdown');
+    const { markdown: linkedMarkdown, assets } = SidePanelManager.extractMarkdownImageAssets(contentWithScreenshots, assetDir);
+    if (!assets.length) return false;
+
+    const readme = [
+      'SmartPages Markdown 导出说明',
+      '',
+      `Markdown 文件：${baseName}.md`,
+      `图片文件夹：${assetDir}/`,
+      '',
+      '请保持 Markdown 文件和图片文件夹的相对位置不变。',
+      '如果移动或分享文档，请一起移动 Markdown 文件和整个图片文件夹，否则 Markdown 中的图片会无法显示。',
+      '',
+      `本次导出图片数量：${assets.length}`
+    ].join('\n');
+    const files = [
+      { name: `${baseName}.md`, blob: new Blob([linkedMarkdown], { type: 'text/markdown;charset=utf-8' }) },
+      { name: `${assetDir}/README.txt`, blob: new Blob([readme], { type: 'text/plain;charset=utf-8' }) },
+      ...assets.map(asset => ({ name: asset.filename, blob: this._dataUrlToBlob(asset.dataUrl) }))
+    ];
+    this._buildZip(files).then(zipBlob => {
+      this._downloadBlob(`${baseName}_package.zip`, zipBlob);
+      this._showNotification(this._t('markdownPackageDone', { filename: `${baseName}_package.zip`, markdown: `${baseName}.md` }), 'success');
+    }).catch(error => {
+      console.error('[Scribe:SidePanel] Failed to build Markdown package:', error);
+      this._showNotification(this._t('markdownPackageFailed'), 'error');
+    });
+    return true;
+  }
+
   _exportHtmlWithLinkedImages(html) {
-    const baseName = `document_${Date.now()}`;
+    const baseName = this._getExportBaseName(html);
     const assetDir = `${baseName}_assets`;
     const assets = [];
     let assetIndex = 0;
@@ -2133,10 +2610,7 @@ ${markdown}`;
   }
 
   _getImageExtension(dataUrl, extHint) {
-    const mime = String(dataUrl || '').match(/^data:image\/([^;,]+)/i)?.[1] || extHint || 'jpg';
-    if (mime === 'jpeg') return 'jpg';
-    if (mime === 'svg+xml') return 'svg';
-    return mime.replace(/[^a-z0-9]/gi, '').toLowerCase() || 'jpg';
+    return SidePanelManager.getImageExtensionFromDataUrl(dataUrl, extHint);
   }
 
   async clearRecordingCache() {
@@ -2169,13 +2643,15 @@ ${markdown}`;
   _buildStandaloneHtmlFromCurrentContent(content) {
     const format = this._getOutputFormat();
     const contentWithScreenshots = this._injectScreenshots(content, format);
+    let html = '';
     if (format === 'html') {
-      return this._ensureStandaloneHtml(contentWithScreenshots);
+      html = this._ensureStandaloneHtml(contentWithScreenshots);
+    } else if (format === 'text') {
+      html = this._buildStandaloneHtmlFromBody(`<pre>${this._escapeHtml(contentWithScreenshots)}</pre>`, 'SmartPages Document');
+    } else {
+      html = this._buildStandaloneHtml(contentWithScreenshots);
     }
-    if (format === 'text') {
-      return this._buildStandaloneHtmlFromBody(`<pre>${this._escapeHtml(contentWithScreenshots)}</pre>`, 'SmartPages Document');
-    }
-    return this._buildStandaloneHtml(contentWithScreenshots);
+    return this._applyHtmlExportStyle(html);
   }
 
   _buildStandaloneHtml(markdown) {
@@ -2184,15 +2660,28 @@ ${markdown}`;
     return this._buildStandaloneHtmlFromBody(bodyHtml, title);
   }
 
-  _buildStandaloneHtmlFromBody(bodyHtml, title) {
-    return `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${this._escapeHtml(title)}</title>
-  <style>
-    :root {
+  _applyHtmlExportStyle(html) {
+    const css = this._getHtmlExportCss();
+    const styleBlock = `<style>\n${css}\n  </style>`;
+    const value = String(html || '');
+    if (/<style[\s\S]*?<\/style>/i.test(value)) {
+      return value.replace(/<style[\s\S]*?<\/style>/i, styleBlock);
+    }
+    if (/<\/head>/i.test(value)) {
+      return value.replace(/<\/head>/i, `  ${styleBlock}\n</head>`);
+    }
+    return this._buildStandaloneHtmlFromBody(value, 'SmartPages Document').replace(/<style[\s\S]*?<\/style>/i, styleBlock);
+  }
+
+  _getHtmlExportCss() {
+    if (this.htmlExportStyle.mode === 'upload' && this.htmlExportStyle.customCss) {
+      return this.htmlExportStyle.customCss;
+    }
+    return this._getDefaultHtmlExportCss();
+  }
+
+  _getDefaultHtmlExportCss() {
+    return `    :root {
       color-scheme: light;
       --text: #1f2937;
       --muted: #6b7280;
@@ -2240,7 +2729,18 @@ ${markdown}`;
     pre code { padding: 0; background: transparent; }
     blockquote { color: var(--muted); padding-left: 14px; border-left: 4px solid var(--border); }
     table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 8px 10px; border: 1px solid var(--border); text-align: left; }
+    th, td { padding: 8px 10px; border: 1px solid var(--border); text-align: left; }`;
+  }
+
+  _buildStandaloneHtmlFromBody(bodyHtml, title) {
+    return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${this._escapeHtml(title)}</title>
+  <style>
+${this._getDefaultHtmlExportCss()}
   </style>
 </head>
 <body>
@@ -2279,8 +2779,22 @@ ${bodyHtml}
   }
 
   _extractDocumentTitle(markdown) {
-    const heading = markdown.split('\n').find(line => line.trim().startsWith('# '));
-    return heading ? heading.replace(/^#\s+/, '').trim() : 'SmartPages Document';
+    const content = String(markdown || '');
+    const heading = content.split('\n').find(line => line.trim().startsWith('# '));
+    if (heading) return heading.replace(/^#\s+/, '').trim();
+
+    const htmlTitle = content.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim();
+    if (htmlTitle) return htmlTitle;
+
+    const h1 = content.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1]?.trim();
+    if (h1) return h1.replace(/<[^>]+>/g, '').trim();
+
+    const firstLine = content.split('\n').map(line => line.trim()).find(Boolean);
+    return firstLine ? firstLine.slice(0, 80) : 'SmartPages文档';
+  }
+
+  _getExportBaseName(content) {
+    return SidePanelManager.getSafeExportFilename(this._extractDocumentTitle(content));
   }
 
   _escapeHtml(value) {

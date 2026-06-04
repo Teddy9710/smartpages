@@ -90,11 +90,15 @@ $RECYCLE.BIN/
 
 # Project specific
 .claude/
+.playwright-cli/
+.skills-staging/
 skills/
 project-architect/
 project-architect.skill
 __pycache__/
 temp/
 tmp/
+_msg.txt
+video/out/
 *.crx
 *.pem

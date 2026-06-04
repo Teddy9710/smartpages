@@ -1739,7 +1739,10 @@ body {
 }
 
 .icon-ai,
-.icon-html {
+.icon-html,
+.icon-word,
+.icon-pdf,
+.icon-css {
   width: auto;
   min-width: 22px;
   height: 18px;
@@ -1758,6 +1761,21 @@ body {
 
 .icon-html {
   background: #172033;
+  color: #fff;
+}
+
+.icon-word {
+  background: #2563eb;
+  color: #fff;
+}
+
+.icon-pdf {
+  background: #b91c1c;
+  color: #fff;
+}
+
+.icon-css {
+  background: #1d4ed8;
   color: #fff;
 }
 

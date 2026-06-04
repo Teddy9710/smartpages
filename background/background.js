@@ -31,12 +31,19 @@ const RECORDING_STORAGE_KEY = 'scribeRecordingState';
 const MAX_SCREENSHOT_WIDTH = 1920;
 const MAX_SCREENSHOT_HEIGHT = 1440;
 const COMPRESSED_SCREENSHOT_QUALITY = 0.9;
+const SCREENSHOT_CAPTURE_MIN_INTERVAL_MS = 600;
+const SCREENSHOT_CAPTURE_QUOTA_RETRY_LIMIT = 2;
 
 /**
  * Manages the recording session lifecycle
  * @class
  */
 class RecordingManager {
+  static getScreenshotThrottleDelay(now, lastCaptureAt, minIntervalMs = SCREENSHOT_CAPTURE_MIN_INTERVAL_MS) {
+    if (!lastCaptureAt) return 0;
+    return Math.max(0, minIntervalMs - (now - lastCaptureAt));
+  }
+
   constructor() {
     /** @type {RecordingState} */
     this.state = RecordingState.IDLE;
@@ -49,6 +56,12 @@ class RecordingManager {
 
     /** @type {boolean} */
     this._hydrated = false;
+
+    /** @type {Promise<void>} */
+    this._screenshotCaptureQueue = Promise.resolve();
+
+    /** @type {number} */
+    this._lastScreenshotCaptureAt = 0;
   }
 
   async ensureHydrated() {
@@ -177,7 +190,7 @@ class RecordingManager {
       const stepIndex = this.currentSession.steps.length - 1;
 
       // Capture screenshot asynchronously (non-blocking)
-      this._captureScreenshotForStep(stepIndex).catch(error => {
+      this._enqueueScreenshotCapture(stepIndex).catch(error => {
         console.error('[Scribe:Background] Screenshot capture failed:', error);
       });
 
@@ -279,7 +292,8 @@ class RecordingManager {
    * @param {number} tabId - Tab ID
    * @throws {ExtensionError} If content script communication fails
    */
-  async _startContentScriptListening(tabId) {
+  async _startContentScriptListening(tabId, options = {}) {
+    const { resetOnFailure = true } = options;
     try {
       await this._injectContentScript(tabId);
       await chrome.tabs.sendMessage(tabId, { type: 'START_LISTENING' });
@@ -290,8 +304,10 @@ class RecordingManager {
           await chrome.tabs.sendMessage(tabId, { type: 'START_LISTENING' });
           return;
         } catch (injectError) {
-          this.state = RecordingState.IDLE;
-          this.currentSession = null;
+          if (resetOnFailure) {
+            this.state = RecordingState.IDLE;
+            this.currentSession = null;
+          }
           throw new ExtensionError(
             '无法注入录制脚本。请确认当前页面不是浏览器系统页；如果刚重新加载过扩展，请刷新目标页面后重试。' + (injectError?.message ? ` (${injectError.message})` : ''),
             'CONTENT_SCRIPT_ERROR'
@@ -299,8 +315,10 @@ class RecordingManager {
         }
       }
 
-      this.state = RecordingState.IDLE;
-      this.currentSession = null;
+      if (resetOnFailure) {
+        this.state = RecordingState.IDLE;
+        this.currentSession = null;
+      }
       throw error;
     }
   }
@@ -366,7 +384,7 @@ class RecordingManager {
         this.currentSession.pageTitle = currentTab.title || this.currentSession.pageTitle || '';
       }
 
-      await this._startContentScriptListening(tabId);
+      await this._startContentScriptListening(tabId, { resetOnFailure: false });
       await this._persistState();
       this._notifyStateChanged();
       console.log('[Scribe:Background] Recording resumed after navigation:', currentTab.url);
@@ -394,6 +412,12 @@ class RecordingManager {
    * @async
    * @param {number} stepIndex - Index of the step
    */
+  async _enqueueScreenshotCapture(stepIndex) {
+    const captureTask = this._screenshotCaptureQueue.then(() => this._captureScreenshotForStep(stepIndex));
+    this._screenshotCaptureQueue = captureTask.catch(() => {});
+    return captureTask;
+  }
+
   async _captureScreenshotForStep(stepIndex) {
     try {
       // Check storage space before capturing
@@ -405,10 +429,7 @@ class RecordingManager {
       }
 
       if (this.state === RecordingState.RECORDING && this.tabId) {
-        const rawScreenshot = await chrome.tabs.captureVisibleTab(null, {
-          format: 'png',
-          quality: SCREENSHOT_QUALITY
-        });
+        const rawScreenshot = await this._captureVisibleTabWithQuotaRetry();
         const screenshot = await this._compressScreenshot(rawScreenshot);
 
         // Only assign if step still exists (prevents race conditions)
@@ -421,6 +442,42 @@ class RecordingManager {
       console.error('[Scribe:Background] Screenshot failed for step', stepIndex, error);
       // Screenshot failure doesn't affect step recording
     }
+  }
+
+  async _captureVisibleTabWithQuotaRetry() {
+    let lastError = null;
+    for (let attempt = 0; attempt <= SCREENSHOT_CAPTURE_QUOTA_RETRY_LIMIT; attempt += 1) {
+      await this._waitForScreenshotQuota();
+      this._lastScreenshotCaptureAt = Date.now();
+      try {
+        return await chrome.tabs.captureVisibleTab(null, {
+          format: 'png',
+          quality: SCREENSHOT_QUALITY
+        });
+      } catch (error) {
+        lastError = error;
+        if (!this._isScreenshotQuotaError(error) || attempt >= SCREENSHOT_CAPTURE_QUOTA_RETRY_LIMIT) {
+          throw error;
+        }
+        await this._sleep(SCREENSHOT_CAPTURE_MIN_INTERVAL_MS);
+      }
+    }
+    throw lastError;
+  }
+
+  async _waitForScreenshotQuota() {
+    const delay = RecordingManager.getScreenshotThrottleDelay(Date.now(), this._lastScreenshotCaptureAt);
+    if (delay > 0) {
+      await this._sleep(delay);
+    }
+  }
+
+  _isScreenshotQuotaError(error) {
+    return String(error?.message || error).includes('MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND');
+  }
+
+  _sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   async _compressScreenshot(dataUrl) {

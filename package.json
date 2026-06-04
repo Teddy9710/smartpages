@@ -6,6 +6,10 @@
     "dev": "vite build --watch",
     "build": "vite build && node scripts/remove-build-artifact.js",
     "preview": "vite preview",
+    "test": "node tests/run-tests.js",
+    "verify": "npm test && npm run lint -- --quiet && npm run typecheck && npm run build",
+    "video:preview": "remotion preview video/index.jsx",
+    "video:render": "remotion render video/index.jsx smartpages-promo video/out/smartpages-promo.mp4",
     "lint": "eslint \"**/*.js\" --ignore-pattern node_modules/ --ignore-pattern dist/ --ignore-pattern libs/",
     "lint:fix": "eslint \"**/*.js\" --ignore-pattern node_modules/ --ignore-pattern dist/ --ignore-pattern libs/ --fix",
     "typecheck": "tsc --noEmit"
@@ -31,8 +35,13 @@
   },
   "homepage": "https://github.com/Teddy9710/smartpages#readme",
   "devDependencies": {
+    "@remotion/cli": "^4.0.469",
     "@types/chrome": "^0.1.40",
     "eslint": "^8.57.1",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "remotion": "^4.0.469",
+    "tslib": "^2.8.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.10",
     "vite-plugin-static-copy": "^4.1.0"
