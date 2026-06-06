@@ -212,6 +212,142 @@ ${bodyHtml}
 </html>`;
   }
 
+  static buildTextPdfDocument(lines) {
+    const pageWidth = 595;
+    const pageHeight = 842;
+    const margin = 54;
+    let y = pageHeight - margin;
+    const commands = ['BT', '/F1 12 Tf'];
+    (lines || []).forEach((line) => {
+      const size = Number(line?.size) || 12;
+      const text = SidePanelManager.escapePdfText(line?.text || '');
+      if (!text) return;
+      commands.push(`/F1 ${size} Tf`);
+      commands.push(`${margin} ${y} Td (${text}) Tj`);
+      commands.push(`${-margin} ${-Math.round(size * 1.55)} Td`);
+      y -= Math.round(size * 1.55);
+      if (y < margin) y = pageHeight - margin;
+    });
+    commands.push('ET');
+    const stream = commands.join('\n');
+    return SidePanelManager.buildPdfFromObjects([
+      '<< /Type /Catalog /Pages 2 0 R >>',
+      '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>`,
+      '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+      `<< /Length ${SidePanelManager.byteLength(stream)} >>\nstream\n${stream}\nendstream`
+    ]);
+  }
+
+  static buildImagePdfDocument(pages) {
+    const pageWidth = 595;
+    const pageHeight = 842;
+    const objects = ['<< /Type /Catalog /Pages 2 0 R >>'];
+    const pageRefs = [];
+    const imagePages = (pages || []).filter(page => page?.dataUrl);
+    const pageCount = Math.max(1, imagePages.length);
+    const pagesObjectIndex = 2;
+    let nextObjectIndex = 3;
+    imagePages.forEach((page, index) => {
+      const pageObjectIndex = nextObjectIndex;
+      const imageObjectIndex = nextObjectIndex + 1;
+      const contentObjectIndex = nextObjectIndex + 2;
+      nextObjectIndex += 3;
+      pageRefs.push(`${pageObjectIndex} 0 R`);
+      const imageBytes = SidePanelManager.dataUrlBase64ToBytes(page.dataUrl);
+      const draw = `q\n${pageWidth} 0 0 ${pageHeight} 0 0 cm\n/Im${index + 1} Do\nQ`;
+      objects[pageObjectIndex - 1] = `<< /Type /Page /Parent ${pagesObjectIndex} 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /XObject << /Im${index + 1} ${imageObjectIndex} 0 R >> >> /Contents ${contentObjectIndex} 0 R >>`;
+      objects[imageObjectIndex - 1] = {
+        header: `<< /Type /XObject /Subtype /Image /Width ${Math.max(1, Math.round(page.width || 1))} /Height ${Math.max(1, Math.round(page.height || 1))} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imageBytes.length} >>\nstream\n`,
+        body: imageBytes,
+        footer: '\nendstream'
+      };
+      objects[contentObjectIndex - 1] = `<< /Length ${SidePanelManager.byteLength(draw)} >>\nstream\n${draw}\nendstream`;
+    });
+    if (!imagePages.length) {
+      return SidePanelManager.buildTextPdfDocument([{ text: 'SmartPages Document', size: 18 }]);
+    }
+    objects[pagesObjectIndex - 1] = `<< /Type /Pages /Kids [${pageRefs.join(' ')}] /Count ${pageCount} >>`;
+    return SidePanelManager.buildPdfFromObjects(objects);
+  }
+
+  static buildPdfFromObjects(objects) {
+    const chunks = [SidePanelManager.stringToBytes('%PDF-1.4\n')];
+    const offsets = [0];
+    let offset = chunks[0].length;
+    objects.forEach((object, index) => {
+      offsets.push(offset);
+      const header = SidePanelManager.stringToBytes(`${index + 1} 0 obj\n`);
+      chunks.push(header);
+      offset += header.length;
+      if (typeof object === 'string') {
+        const bytes = SidePanelManager.stringToBytes(`${object}\n`);
+        chunks.push(bytes);
+        offset += bytes.length;
+      } else {
+        const headerBytes = SidePanelManager.stringToBytes(object.header);
+        const footerBytes = SidePanelManager.stringToBytes(object.footer);
+        chunks.push(headerBytes, object.body, footerBytes);
+        offset += headerBytes.length + object.body.length + footerBytes.length;
+      }
+      const end = SidePanelManager.stringToBytes('endobj\n');
+      chunks.push(end);
+      offset += end.length;
+    });
+    const xrefOffset = offset;
+    const xref = [
+      'xref',
+      `0 ${objects.length + 1}`,
+      '0000000000 65535 f ',
+      ...offsets.slice(1).map(value => `${String(value).padStart(10, '0')} 00000 n `),
+      'trailer',
+      `<< /Size ${objects.length + 1} /Root 1 0 R >>`,
+      'startxref',
+      String(xrefOffset),
+      '%%EOF'
+    ].join('\n');
+    chunks.push(SidePanelManager.stringToBytes(xref));
+    const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const output = new Uint8Array(total);
+    let cursor = 0;
+    chunks.forEach(chunk => {
+      output.set(chunk, cursor);
+      cursor += chunk.length;
+    });
+    return output;
+  }
+
+  static stringToBytes(value) {
+    const bytes = new Uint8Array(String(value).length);
+    for (let i = 0; i < bytes.length; i += 1) {
+      bytes[i] = String(value).charCodeAt(i) & 0xff;
+    }
+    return bytes;
+  }
+
+  static byteLength(value) {
+    return SidePanelManager.stringToBytes(value).length;
+  }
+
+  static escapePdfText(value) {
+    return String(value || '')
+      .replace(/[^\x20-\x7e]/g, '?')
+      .replace(/\\/g, '\\\\')
+      .replace(/\(/g, '\\(')
+      .replace(/\)/g, '\\)');
+  }
+
+  static dataUrlBase64ToBytes(dataUrl) {
+    const base64 = String(dataUrl || '').split(',')[1] || '';
+    if (typeof atob === 'function') {
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      return bytes;
+    }
+    return new Uint8Array(Buffer.from(base64, 'base64'));
+  }
+
   static escapeHtml(value) {
     return String(value)
       .replace(/&/g, '&amp;')
@@ -613,7 +749,7 @@ ${bodyHtml}
       reverted: 'Reverted to the previous version.',
       htmlExported: 'HTML file exported.',
       wordExported: 'Word file exported.',
-      pdfOpened: 'PDF print view opened. Choose Save as PDF in the print dialog.',
+      pdfExported: 'PDF file exported.',
       htmlPackageDone: 'HTML package exported: {{filename}}. Unzip it and open {{html}}.',
       htmlPackageFailed: 'Failed to generate HTML package. Please try again.',
       markdownPackageDone: 'Markdown package exported: {{filename}}. Unzip it and open {{markdown}}.',
@@ -647,7 +783,7 @@ ${bodyHtml}
       reverted: '已回退到优化前版本',
       htmlExported: 'HTML 文件已导出。',
       wordExported: 'Word 文件已导出。',
-      pdfOpened: 'PDF 打印页面已打开，请在打印对话框中选择另存为 PDF。',
+      pdfExported: 'PDF 文件已导出。',
       htmlPackageDone: 'HTML 资源包已导出：{{filename}}。解压后打开 {{html}}。',
       htmlPackageFailed: 'HTML 资源包生成失败，请重试',
       markdownPackageDone: 'Markdown 资源包已导出：{{filename}}。解压后打开 {{markdown}}。',
@@ -2386,22 +2522,125 @@ ${markdown}`;
     this._showNotification(this._t('wordExported'), 'success');
   }
 
-  exportPdfDocument() {
+  async exportPdfDocument() {
     this._ensureEditorContentFresh();
     const content = document.getElementById('markdown-editor')?.value;
     if (!content) return;
 
     const html = this._buildStandaloneHtmlFromCurrentContent(content);
     const title = this._extractDocumentTitle(content);
-    const pdfHtml = SidePanelManager.buildPdfPrintHtml(html, title);
-    const url = URL.createObjectURL(new Blob([pdfHtml], { type: 'text/html;charset=utf-8' }));
-    if (chrome?.tabs?.create) {
-      chrome.tabs.create({ url }, () => setTimeout(() => URL.revokeObjectURL(url), 30000));
-    } else {
-      const printWindow = window.open(url, '_blank', 'noopener');
-      if (printWindow) setTimeout(() => URL.revokeObjectURL(url), 30000);
+    const pdfBlob = await this._buildDirectPdfBlob(html, title);
+    this._downloadBlob(`${this._getExportBaseName(content)}.pdf`, pdfBlob);
+    this._showNotification(this._t('pdfExported'), 'success');
+  }
+
+  async _buildDirectPdfBlob(html, title) {
+    try {
+      const pages = await this._renderHtmlToPdfImagePages(html);
+      if (pages.length) {
+        return new Blob([SidePanelManager.buildImagePdfDocument(pages)], { type: 'application/pdf' });
+      }
+    } catch (error) {
+      console.warn('[Scribe:SidePanel] Image-based PDF export failed, using text fallback:', error);
     }
-    this._showNotification(this._t('pdfOpened'), 'success');
+    const lines = this._extractPdfTextLines(html, title);
+    return new Blob([SidePanelManager.buildTextPdfDocument(lines)], { type: 'application/pdf' });
+  }
+
+  async _renderHtmlToPdfImagePages(html) {
+    const bodyHtml = String(html || '').match(/<body[^>]*>([\s\S]*?)<\/body>/i)?.[1] || html;
+    const styleHtml = Array.from(String(html || '').matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi))
+      .map(match => match[1] || '')
+      .join('\n');
+    const width = 794;
+    const pageHeight = Math.round(width * 842 / 595);
+    const host = document.createElement('div');
+    host.style.cssText = [
+      'position: fixed',
+      'left: -12000px',
+      'top: 0',
+      `width: ${width}px`,
+      'background: #fff',
+      'color: #111',
+      'z-index: -1'
+    ].join(';');
+    host.innerHTML = `<style>${styleHtml}</style>${bodyHtml}`;
+    document.body.appendChild(host);
+    try {
+      await this._waitForImages(host);
+      await document.fonts?.ready?.catch?.(() => {});
+      const height = Math.max(pageHeight, Math.ceil(host.scrollHeight || host.offsetHeight || pageHeight));
+      const xhtml = `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;background:#fff;">${host.innerHTML}</div>`;
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject width="100%" height="100%">${xhtml}</foreignObject></svg>`;
+      const image = await this._loadImageFromDataUrl(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(image, 0, 0);
+
+      const pages = [];
+      for (let y = 0; y < height; y += pageHeight) {
+        const sliceHeight = Math.min(pageHeight, height - y);
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = width;
+        pageCanvas.height = pageHeight;
+        const pageCtx = pageCanvas.getContext('2d');
+        pageCtx.fillStyle = '#fff';
+        pageCtx.fillRect(0, 0, width, pageHeight);
+        pageCtx.drawImage(canvas, 0, y, width, sliceHeight, 0, 0, width, sliceHeight);
+        pages.push({ dataUrl: pageCanvas.toDataURL('image/jpeg', 0.92), width, height: pageHeight });
+      }
+      return pages;
+    } finally {
+      host.remove();
+    }
+  }
+
+  _waitForImages(root) {
+    const images = Array.from(root.querySelectorAll('img'));
+    return Promise.all(images.map(image => {
+      if (image.complete) return Promise.resolve();
+      return new Promise(resolve => {
+        image.onload = resolve;
+        image.onerror = resolve;
+      });
+    }));
+  }
+
+  _loadImageFromDataUrl(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = dataUrl;
+    });
+  }
+
+  _extractPdfTextLines(html, title) {
+    const lines = [{ text: title || 'SmartPages Document', size: 20 }];
+    const documentHtml = String(html || '');
+    const bodyHtml = documentHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i)?.[1] || documentHtml;
+    const text = bodyHtml
+      .replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, '\n# $1\n')
+      .replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, '\n## $1\n')
+      .replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, '\n### $1\n')
+      .replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, '\n- $1')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>|<\/tr>|<\/div>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"');
+    text.split('\n').map(line => line.trim()).filter(Boolean).forEach(line => {
+      const size = line.startsWith('# ') ? 18 : line.startsWith('## ') ? 15 : line.startsWith('### ') ? 13 : 11;
+      lines.push({ text: line.replace(/^#{1,3}\s+/, ''), size });
+    });
+    return lines;
   }
 
   _getHtmlImageMode() {

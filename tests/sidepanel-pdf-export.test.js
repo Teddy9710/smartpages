@@ -54,3 +54,15 @@ const SidePanelManager = loadSidePanelManager();
   assert.match(result, /main \{ color: #111; \}/);
   assert.match(result, /<main><h1>Guide<\/h1><p>Save as PDF\.<\/p><\/main>/);
 }
+
+{
+  const result = SidePanelManager.buildTextPdfDocument([
+    { text: 'Guide', size: 20 },
+    { text: 'Save as PDF.', size: 12 }
+  ]);
+
+  assert.ok(ArrayBuffer.isView(result));
+  assert.equal(Buffer.from(result.slice(0, 5)).toString('ascii'), '%PDF-');
+  assert.match(Buffer.from(result).toString('latin1'), /Guide/);
+  assert.match(Buffer.from(result).toString('latin1'), /Save as PDF\./);
+}
