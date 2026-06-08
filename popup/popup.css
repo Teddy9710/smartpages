@@ -75,6 +75,10 @@ body {
   animation: var(--animation-pulse);
 }
 
+.status-indicator.paused .status-dot {
+  background: #f59e0b;
+}
+
 #status-text {
   font-size: var(--font-size-sm);
   color: var(--color-text-tertiary);
@@ -544,6 +548,29 @@ body {
   background: currentColor;
 }
 
+.icon-pause::before,
+.icon-pause::after {
+  content: "";
+  width: 4px;
+  height: 13px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.icon-pause::before {
+  margin-right: 3px;
+}
+
+.icon-play::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-left: 11px solid currentColor;
+  margin-left: 2px;
+}
+
 .icon-editor::before {
   content: "";
   width: 13px;
@@ -584,6 +611,16 @@ body {
 .recording-info {
   background:
     linear-gradient(180deg, #fff7ed, #fff);
+}
+
+.paused-info {
+  background:
+    linear-gradient(180deg, #fffbeb, #fff);
+}
+
+.paused-badge {
+  background: #fffbeb;
+  color: #b45309;
 }
 
 .recording-badge {

@@ -3,7 +3,7 @@
  */
 
 /** Recording states for the extension */
-type RecordingState = 'IDLE' | 'RECORDING' | 'PAUSED' | 'STOPPED';
+type RecordingState = 'idle' | 'recording' | 'paused' | 'stopped';
 
 /** A single recorded step in a session */
 interface RecordedStep {

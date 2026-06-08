@@ -15,6 +15,9 @@
 const ButtonIds = {
   START: 'btn-start',
   STOP: 'btn-stop',
+  STOP_PAUSED: 'btn-stop-paused',
+  PAUSE: 'btn-pause',
+  RESUME: 'btn-resume',
   OPEN_EDITOR: 'btn-open-editor',
   NEW_RECORDING: 'btn-new-recording',
   SETTINGS: 'btn-settings'
@@ -24,6 +27,7 @@ const ButtonIds = {
 const StateIds = {
   IDLE: 'idle-state',
   RECORDING: 'recording-state',
+  PAUSED: 'paused-state',
   STOPPED: 'stopped-state'
 };
 
@@ -48,6 +52,12 @@ class PopupManager {
 
     /** @type {boolean} */
     this.isStoppingRecording = false;
+
+    /** @type {boolean} */
+    this.isPausingRecording = false;
+
+    /** @type {boolean} */
+    this.isResumingRecording = false;
 
     this.init();
   }
@@ -75,6 +85,9 @@ class PopupManager {
     const buttonActions = {
       [ButtonIds.START]: () => this.startRecording(),
       [ButtonIds.STOP]: () => this.stopRecording(),
+      [ButtonIds.STOP_PAUSED]: () => this.stopRecording(),
+      [ButtonIds.PAUSE]: () => this.pauseRecording(),
+      [ButtonIds.RESUME]: () => this.resumeRecording(),
       [ButtonIds.OPEN_EDITOR]: () => this.openEditor(),
       [ButtonIds.NEW_RECORDING]: () => this.newRecording(),
       [ButtonIds.SETTINGS]: () => this.openSettings()
@@ -124,7 +137,7 @@ class PopupManager {
 
       if (response?.state) {
         this._updateState(response.state, response);
-        if (response.state === 'recording' && response.stepCount !== undefined) {
+        if ((response.state === 'recording' || response.state === 'paused') && response.stepCount !== undefined) {
           this._updateStepCount(response.stepCount);
         }
       } else {
@@ -156,18 +169,35 @@ class PopupManager {
       case 'idle':
         this._showState(StateIds.IDLE);
         statusIndicator?.classList.remove('recording');
+        statusIndicator?.classList.remove('paused');
         if (statusText) statusText.textContent = '未录制';
         break;
 
       case 'recording':
         this._showState(StateIds.RECORDING);
         statusIndicator?.classList.add('recording');
+        statusIndicator?.classList.remove('paused');
         if (statusText) statusText.textContent = '录制中';
+        break;
+
+      case 'paused':
+        this._showState(StateIds.PAUSED);
+        statusIndicator?.classList.remove('recording');
+        statusIndicator?.classList.add('paused');
+        if (statusText) statusText.textContent = this.language === 'en-US' ? 'Paused' : '录制已暂停';
+        {
+          const stepCount = response?.stepCount ?? this.currentStepCount;
+          if (stepCount !== undefined) {
+            this.currentStepCount = stepCount;
+            this._updateStepCount(stepCount);
+          }
+        }
         break;
 
       case 'stopped':
         this._showState(StateIds.STOPPED);
         statusIndicator?.classList.remove('recording');
+        statusIndicator?.classList.remove('paused');
         if (statusText) statusText.textContent = '已停止';
 
         // Update total steps
@@ -209,6 +239,20 @@ class PopupManager {
     if (stepCountEl) {
       stepCountEl.textContent = count;
     }
+    const pausedStepCountEl = document.getElementById('paused-step-count');
+    if (pausedStepCountEl) {
+      pausedStepCountEl.textContent = count;
+    }
+  }
+
+  _setButtonText(buttonId, value) {
+    const el = document.getElementById(buttonId);
+    if (!el) return null;
+    const icon = el.querySelector('.icon');
+    el.textContent = '';
+    if (icon) el.appendChild(icon);
+    el.append(document.createTextNode(icon ? ` ${value}` : value));
+    return el;
   }
 
   async _applyLanguage() {
@@ -223,7 +267,10 @@ class PopupManager {
       start: 'Start Recording',
       hint: 'Click to start recording your workflow',
       recording: 'Recording',
+      paused: 'Recording Paused',
       steps: 'steps',
+      pause: 'Pause Recording',
+      resume: 'Resume Recording',
       stop: 'Stop Recording',
       success: 'Recording Complete',
       totalPrefix: 'Recorded ',
@@ -238,7 +285,10 @@ class PopupManager {
       start: '开始录制',
       hint: '点击开始录制您的操作流程',
       recording: '正在录制',
+      paused: '录制已暂停',
       steps: '个步骤',
+      pause: '暂停录制',
+      resume: '继续录制',
       stop: '停止录制',
       success: '录制完成',
       totalPrefix: '共记录 ',
@@ -255,10 +305,7 @@ class PopupManager {
     const setButton = (selector, value) => {
       const el = document.querySelector(selector);
       if (!el) return;
-      const icon = el.querySelector('.icon');
-      el.textContent = '';
-      if (icon) el.appendChild(icon);
-      el.append(document.createTextNode(icon ? ` ${value}` : value));
+      this._setButtonText(el.id, value);
     };
 
     set('.header h1', text.title);
@@ -275,6 +322,17 @@ class PopupManager {
       stepCountContainer.append(document.createTextNode(` ${text.steps}`));
     }
     setButton('#btn-stop', text.stop);
+    setButton('#btn-pause', text.pause);
+    set('.paused-badge', text.paused);
+    const pausedStepCount = document.getElementById('paused-step-count');
+    const pausedStepCountContainer = document.querySelector('.paused-info .step-count');
+    if (pausedStepCountContainer && pausedStepCount) {
+      pausedStepCountContainer.textContent = '';
+      pausedStepCountContainer.appendChild(pausedStepCount);
+      pausedStepCountContainer.append(document.createTextNode(` ${text.steps}`));
+    }
+    setButton('#btn-resume', text.resume);
+    setButton('#btn-stop-paused', text.stop);
     set('.success-message h2', text.success);
     const totalSteps = document.getElementById('total-steps');
     const stepInfo = document.querySelector('.step-info');
@@ -348,11 +406,13 @@ class PopupManager {
       this.isStoppingRecording = true;
 
       // Disable button to prevent double-click
-      const btn = document.getElementById(ButtonIds.STOP);
-      if (btn) {
+      const stopText = this.language === 'en-US' ? 'Stopping...' : '停止中...';
+      const stopButtons = [ButtonIds.STOP, ButtonIds.STOP_PAUSED]
+        .map(id => this._setButtonText(id, stopText))
+        .filter(Boolean);
+      stopButtons.forEach(btn => {
         btn.disabled = true;
-        btn.textContent = this.language === 'en-US' ? 'Stopping...' : '停止中...';
-      }
+      });
 
       const response = await sendMessage({ type: 'STOP_RECORDING' });
 
@@ -374,11 +434,87 @@ class PopupManager {
       this.isStoppingRecording = false;
 
       // Restore button state
-      const btn = document.getElementById(ButtonIds.STOP);
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = this.language === 'en-US' ? 'Stop Recording' : '停止录制';
+      const restoredStopText = this.language === 'en-US' ? 'Stop Recording' : '停止录制';
+      [ButtonIds.STOP, ButtonIds.STOP_PAUSED].forEach(id => {
+        const btn = this._setButtonText(id, restoredStopText);
+        if (btn) btn.disabled = false;
+      });
+    }
+  }
+
+  /**
+   * Pauses the current recording without finalizing the session
+   * @async
+   */
+  async pauseRecording() {
+    try {
+      console.log('[Scribe:Popup] Pausing recording...');
+
+      if (this.isPausingRecording) {
+        console.log('[Scribe:Popup] Pause recording already in progress');
+        return;
       }
+
+      this.isPausingRecording = true;
+
+      const btn = this._setButtonText(ButtonIds.PAUSE, this.language === 'en-US' ? 'Pausing...' : '暂停中...');
+      if (btn) btn.disabled = true;
+
+      const response = await sendMessage({ type: 'PAUSE_RECORDING' });
+      console.log('[Scribe:Popup] Pause recording response:', response);
+
+      if (response?.success) {
+        await this._refreshState();
+      } else {
+        this._showError(response?.error || this._t('pauseFailed'));
+        await this._refreshState();
+      }
+    } catch (error) {
+      console.error('[Scribe:Popup] Failed to pause recording:', error);
+      this._showError(this._t('pauseFailedRetry'));
+      await this._refreshState();
+    } finally {
+      this.isPausingRecording = false;
+      const btn = this._setButtonText(ButtonIds.PAUSE, this.language === 'en-US' ? 'Pause Recording' : '暂停录制');
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  /**
+   * Resumes a paused recording session
+   * @async
+   */
+  async resumeRecording() {
+    try {
+      console.log('[Scribe:Popup] Resuming recording...');
+
+      if (this.isResumingRecording) {
+        console.log('[Scribe:Popup] Resume recording already in progress');
+        return;
+      }
+
+      this.isResumingRecording = true;
+
+      const btn = this._setButtonText(ButtonIds.RESUME, this.language === 'en-US' ? 'Resuming...' : '继续中...');
+      if (btn) btn.disabled = true;
+
+      const response = await sendMessage({ type: 'RESUME_RECORDING' });
+      console.log('[Scribe:Popup] Resume recording response:', response);
+
+      if (response?.success) {
+        await this._refreshState();
+      } else {
+        this._showError(response?.error || this._t('resumeFailed'));
+        await this._refreshState();
+      }
+    } catch (error) {
+      console.error('[Scribe:Popup] Failed to resume recording:', error);
+      this._showError(this._t('resumeFailedRetry'));
+      await this._refreshState();
+    } finally {
+      this.isResumingRecording = false;
+      const btn = this._setButtonText(ButtonIds.RESUME, this.language === 'en-US' ? 'Resume Recording' : '继续录制');
+      if (btn) btn.disabled = false;
     }
   }
 
@@ -422,6 +558,10 @@ class PopupManager {
       startFailedRetry: isEn ? 'Failed to start recording. Please try again.' : '启动录制失败，请重试',
       stopFailed: isEn ? 'Failed to stop recording' : '停止录制失败',
       stopFailedRetry: isEn ? 'Failed to stop recording. Please try again.' : '停止录制失败，请重试',
+      pauseFailed: isEn ? 'Failed to pause recording' : '暂停录制失败',
+      pauseFailedRetry: isEn ? 'Failed to pause recording. Please try again.' : '暂停录制失败，请重试',
+      resumeFailed: isEn ? 'Failed to resume recording' : '继续录制失败',
+      resumeFailedRetry: isEn ? 'Failed to resume recording. Please try again.' : '继续录制失败，请重试',
       openEditorFailed: isEn ? 'Unable to open editor' : '无法打开编辑器',
       resetFailedRetry: isEn ? 'Reset failed. Please try again.' : '重置失败，请重试'
     };

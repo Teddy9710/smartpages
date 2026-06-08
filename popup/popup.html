@@ -41,6 +41,26 @@
           <span class="icon icon-stop" aria-hidden="true"></span>
           停止录制
         </button>
+        <button id="btn-pause" class="btn btn-secondary">
+          <span class="icon icon-pause" aria-hidden="true"></span>
+          暂停录制
+        </button>
+      </div>
+
+      <!-- 暂停状态 -->
+      <div id="paused-state" class="state">
+        <div class="recording-info paused-info">
+          <div class="recording-badge paused-badge"><span class="pause-dot" aria-hidden="true"></span>录制已暂停</div>
+          <div class="step-count"><span id="paused-step-count">0</span> 个步骤</div>
+        </div>
+        <button id="btn-resume" class="btn btn-primary">
+          <span class="icon icon-play" aria-hidden="true"></span>
+          继续录制
+        </button>
+        <button id="btn-stop-paused" class="btn btn-danger">
+          <span class="icon icon-stop" aria-hidden="true"></span>
+          停止录制
+        </button>
       </div>
 
       <!-- 已停止状态 -->

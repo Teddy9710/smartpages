@@ -24,6 +24,7 @@ importScripts('../utils/common.js');
 const RecordingState = {
   IDLE: 'idle',
   RECORDING: 'recording',
+  PAUSED: 'paused',
   STOPPED: 'stopped'
 };
 
@@ -90,7 +91,7 @@ class RecordingManager {
    */
   async startRecording(tabId) {
     await this.ensureHydrated();
-    if (this.state === RecordingState.RECORDING) {
+    if (this.state === RecordingState.RECORDING || this.state === RecordingState.PAUSED) {
       throw new ExtensionError('录制已在进行中', 'RECORDING_IN_PROGRESS');
     }
 
@@ -118,7 +119,7 @@ class RecordingManager {
    */
   async stopRecording() {
     await this.ensureHydrated();
-    if (this.state !== RecordingState.RECORDING) {
+    if (this.state !== RecordingState.RECORDING && this.state !== RecordingState.PAUSED) {
       throw new ExtensionError('没有正在进行的录制', 'NO_RECORDING');
     }
 
@@ -137,6 +138,47 @@ class RecordingManager {
     });
 
     return { success: true, session: this.currentSession };
+  }
+
+  /**
+   * Pauses the current recording session without finalizing it.
+   * @async
+   * @returns {Promise<{success: boolean}>}
+   * @throws {ExtensionError} If no recording is in progress
+   */
+  async pauseRecording() {
+    await this.ensureHydrated();
+    if (this.state !== RecordingState.RECORDING || !this.currentSession) {
+      throw new ExtensionError('没有正在进行的录制', 'NO_RECORDING');
+    }
+
+    await this._stopContentScriptListening();
+    this.state = RecordingState.PAUSED;
+    await this._persistState();
+    this._notifyStateChanged();
+
+    return { success: true };
+  }
+
+  /**
+   * Resumes a paused recording session.
+   * @async
+   * @returns {Promise<{success: boolean}>}
+   * @throws {ExtensionError} If no recording is paused
+   */
+  async resumeRecording() {
+    await this.ensureHydrated();
+    if (this.state !== RecordingState.PAUSED || !this.currentSession || !this.tabId) {
+      throw new ExtensionError('没有已暂停的录制', 'NO_PAUSED_RECORDING');
+    }
+
+    await this._validateTab(this.tabId);
+    await this._startContentScriptListening(this.tabId, { resetOnFailure: false });
+    this.state = RecordingState.RECORDING;
+    await this._persistState();
+    this._notifyStateChanged();
+
+    return { success: true };
   }
 
   /**
@@ -531,7 +573,7 @@ class RecordingManager {
 
   async clearRecordingCache() {
     await this.ensureHydrated();
-    if (this.state === RecordingState.RECORDING) {
+    if (this.state === RecordingState.RECORDING || this.state === RecordingState.PAUSED) {
       throw new ExtensionError('录制进行中，不能清理录制缓存', 'RECORDING_IN_PROGRESS');
     }
     this.state = RecordingState.IDLE;
@@ -785,6 +827,8 @@ const RECORDING_MESSAGE_TYPES = [
   'GET_RECORDING_STATE',
   'GET_STORAGE_USAGE',
   'START_RECORDING',
+  'PAUSE_RECORDING',
+  'RESUME_RECORDING',
   'STOP_RECORDING',
   'RESET_RECORDING',
   'CLEAR_RECORDING_CACHE',
@@ -862,6 +906,12 @@ async function handleRecordingMessage(message, sender) {
         return { error: 'Missing tabId parameter' };
       }
       return await recordingManager.startRecording(message.tabId);
+
+    case 'PAUSE_RECORDING':
+      return await recordingManager.pauseRecording();
+
+    case 'RESUME_RECORDING':
+      return await recordingManager.resumeRecording();
 
     case 'STOP_RECORDING':
       return await recordingManager.stopRecording();

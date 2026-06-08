@@ -73,6 +73,46 @@ const RecordingManager = loadRecordingManager();
   );
   assert.equal(manager.state, 'recording');
   assert.deepEqual(manager.currentSession, { sessionId: 's1', steps: [] });
+
+  const pauseManager = new RecordingManager();
+  const listeningMessages = [];
+  pauseManager.state = 'recording';
+  pauseManager.tabId = 7;
+  pauseManager.currentSession = { sessionId: 'pause-session', steps: [] };
+  pauseManager._persistState = async () => {};
+  pauseManager._notifyStateChanged = () => {};
+  pauseManager._enqueueScreenshotCapture = async () => {};
+  pauseManager._startContentScriptListening = async (tabId) => {
+    listeningMessages.push({ tabId, type: 'START_LISTENING' });
+  };
+  pauseManager._stopContentScriptListening = async () => {
+    listeningMessages.push({ tabId: pauseManager.tabId, type: 'STOP_LISTENING' });
+  };
+
+  const pauseResponse = await pauseManager.pauseRecording();
+  assert.equal(pauseResponse.success, true);
+  assert.equal(pauseManager.state, 'paused');
+  assert.deepEqual(listeningMessages, [{ tabId: 7, type: 'STOP_LISTENING' }]);
+
+  const originalWarn = console.warn;
+  try {
+    console.warn = () => {};
+    await pauseManager.addStep({ type: 'click', timestamp: 1 });
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert.equal(pauseManager.currentSession.steps.length, 0);
+
+  const resumeResponse = await pauseManager.resumeRecording();
+  assert.equal(resumeResponse.success, true);
+  assert.equal(pauseManager.state, 'recording');
+  assert.deepEqual(listeningMessages, [
+    { tabId: 7, type: 'STOP_LISTENING' },
+    { tabId: 7, type: 'START_LISTENING' }
+  ]);
+
+  await pauseManager.addStep({ type: 'click', timestamp: 2 });
+  assert.equal(pauseManager.currentSession.steps.length, 1);
 })().catch(error => {
   console.error(error);
   process.exit(1);
