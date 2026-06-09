@@ -212,6 +212,68 @@ ${bodyHtml}
 </html>`;
   }
 
+  static buildDeliverableHtml(html, options = {}) {
+    const value = String(html || '');
+    const bodyHtml = value.match(/<body[^>]*>([\s\S]*?)<\/body>/i)?.[1] || value;
+    const styleHtml = Array.from(value.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi))
+      .map(match => match[1] || '')
+      .join('\n');
+    const parsedTitle = value.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim();
+    const title = options.title || parsedTitle || 'SmartPages Document';
+    const sourceTitle = options.sourceTitle || '';
+    const sourceUrl = options.sourceUrl || '';
+    const stepCount = Number.isFinite(options.stepCount) ? options.stepCount : null;
+    const generatedAt = options.generatedAt || new Date().toISOString();
+    const metaItems = [
+      sourceTitle ? `Source: ${SidePanelManager.escapeHtml(sourceTitle)}` : '',
+      sourceUrl ? `URL: ${SidePanelManager.escapeHtml(sourceUrl)}` : '',
+      stepCount !== null ? `Steps: ${stepCount}` : '',
+      `Generated: ${SidePanelManager.escapeHtml(generatedAt.slice(0, 10))}`
+    ].filter(Boolean);
+
+    return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="Generator" content="SmartPages">
+  <title>${SidePanelManager.escapeHtml(title)}</title>
+  <style>
+${styleHtml}
+    @page { size: A4; margin: 16mm; }
+    body { background: #fff; color: #111827; }
+    .smartpages-export-meta {
+      margin: 0 0 24px;
+      padding: 12px 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      background: #f9fafb;
+      color: #4b5563;
+      font: 12px/1.5 Arial, sans-serif;
+    }
+    .smartpages-export-meta span { display: inline-block; margin-right: 16px; }
+    img { max-width: 100%; height: auto; break-inside: avoid; page-break-inside: avoid; }
+    table, blockquote, pre, figure { break-inside: avoid; page-break-inside: avoid; }
+    h1, h2, h3 { break-after: avoid; page-break-after: avoid; }
+    @media print {
+      html, body { background: #fff !important; }
+      main { box-shadow: none !important; min-height: auto !important; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="smartpages-export-meta">${metaItems.map(item => `<span>${item}</span>`).join('')}</div>
+${bodyHtml}
+</body>
+</html>`;
+  }
+
+  static getStepScreenshotStatus(step) {
+    if (step?.includeScreenshot === false) return 'hidden';
+    return step?.screenshot ? 'available' : 'missing';
+  }
+
   static buildTextPdfDocument(lines) {
     const pageWidth = 595;
     const pageHeight = 842;
@@ -1005,6 +1067,28 @@ ${bodyHtml}
           }),
           createElement('button', {
             type: 'button',
+            className: 'step-action-btn',
+            textContent: step.important ? (isEn ? 'Normal' : '普通') : (isEn ? 'Key' : '关键'),
+            onclick: () => this._toggleStepImportant(index)
+          }),
+          createElement('button', {
+            type: 'button',
+            className: 'step-action-btn',
+            textContent: SidePanelManager.getStepScreenshotStatus(step) === 'hidden'
+              ? (isEn ? 'Show shot' : '显示截图')
+              : (isEn ? 'Hide shot' : '隐藏截图'),
+            disabled: !step.screenshot,
+            onclick: () => this._toggleStepScreenshot(index)
+          }),
+          createElement('button', {
+            type: 'button',
+            className: 'step-action-btn',
+            textContent: isEn ? 'Merge next' : '合并下步',
+            disabled: index === steps.length - 1,
+            onclick: () => this._mergeStepWithNext(index)
+          }),
+          createElement('button', {
+            type: 'button',
             className: 'step-action-btn step-action-danger',
             textContent: isEn ? 'Delete' : '删除',
             onclick: () => this._deleteStep(index)
@@ -1013,12 +1097,35 @@ ${bodyHtml}
       ]);
 
       const meta = createElement('div', { className: 'step-editor-meta' }, this._getStepMeta(step));
+      const screenshotPreview = this._createStepScreenshotPreview(step);
       container.appendChild(createElement('article', { className: 'step-editor-item' }, [
         header,
+        screenshotPreview,
         textarea,
         meta
       ]));
     });
+  }
+
+  _createStepScreenshotPreview(step) {
+    const status = SidePanelManager.getStepScreenshotStatus(step);
+    const isEn = this.language === 'en-US';
+    const statusText = {
+      available: isEn ? 'Screenshot included' : '截图将随文档输出',
+      hidden: isEn ? 'Screenshot hidden' : '截图已隐藏',
+      missing: isEn ? 'No screenshot' : '无截图'
+    }[status];
+    const children = [
+      createElement('span', { className: `step-screenshot-status ${status}`, textContent: statusText })
+    ];
+    if (status === 'available') {
+      children.unshift(createElement('img', {
+        className: 'step-screenshot-thumb',
+        src: step.screenshot,
+        alt: isEn ? 'Step screenshot preview' : '步骤截图预览'
+      }));
+    }
+    return createElement('div', { className: 'step-screenshot-preview' }, children);
   }
 
   _getStepEditableAction(step) {
@@ -1054,13 +1161,20 @@ ${bodyHtml}
     if (formValueText !== '未记录') parts.push(`${isEn ? 'Value' : '值'}: ${formValueText}`);
     const selectionText = this._formatSelection(step.selection);
     if (selectionText !== '未记录') parts.push(`${isEn ? 'Selection' : '选择'}: ${selectionText}`);
+    if (step.important) parts.push(isEn ? 'Marked as key step' : '已标记关键步骤');
+    const screenshotStatus = SidePanelManager.getStepScreenshotStatus(step);
+    if (screenshotStatus !== 'available') {
+      parts.push(screenshotStatus === 'hidden'
+        ? (isEn ? 'Screenshot hidden' : '截图已隐藏')
+        : (isEn ? 'Screenshot missing' : '截图缺失'));
+    }
     return parts.join(' · ') || (isEn ? 'No additional metadata' : '无更多元数据');
   }
 
   _getStepTypeLabel(type) {
     const labels = this.language === 'en-US'
-      ? { click: 'Click', input: 'Input', change: 'Change', submit: 'Submit', navigate: 'Navigation', scroll: 'Scroll' }
-      : { click: '点击', input: '输入', change: '变更', submit: '提交', navigate: '跳转', scroll: '滚动' };
+      ? { click: 'Click', input: 'Input', change: 'Change', submit: 'Submit', navigate: 'Navigation', scroll: 'Scroll', merged: 'Merged' }
+      : { click: '点击', input: '输入', change: '变更', submit: '提交', navigate: '跳转', scroll: '滚动', merged: '合并' };
     return labels[type] || (this.language === 'en-US' ? 'Action' : '操作');
   }
 
@@ -1077,6 +1191,47 @@ ${bodyHtml}
     const steps = this.session?.steps;
     if (!Array.isArray(steps) || index < 0 || index >= steps.length) return;
     steps.splice(index, 1);
+    this._renderStepEditor();
+  }
+
+  _toggleStepImportant(index) {
+    const step = this.session?.steps?.[index];
+    if (!step) return;
+    step.important = !step.important;
+    this._renderStepEditor();
+  }
+
+  _toggleStepScreenshot(index) {
+    const step = this.session?.steps?.[index];
+    if (!step?.screenshot) return;
+    step.includeScreenshot = step.includeScreenshot === false;
+    this._renderStepEditor();
+  }
+
+  _mergeStepWithNext(index) {
+    const steps = this.session?.steps;
+    if (!Array.isArray(steps) || index < 0 || index >= steps.length - 1) return;
+
+    const current = steps[index] || {};
+    const next = steps[index + 1] || {};
+    const currentAction = this._getStepEditableAction(current).trim();
+    const nextAction = this._getStepEditableAction(next).trim();
+    const action = [currentAction, nextAction].filter(Boolean).join('\n→ ');
+    steps.splice(index, 2, {
+      ...current,
+      type: 'merged',
+      action,
+      elementName: [current.elementName || current.text, next.elementName || next.text].filter(Boolean).join(' / '),
+      selector: next.selector || current.selector,
+      rawSelector: next.rawSelector || current.rawSelector,
+      x: Number.isFinite(next.x) ? next.x : current.x,
+      y: Number.isFinite(next.y) ? next.y : current.y,
+      screenshot: next.screenshot || current.screenshot,
+      includeScreenshot: next.includeScreenshot === false && current.includeScreenshot === false ? false : undefined,
+      important: Boolean(current.important || next.important),
+      mergedCount: (current.mergedCount || 1) + (next.mergedCount || 1),
+      mergedTypes: [...(current.mergedTypes || [current.type]).filter(Boolean), ...(next.mergedTypes || [next.type]).filter(Boolean)]
+    });
     this._renderStepEditor();
   }
 
@@ -1267,7 +1422,7 @@ ${bodyHtml}
 
     return this.session.steps.map((step, index) => {
       const num = index + 1;
-      const screenshotMarker = `[截图${num}]`;
+      const screenshotMarker = this._getStepScreenshotReference(step, num);
       if (step.type === 'navigate') {
         return [
           `步骤 ${num}｜页面跳转`,
@@ -1294,11 +1449,14 @@ ${bodyHtml}
         click: '用户点击',
         input: '用户输入',
         change: '用户变更',
-        submit: '表单提交'
+        submit: '表单提交',
+        merged: '合并操作'
       }[step.type] || '用户操作';
 
       return [
         `步骤 ${num}｜${actionTypeLabel}`,
+        step.important ? '- 重要性：关键步骤' : '',
+        step.mergedCount ? `- 合并来源：${step.mergedCount} 个连续步骤` : '',
         `- 操作描述：${step.action || '点击页面元素'}`,
         `- 元件名称：${step.elementName || step.text || '未识别名称'}`,
         `- 元件角色：${step.elementRole || '未知'}`,
@@ -1312,8 +1470,15 @@ ${bodyHtml}
         `- 点击坐标：${Number.isFinite(step.x) && Number.isFinite(step.y) ? `${step.x}, ${step.y}` : '未记录'}`,
         `- 页面语义快照：\n${this._formatPageSnapshot(step.pageSnapshot)}`,
         `- 截图：${screenshotMarker}`
-      ].join('\n');
+      ].filter(Boolean).join('\n');
     }).join('\n\n');
+  }
+
+  _getStepScreenshotReference(step, stepNumber) {
+    const status = SidePanelManager.getStepScreenshotStatus(step);
+    if (status === 'hidden') return 'hidden by user';
+    if (status === 'missing') return 'missing';
+    return `[截图${stepNumber}]`;
   }
 
   _formatElementState(state) {
@@ -1496,6 +1661,7 @@ ${bodyHtml}
     let result = String(content || '');
     this.session.steps.forEach((step, index) => {
       if (!step.screenshot) return;
+      if (SidePanelManager.getStepScreenshotStatus(step) === 'hidden') return;
       const stepNumber = index + 1;
       const placeholder = `[截图${stepNumber}]`;
       const englishPlaceholder = `[Screenshot ${stepNumber}]`;
@@ -2512,7 +2678,7 @@ ${markdown}`;
     const content = document.getElementById('markdown-editor')?.value;
     if (!content) return;
 
-    const html = this._buildStandaloneHtmlFromCurrentContent(content);
+    const html = this._buildDeliverableHtmlFromCurrentContent(content);
     const title = this._extractDocumentTitle(content);
     const wordHtml = SidePanelManager.buildWordMhtmlDocument(html, title);
     this._downloadBlob(
@@ -2527,7 +2693,7 @@ ${markdown}`;
     const content = document.getElementById('markdown-editor')?.value;
     if (!content) return;
 
-    const html = this._buildStandaloneHtmlFromCurrentContent(content);
+    const html = this._buildDeliverableHtmlFromCurrentContent(content);
     const title = this._extractDocumentTitle(content);
     const pdfBlob = await this._buildDirectPdfBlob(html, title);
     this._downloadBlob(`${this._getExportBaseName(content)}.pdf`, pdfBlob);
@@ -2891,6 +3057,16 @@ ${markdown}`;
       html = this._buildStandaloneHtml(contentWithScreenshots);
     }
     return this._applyHtmlExportStyle(html);
+  }
+
+  _buildDeliverableHtmlFromCurrentContent(content) {
+    const html = this._buildStandaloneHtmlFromCurrentContent(content);
+    return SidePanelManager.buildDeliverableHtml(html, {
+      title: this._extractDocumentTitle(content),
+      sourceTitle: this.session?.pageTitle || '',
+      sourceUrl: this.session?.pageUrl || '',
+      stepCount: this.session?.steps?.length || 0
+    });
   }
 
   _buildStandaloneHtml(markdown) {

@@ -82,3 +82,24 @@ const SidePanelManager = loadSidePanelManager();
   assert.match(result, /Content-Transfer-Encoding: base64/);
   assert.match(result, /AAAA/);
 }
+
+{
+  const result = SidePanelManager.buildDeliverableHtml(
+    '<!DOCTYPE html><html><head><title>Guide</title></head><body><main><h1>Guide</h1><img src="data:image/png;base64,AAAA"></main></body></html>',
+    {
+      title: 'Guide',
+      sourceTitle: 'Admin Console',
+      sourceUrl: 'https://example.test/admin',
+      stepCount: 3,
+      generatedAt: '2026-06-09T00:00:00.000Z'
+    }
+  );
+
+  assert.match(result, /<title>Guide<\/title>/);
+  assert.match(result, /Source: Admin Console/);
+  assert.match(result, /https:\/\/example\.test\/admin/);
+  assert.match(result, /Steps: 3/);
+  assert.match(result, /@page \{ size: A4; margin: 16mm; \}/);
+  assert.match(result, /break-inside: avoid/);
+  assert.match(result, /max-width: 100%/);
+}

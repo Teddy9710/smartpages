@@ -408,6 +408,48 @@ body {
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
+.step-screenshot-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+.step-screenshot-thumb {
+  width: 72px;
+  height: 46px;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg-secondary);
+}
+
+.step-screenshot-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-secondary);
+}
+
+.step-screenshot-status.available {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.step-screenshot-status.hidden {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.step-screenshot-status.missing {
+  color: #6b7280;
+  background: #f3f4f6;
+}
+
 .step-editor-meta {
   margin-top: 7px;
   color: var(--color-text-tertiary);
