@@ -34,6 +34,9 @@ function loadRecordingManager() {
         captureVisibleTab: () => Promise.resolve('data:image/png;base64,test'),
         sendMessage: () => Promise.reject(new Error('Receiving end does not exist'))
       },
+      scripting: {
+        executeScript: () => Promise.resolve()
+      },
       storage: {
         local: {
           getBytesInUse: () => Promise.resolve(0)
@@ -52,10 +55,10 @@ function loadRecordingManager() {
   };
   sandbox.globalThis = sandbox;
   vm.runInNewContext(`${source}\nglobalThis.RecordingManager = RecordingManager;`, sandbox);
-  return sandbox.RecordingManager;
+  return { RecordingManager: sandbox.RecordingManager, sandbox };
 }
 
-const RecordingManager = loadRecordingManager();
+const { RecordingManager, sandbox } = loadRecordingManager();
 
 (async () => {
   assert.equal(RecordingManager.getScreenshotThrottleDelay(1000, 0, 600), 0);
@@ -113,6 +116,77 @@ const RecordingManager = loadRecordingManager();
 
   await pauseManager.addStep({ type: 'click', timestamp: 2 });
   assert.equal(pauseManager.currentSession.steps.length, 1);
+
+  const screenshotManager = new RecordingManager();
+  const screenshotEvents = [];
+  screenshotManager.state = 'recording';
+  screenshotManager.tabId = 9;
+  screenshotManager.currentSession = { sessionId: 'screenshot-session', steps: [{ type: 'click' }] };
+  screenshotManager._persistState = async () => {};
+  screenshotManager._compressScreenshot = async dataUrl => dataUrl;
+  sandbox.chrome.storage.local.getBytesInUse = () => Promise.resolve(0);
+  sandbox.chrome.tabs.sendMessage = async (tabId, message) => {
+    screenshotEvents.push({ tabId, type: message.type });
+    return { success: true };
+  };
+  sandbox.chrome.tabs.captureVisibleTab = async () => {
+    screenshotEvents.push({ type: 'CAPTURE_VISIBLE_TAB' });
+    return 'data:image/png;base64,screenshot';
+  };
+
+  await screenshotManager._captureScreenshotForStep(0);
+  assert.deepEqual(screenshotEvents, [
+    { tabId: 9, type: 'HIDE_RECORDING_INDICATOR' },
+    { type: 'CAPTURE_VISIBLE_TAB' },
+    { tabId: 9, type: 'RESTORE_RECORDING_INDICATOR' }
+  ]);
+  assert.equal(screenshotManager.currentSession.steps[0].screenshot, 'data:image/png;base64,screenshot');
+
+  const edgeBlockedManager = new RecordingManager();
+  const injectionTargets = [];
+  let injectionAttempt = 0;
+  edgeBlockedManager.state = 'idle';
+  edgeBlockedManager.currentSession = null;
+  edgeBlockedManager._persistState = async () => {};
+  edgeBlockedManager._notifyStateChanged = () => {};
+  edgeBlockedManager._hydrate = true;
+
+  sandbox.chrome.scripting.executeScript = async (details) => {
+    injectionTargets.push(details.target);
+    injectionAttempt += 1;
+    if (injectionAttempt === 1) {
+      throw new Error('Blocked');
+    }
+    return [];
+  };
+  sandbox.chrome.tabs.sendMessage = async () => ({ success: true });
+
+  const originalWarnForBlockedInjection = console.warn;
+  try {
+    console.warn = () => {};
+  await edgeBlockedManager._injectContentScript(9);
+  } finally {
+    console.warn = originalWarnForBlockedInjection;
+  }
+  assert.deepEqual(JSON.parse(JSON.stringify(injectionTargets)), [
+    { tabId: 9, allFrames: true },
+    { tabId: 9 }
+  ]);
+
+  const fullyBlockedManager = new RecordingManager();
+  sandbox.chrome.scripting.executeScript = async () => {
+    throw new Error('Blocked');
+  };
+  const originalWarnForFullyBlockedInjection = console.warn;
+  try {
+    console.warn = () => {};
+    await assert.rejects(
+      () => fullyBlockedManager._injectContentScript(10),
+      error => error.code === 'CONTENT_SCRIPT_ERROR' && !String(error.message).includes('Blocked')
+    );
+  } finally {
+    console.warn = originalWarnForFullyBlockedInjection;
+  }
 })().catch(error => {
   console.error(error);
   process.exit(1);

@@ -33,6 +33,14 @@ SmartPages 是一个浏览器扩展，用来把真实网页操作流程转换为
 
 ---
 
+## 示例与宣传素材
+
+- [示例文档目录](docs/examples/README.md)：包含 Bug 复现说明、后台操作手册、客服知识库 3 个典型输出样例。
+- [转化资产包](docs/conversion-assets.md)：整理了发帖可复用的 GIF、截图、社媒图和短介绍。
+- [中文演示 GIF](docs/assets/smartpages-demo-zh.gif)：适合放在 README、掘金、V2EX 和即刻首屏。
+
+---
+
 ## 界面一览
 
 <p align="center">

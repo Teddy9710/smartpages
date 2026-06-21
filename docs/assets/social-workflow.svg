@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">SmartPages workflow card</title>
+  <desc id="desc">A social sharing card showing the SmartPages workflow from recording to export.</desc>
+  <rect width="1200" height="630" fill="#f8fafc"/>
+  <rect x="54" y="54" width="1092" height="522" rx="20" fill="#ffffff" stroke="#dbe3ee" stroke-width="2"/>
+  <text x="92" y="126" fill="#0f172a" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="42" font-weight="700">SmartPages 怎么工作？</text>
+  <text x="92" y="178" fill="#475569" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="24">把真实网页操作流程转换成带截图的结构化文档。</text>
+
+  <g transform="translate(90 258)">
+    <rect width="210" height="150" rx="16" fill="#eff6ff" stroke="#bfdbfe"/>
+    <circle cx="48" cy="50" r="18" fill="#2563eb"/>
+    <text x="42" y="58" fill="#ffffff" font-family="Arial, sans-serif" font-size="22" font-weight="700">1</text>
+    <text x="30" y="96" fill="#1e3a8a" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700">开始录制</text>
+    <text x="30" y="126" fill="#475569" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="18">点击扩展按钮</text>
+  </g>
+  <path d="M322 333h76" stroke="#94a3b8" stroke-width="4" stroke-linecap="round"/>
+  <path d="M398 333l-14-10v20z" fill="#94a3b8"/>
+
+  <g transform="translate(420 258)">
+    <rect width="210" height="150" rx="16" fill="#f0fdfa" stroke="#99f6e4"/>
+    <circle cx="48" cy="50" r="18" fill="#0f766e"/>
+    <text x="42" y="58" fill="#ffffff" font-family="Arial, sans-serif" font-size="22" font-weight="700">2</text>
+    <text x="30" y="96" fill="#134e4a" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700">执行操作</text>
+    <text x="30" y="126" fill="#475569" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="18">点击、输入、跳转</text>
+  </g>
+  <path d="M652 333h76" stroke="#94a3b8" stroke-width="4" stroke-linecap="round"/>
+  <path d="M728 333l-14-10v20z" fill="#94a3b8"/>
+
+  <g transform="translate(750 258)">
+    <rect width="210" height="150" rx="16" fill="#fefce8" stroke="#fde68a"/>
+    <circle cx="48" cy="50" r="18" fill="#ca8a04"/>
+    <text x="42" y="58" fill="#ffffff" font-family="Arial, sans-serif" font-size="22" font-weight="700">3</text>
+    <text x="30" y="96" fill="#713f12" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700">AI 生成</text>
+    <text x="30" y="126" fill="#475569" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="18">Markdown / HTML</text>
+  </g>
+
+  <g transform="translate(92 472)">
+    <rect width="1028" height="56" rx="12" fill="#f1f5f9"/>
+    <text x="28" y="36" fill="#334155" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="22">适合 QA 复现、产品手册、客服知识库、实施培训文档</text>
+  </g>
+</svg>
+

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">SmartPages pain point card</title>
+  <desc id="desc">A social sharing card showing the pain of writing operation documents manually.</desc>
+  <rect width="1200" height="630" fill="#f8fafc"/>
+  <rect x="54" y="54" width="1092" height="522" rx="20" fill="#ffffff" stroke="#dbe3ee" stroke-width="2"/>
+  <text x="92" y="126" fill="#0f172a" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="42" font-weight="700">还在手写网页操作文档？</text>
+  <text x="92" y="178" fill="#475569" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="24">截图、编号、描述步骤、整理格式，每次都从头来一遍。</text>
+
+  <g transform="translate(92 236)">
+    <rect width="470" height="250" rx="16" fill="#fff7ed" stroke="#fed7aa"/>
+    <text x="30" y="54" fill="#9a3412" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="26" font-weight="700">手写流程</text>
+    <text x="30" y="98" fill="#7c2d12" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="22">1. 操作一步，截图一次</text>
+    <text x="30" y="136" fill="#7c2d12" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="22">2. 回忆按钮和页面反馈</text>
+    <text x="30" y="174" fill="#7c2d12" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="22">3. 重新整理成 Markdown</text>
+    <text x="30" y="218" fill="#ea580c" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="28" font-weight="700">慢，而且容易漏步骤</text>
+  </g>
+
+  <g transform="translate(650 236)">
+    <rect width="470" height="250" rx="16" fill="#ecfeff" stroke="#a5f3fc"/>
+    <text x="30" y="54" fill="#155e75" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="26" font-weight="700">SmartPages</text>
+    <text x="30" y="98" fill="#164e63" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="22">1. 录制真实网页操作</text>
+    <text x="30" y="136" fill="#164e63" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="22">2. 自动保留步骤截图</text>
+    <text x="30" y="174" fill="#164e63" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="22">3. AI 生成可编辑文档</text>
+    <text x="30" y="218" fill="#0891b2" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="28" font-weight="700">录一次，直接出初稿</text>
+  </g>
+
+  <text x="92" y="540" fill="#2563eb" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700">Open-source alternative to Scribe &amp; Tango</text>
+</svg>
+

@@ -29,6 +29,14 @@ The extension records key actions such as clicks, text input, and page navigatio
 
 ---
 
+## Examples And Launch Assets
+
+- [Example documents](docs/examples/README.md): QA bug reproduction, product user guide, and support knowledge base examples.
+- [Conversion asset pack](docs/conversion-assets.md): Reusable GIFs, screenshots, social cards, and short copy for promotion.
+- [Chinese demo GIF](docs/assets/smartpages-demo-zh.gif): Useful for README, launch posts, and community replies.
+
+---
+
 ## Interface
 
 <p align="center">

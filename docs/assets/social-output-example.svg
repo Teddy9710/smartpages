@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">SmartPages output example card</title>
+  <desc id="desc">A social sharing card previewing a generated operation document.</desc>
+  <rect width="1200" height="630" fill="#f8fafc"/>
+  <rect x="54" y="54" width="1092" height="522" rx="20" fill="#ffffff" stroke="#dbe3ee" stroke-width="2"/>
+  <text x="92" y="126" fill="#0f172a" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="42" font-weight="700">生成结果长什么样？</text>
+  <text x="92" y="178" fill="#475569" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="24">录制结束后，直接得到可编辑、可导出的操作文档。</text>
+
+  <g transform="translate(92 232)">
+    <rect width="500" height="288" rx="16" fill="#0f172a"/>
+    <rect x="28" y="28" width="444" height="38" rx="8" fill="#1e293b"/>
+    <circle cx="50" cy="47" r="6" fill="#ef4444"/>
+    <circle cx="72" cy="47" r="6" fill="#f59e0b"/>
+    <circle cx="94" cy="47" r="6" fill="#22c55e"/>
+    <rect x="28" y="92" width="180" height="18" rx="4" fill="#93c5fd"/>
+    <rect x="28" y="128" width="386" height="14" rx="4" fill="#cbd5e1"/>
+    <rect x="28" y="156" width="342" height="14" rx="4" fill="#cbd5e1"/>
+    <rect x="28" y="184" width="400" height="14" rx="4" fill="#cbd5e1"/>
+    <rect x="28" y="224" width="164" height="42" rx="8" fill="#2563eb"/>
+    <text x="52" y="252" fill="#ffffff" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="18" font-weight="700">复制 Markdown</text>
+  </g>
+
+  <g transform="translate(650 232)">
+    <text x="0" y="32" fill="#1e293b" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="28" font-weight="700">示例文档结构</text>
+    <text x="0" y="82" fill="#334155" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="23"># 创建优惠券操作手册</text>
+    <text x="0" y="126" fill="#475569" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="21">1. 进入优惠券管理 [截图1]</text>
+    <text x="0" y="166" fill="#475569" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="21">2. 新建优惠券 [截图2]</text>
+    <text x="0" y="206" fill="#475569" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="21">3. 配置优惠规则 [截图3]</text>
+    <text x="0" y="246" fill="#475569" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="21">4. 保存并发布 [截图4]</text>
+    <rect x="0" y="276" width="406" height="50" rx="10" fill="#ecfeff"/>
+    <text x="22" y="309" fill="#0e7490" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="21" font-weight="700">支持继续编辑、AI 优化、导出 HTML</text>
+  </g>
+</svg>
+

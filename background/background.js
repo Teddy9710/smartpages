@@ -384,11 +384,33 @@ class RecordingManager {
       });
     } catch (error) {
       const message = error?.message || '';
+      if (this._isAllFramesInjectionBlocked(error)) {
+        console.warn('[Scribe:Background] All-frame injection blocked; retrying main frame only:', error);
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId },
+            files: ['content/recorder.js']
+          });
+        } catch (mainFrameError) {
+          if (this._isAllFramesInjectionBlocked(mainFrameError)) {
+            throw new ExtensionError(
+              '当前页面禁止扩展脚本注入，无法开始录制。请换到普通网页，或刷新目标页面后重试。',
+              'CONTENT_SCRIPT_ERROR'
+            );
+          }
+          throw mainFrameError;
+        }
+        return;
+      }
       if (message.includes('Cannot access') || message.includes('Extension manifest')) {
         throw new ExtensionError('当前页面无法注入录制脚本，请换到普通网页或刷新页面后重试。', 'CONTENT_SCRIPT_ERROR');
       }
       throw error;
     }
+  }
+
+  _isAllFramesInjectionBlocked(error) {
+    return String(error?.message || error).trim() === 'Blocked';
   }
 
   /**
@@ -492,10 +514,15 @@ class RecordingManager {
       await this._waitForScreenshotQuota();
       this._lastScreenshotCaptureAt = Date.now();
       try {
-        return await chrome.tabs.captureVisibleTab(null, {
-          format: 'png',
-          quality: SCREENSHOT_QUALITY
-        });
+        await this._hideRecordingIndicatorForScreenshot();
+        try {
+          return await chrome.tabs.captureVisibleTab(null, {
+            format: 'png',
+            quality: SCREENSHOT_QUALITY
+          });
+        } finally {
+          await this._restoreRecordingIndicatorAfterScreenshot();
+        }
       } catch (error) {
         lastError = error;
         if (!this._isScreenshotQuotaError(error) || attempt >= SCREENSHOT_CAPTURE_QUOTA_RETRY_LIMIT) {
@@ -505,6 +532,23 @@ class RecordingManager {
       }
     }
     throw lastError;
+  }
+
+  async _hideRecordingIndicatorForScreenshot() {
+    await this._sendRecordingIndicatorMessage('HIDE_RECORDING_INDICATOR');
+  }
+
+  async _restoreRecordingIndicatorAfterScreenshot() {
+    await this._sendRecordingIndicatorMessage('RESTORE_RECORDING_INDICATOR');
+  }
+
+  async _sendRecordingIndicatorMessage(type) {
+    if (!this.tabId) return;
+    try {
+      await chrome.tabs.sendMessage(this.tabId, { type });
+    } catch (error) {
+      console.warn('[Scribe:Background] Failed to update recording indicator:', error);
+    }
   }
 
   async _waitForScreenshotQuota() {
