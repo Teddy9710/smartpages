@@ -128,15 +128,17 @@ const { document, messageListener } = loadRecorder();
 assert.equal(typeof messageListener, 'function');
 
 messageListener({ type: 'START_LISTENING' }, {}, () => {});
-const indicator = document.getElementById('scribe-recording-indicator');
-assert.ok(indicator, 'recording indicator should appear when recording starts');
-assert.match(indicator.textContent, /SmartPages/);
+assert.equal(
+  document.getElementById('scribe-recording-indicator'),
+  null,
+  'recording indicator should not appear when recording starts'
+);
 
 messageListener({ type: 'HIDE_RECORDING_INDICATOR' }, {}, () => {});
 assert.equal(document.getElementById('scribe-recording-indicator'), null);
 
 messageListener({ type: 'RESTORE_RECORDING_INDICATOR' }, {}, () => {});
-assert.ok(document.getElementById('scribe-recording-indicator'), 'recording indicator should be restored while listening');
+assert.equal(document.getElementById('scribe-recording-indicator'), null);
 
 messageListener({ type: 'STOP_LISTENING' }, {}, () => {});
 assert.equal(document.getElementById('scribe-recording-indicator'), null);

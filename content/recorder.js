@@ -88,9 +88,6 @@
   /** @type {Element|null} Cached feedback style element */
   let feedbackStyleElement = null;
 
-  /** @type {Element|null} Cached recording status indicator */
-  let recordingIndicatorElement = null;
-
   /** @type {{pushState: Function, replaceState: Function}|null} Original history methods */
   let originalHistoryMethods = null;
 
@@ -835,64 +832,18 @@
   }
 
   /**
-   * Shows a persistent in-page status while recording is active.
-   */
-  function showRecordingIndicator() {
-    if (recordingIndicatorElement?.isConnected) return;
-
-    hideRecordingIndicator();
-
-    const indicator = document.createElement('div');
-    indicator.id = 'scribe-recording-indicator';
-    indicator.setAttribute('role', 'status');
-    indicator.setAttribute('aria-live', 'polite');
-    indicator.textContent = 'SmartPages Recording';
-    indicator.style.cssText = [
-      'position: fixed',
-      'top: 16px',
-      'right: 16px',
-      'z-index: 2147483647',
-      'display: inline-flex',
-      'align-items: center',
-      'gap: 8px',
-      'padding: 9px 12px',
-      'border-radius: 8px',
-      'background: rgba(185, 28, 28, 0.94)',
-      'color: #fff',
-      'font: 600 13px/1.2 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      'box-shadow: 0 8px 24px rgba(15, 23, 42, 0.22)',
-      'pointer-events: none'
-    ].join(';');
-
-    const dot = document.createElement('span');
-    dot.setAttribute('aria-hidden', 'true');
-    dot.style.cssText = [
-      'width: 8px',
-      'height: 8px',
-      'border-radius: 50%',
-      'background: #fff',
-      'box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.2)'
-    ].join(';');
-    indicator.prepend(dot);
-
-    (document.body || document.documentElement).appendChild(indicator);
-    recordingIndicatorElement = indicator;
-  }
-
-  /**
-   * Removes the persistent in-page recording status.
+   * Removes any legacy in-page recording status.
    */
   function hideRecordingIndicator() {
-    const existing = recordingIndicatorElement || document.getElementById('scribe-recording-indicator');
+    const existing = document.getElementById('scribe-recording-indicator');
     if (existing) existing.remove();
-    recordingIndicatorElement = null;
   }
 
   /**
-   * Restores the recording indicator only while recording is active.
+   * Recording status is intentionally not shown in the page.
    */
   function restoreRecordingIndicator() {
-    if (isListening) showRecordingIndicator();
+    hideRecordingIndicator();
   }
 
   // ==========================================================================
@@ -1108,12 +1059,12 @@
   function startListening() {
     if (isListening) {
       console.log('[Scribe:Content] Already listening');
-      showRecordingIndicator();
+      hideRecordingIndicator();
       return;
     }
 
     isListening = true;
-    showRecordingIndicator();
+    hideRecordingIndicator();
 
     // Use capture phase for more reliable event interception
     document.addEventListener('pointerdown', recordPointerDown, true);
