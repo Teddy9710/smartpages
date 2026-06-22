@@ -212,6 +212,23 @@ ${bodyHtml}
 </html>`;
   }
 
+  static buildPdfSvgMarkup(xhtml, width, height) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject width="100%" height="100%">${xhtml}</foreignObject></svg>`;
+  }
+
+  static serializePdfHostXhtml(host, width) {
+    const wrapper = document.createElement('div');
+    wrapper.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+    wrapper.setAttribute('style', `width:${width}px;background:#fff;`);
+    Array.from(host.childNodes || []).forEach(node => {
+      wrapper.appendChild(node.cloneNode(true));
+    });
+    if (typeof XMLSerializer !== 'undefined') {
+      return new XMLSerializer().serializeToString(wrapper);
+    }
+    return `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;background:#fff;">${host.innerHTML}</div>`;
+  }
+
   static buildDeliverableHtml(html, options = {}) {
     const value = String(html || '');
     const bodyHtml = value.match(/<body[^>]*>([\s\S]*?)<\/body>/i)?.[1] || value;
@@ -282,10 +299,15 @@ ${bodyHtml}
     const commands = ['BT', '/F1 12 Tf'];
     (lines || []).forEach((line) => {
       const size = Number(line?.size) || 12;
-      const text = SidePanelManager.escapePdfText(line?.text || '');
+      const text = SidePanelManager.normalizePdfFallbackText(line?.text || '');
       if (!text) return;
-      commands.push(`/F1 ${size} Tf`);
-      commands.push(`${margin} ${y} Td (${text}) Tj`);
+      const useCjkFont = /[^\x20-\x7e]/.test(text);
+      const fontName = useCjkFont ? 'F2' : 'F1';
+      const textOperand = useCjkFont
+        ? `<${SidePanelManager.encodePdfUtf16Hex(text)}>`
+        : `(${SidePanelManager.escapePdfLiteralText(text)})`;
+      commands.push(`/${fontName} ${size} Tf`);
+      commands.push(`${margin} ${y} Td ${textOperand} Tj`);
       commands.push(`${-margin} ${-Math.round(size * 1.55)} Td`);
       y -= Math.round(size * 1.55);
       if (y < margin) y = pageHeight - margin;
@@ -295,9 +317,11 @@ ${bodyHtml}
     return SidePanelManager.buildPdfFromObjects([
       '<< /Type /Catalog /Pages 2 0 R >>',
       '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>`,
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 4 0 R /F2 6 0 R >> >> /Contents 5 0 R >>`,
       '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-      `<< /Length ${SidePanelManager.byteLength(stream)} >>\nstream\n${stream}\nendstream`
+      `<< /Length ${SidePanelManager.byteLength(stream)} >>\nstream\n${stream}\nendstream`,
+      '<< /Type /Font /Subtype /Type0 /BaseFont /STSong-Light /Encoding /UniGB-UCS2-H /DescendantFonts [7 0 R] >>',
+      '<< /Type /Font /Subtype /CIDFontType0 /BaseFont /STSong-Light /CIDSystemInfo << /Registry (Adobe) /Ordering (GB1) /Supplement 5 >> >>'
     ]);
   }
 
@@ -392,11 +416,36 @@ ${bodyHtml}
   }
 
   static escapePdfText(value) {
+    return SidePanelManager.escapePdfLiteralText(SidePanelManager.normalizePdfFallbackText(value));
+  }
+
+  static escapePdfLiteralText(value) {
     return String(value || '')
-      .replace(/[^\x20-\x7e]/g, '?')
       .replace(/\\/g, '\\\\')
       .replace(/\(/g, '\\(')
       .replace(/\)/g, '\\)');
+  }
+
+  static normalizePdfFallbackText(value) {
+    return String(value || '')
+      .normalize('NFKC')
+      .replace(/[\u{1f300}-\u{1faff}\u{2600}-\u{27bf}]/gu, '')
+      .replace(/[\u00b7\u2022\u2027\u2219]/g, '-')
+      .replace(/[\u2010-\u2015\u2212]/g, '-')
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201c\u201d]/g, '"')
+      .replace(/\u3000/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  static encodePdfUtf16Hex(value) {
+    const normalized = String(value || '');
+    let hex = 'FEFF';
+    for (let i = 0; i < normalized.length; i += 1) {
+      hex += normalized.charCodeAt(i).toString(16).padStart(4, '0');
+    }
+    return hex.toUpperCase();
   }
 
   static dataUrlBase64ToBytes(dataUrl) {
@@ -2688,16 +2737,30 @@ ${markdown}`;
     this._showNotification(this._t('wordExported'), 'success');
   }
 
-  async exportPdfDocument() {
+  exportPdfDocument() {
     this._ensureEditorContentFresh();
     const content = document.getElementById('markdown-editor')?.value;
     if (!content) return;
 
     const html = this._buildDeliverableHtmlFromCurrentContent(content);
     const title = this._extractDocumentTitle(content);
-    const pdfBlob = await this._buildDirectPdfBlob(html, title);
-    this._downloadBlob(`${this._getExportBaseName(content)}.pdf`, pdfBlob);
+    const printHtml = SidePanelManager.buildPdfPrintHtml(html, title);
+    this._openPdfPrintWindow(printHtml, `${this._getExportBaseName(content)}.html`);
     this._showNotification(this._t('pdfExported'), 'success');
+  }
+
+  _openPdfPrintWindow(printHtml, fallbackFilename = 'SmartPages-PDF.html') {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow?.document) {
+      this._downloadBlob(fallbackFilename, new Blob([printHtml], { type: 'text/html;charset=utf-8' }));
+      return false;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(printHtml);
+    printWindow.document.close();
+    printWindow.focus?.();
+    return true;
   }
 
   async _buildDirectPdfBlob(html, title) {
@@ -2736,9 +2799,9 @@ ${markdown}`;
       await this._waitForImages(host);
       await document.fonts?.ready?.catch?.(() => {});
       const height = Math.max(pageHeight, Math.ceil(host.scrollHeight || host.offsetHeight || pageHeight));
-      const xhtml = `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;background:#fff;">${host.innerHTML}</div>`;
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject width="100%" height="100%">${xhtml}</foreignObject></svg>`;
-      const image = await this._loadImageFromDataUrl(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+      const xhtml = SidePanelManager.serializePdfHostXhtml(host, width);
+      const svg = SidePanelManager.buildPdfSvgMarkup(xhtml, width, height);
+      const image = await this._loadImageFromSvg(svg);
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
@@ -2780,8 +2843,29 @@ ${markdown}`;
     return new Promise((resolve, reject) => {
       const image = new Image();
       image.onload = () => resolve(image);
-      image.onerror = reject;
+      image.onerror = () => reject(new Error(`Failed to load PDF render image (${String(dataUrl || '').slice(0, 64)}...)`));
       image.src = dataUrl;
+    });
+  }
+
+  _loadImageFromSvg(svg) {
+    if (typeof Blob === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+      return this._loadImageFromDataUrl(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+    }
+
+    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      const cleanup = () => URL.revokeObjectURL?.(url);
+      image.onload = () => {
+        cleanup();
+        resolve(image);
+      };
+      image.onerror = () => {
+        cleanup();
+        reject(new Error('Failed to load PDF render SVG blob'));
+      };
+      image.src = url;
     });
   }
 
