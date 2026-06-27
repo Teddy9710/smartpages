@@ -203,11 +203,6 @@ ${styleHtml}
 </head>
 <body>
 ${bodyHtml}
-  <script>
-    window.addEventListener('load', () => {
-      setTimeout(() => window.print(), 250);
-    });
-  </script>
 </body>
 </html>`;
   }
@@ -2756,10 +2751,15 @@ ${markdown}`;
       return false;
     }
 
+    printWindow.addEventListener('load', () => {
+      setTimeout(() => {
+        printWindow.focus?.();
+        printWindow.print?.();
+      }, 250);
+    }, { once: true });
     printWindow.document.open();
     printWindow.document.write(printHtml);
     printWindow.document.close();
-    printWindow.focus?.();
     return true;
   }
 

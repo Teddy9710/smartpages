@@ -57,6 +57,8 @@ const { SidePanelManager, sandbox } = loadSidePanelManager();
   assert.match(result, /@media print/);
   assert.match(result, /main \{ color: #111; \}/);
   assert.match(result, /<main><h1>Guide<\/h1><p>Save as PDF\.<\/p><\/main>/);
+  assert.doesNotMatch(result, /<script\b/i);
+  assert.doesNotMatch(result, /window\.print\s*\(/);
 }
 
 {
@@ -93,7 +95,8 @@ const { SidePanelManager, sandbox } = loadSidePanelManager();
 }
 
 {
-  const writes = [];
+  const events = [];
+  let loadHandler;
   const manager = Object.create(SidePanelManager.prototype);
   manager._ensureEditorContentFresh = () => {};
   manager._buildDeliverableHtmlFromCurrentContent = () => '<!DOCTYPE html><html><body><main><h1>Guide</h1></main></body></html>';
@@ -104,19 +107,33 @@ const { SidePanelManager, sandbox } = loadSidePanelManager();
     throw new Error('direct PDF builder should not be used');
   };
   sandbox.document.getElementById = id => (id === 'markdown-editor' ? { value: '# Guide' } : null);
+  sandbox.setTimeout = (callback, delay) => {
+    events.push(`timeout:${delay}`);
+    callback();
+  };
   sandbox.window.open = () => ({
-    document: {
-      open: () => writes.push('open'),
-      write: html => writes.push(html),
-      close: () => writes.push('close')
+    addEventListener: (type, handler, options) => {
+      events.push(`listener:${type}:${options?.once === true}`);
+      loadHandler = handler;
     },
-    focus: () => writes.push('focus')
+    document: {
+      open: () => events.push('open'),
+      write: html => events.push(html),
+      close: () => events.push('close')
+    },
+    focus: () => events.push('focus'),
+    print: () => events.push('print')
   });
 
   manager.exportPdfDocument();
 
-  assert.equal(writes[0], 'open');
-  assert.match(writes[1], /window\.print\(\)/);
-  assert.match(writes[1], /<main><h1>Guide<\/h1><\/main>/);
-  assert.equal(writes[2], 'close');
+  assert.equal(events[0], 'listener:load:true');
+  assert.equal(events[1], 'open');
+  assert.match(events[2], /<main><h1>Guide<\/h1><\/main>/);
+  assert.equal(events[3], 'close');
+  assert.equal(typeof loadHandler, 'function');
+
+  loadHandler();
+
+  assert.deepEqual(events.slice(4), ['timeout:250', 'focus', 'print']);
 }
