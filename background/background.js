@@ -337,7 +337,6 @@ class RecordingManager {
   async _startContentScriptListening(tabId, options = {}) {
     const { resetOnFailure = true } = options;
     try {
-      await this._injectContentScript(tabId);
       await chrome.tabs.sendMessage(tabId, { type: 'START_LISTENING' });
     } catch (error) {
       if (this._isContentScriptConnectionError(error)) {

@@ -77,6 +77,64 @@ const { RecordingManager, sandbox } = loadRecordingManager();
   assert.equal(manager.state, 'recording');
   assert.deepEqual(manager.currentSession, { sessionId: 's1', steps: [] });
 
+  const existingReceiverManager = new RecordingManager();
+  const existingReceiverEvents = [];
+  existingReceiverManager._injectContentScript = async tabId => {
+    existingReceiverEvents.push({ kind: 'inject', tabId });
+  };
+  sandbox.chrome.tabs.sendMessage = async (tabId, message) => {
+    existingReceiverEvents.push({ kind: 'message', tabId, type: message.type });
+    return { success: true };
+  };
+
+  await existingReceiverManager._startContentScriptListening(11);
+
+  assert.deepEqual(JSON.parse(JSON.stringify(existingReceiverEvents)), [
+    { kind: 'message', tabId: 11, type: 'START_LISTENING' }
+  ]);
+
+  const recoveryManager = new RecordingManager();
+  const recoveryEvents = [];
+  let recoveryMessageAttempt = 0;
+  recoveryManager._injectContentScript = async tabId => {
+    recoveryEvents.push({ kind: 'inject', tabId });
+  };
+  sandbox.chrome.tabs.sendMessage = async () => {
+    recoveryMessageAttempt += 1;
+    recoveryEvents.push({ kind: 'message', attempt: recoveryMessageAttempt });
+    if (recoveryMessageAttempt === 1) {
+      throw new Error('Could not establish connection. Receiving end does not exist.');
+    }
+    return { success: true };
+  };
+
+  await recoveryManager._startContentScriptListening(12);
+
+  assert.deepEqual(JSON.parse(JSON.stringify(recoveryEvents)), [
+    { kind: 'message', attempt: 1 },
+    { kind: 'inject', tabId: 12 },
+    { kind: 'message', attempt: 2 }
+  ]);
+
+  const nonConnectionManager = new RecordingManager();
+  let nonConnectionInjectionCount = 0;
+  nonConnectionManager.state = 'recording';
+  nonConnectionManager.currentSession = { sessionId: 'permission-error', steps: [] };
+  nonConnectionManager._injectContentScript = async () => {
+    nonConnectionInjectionCount += 1;
+  };
+  sandbox.chrome.tabs.sendMessage = async () => {
+    throw new Error('Permission denied');
+  };
+
+  await assert.rejects(
+    () => nonConnectionManager._startContentScriptListening(13),
+    /Permission denied/
+  );
+  assert.equal(nonConnectionInjectionCount, 0);
+  assert.equal(nonConnectionManager.state, 'idle');
+  assert.equal(nonConnectionManager.currentSession, null);
+
   const pauseManager = new RecordingManager();
   const listeningMessages = [];
   pauseManager.state = 'recording';
