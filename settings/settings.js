@@ -99,6 +99,9 @@ const ApiProviders = {
 // ============================================================================
 
 class SettingsManager {
+  /** @private API Key 仅保存在内存中，不写入 DOM */
+  #apiKeyMemory = '';
+
   constructor() {
     this.config = {
       apiKey: '',
@@ -236,8 +239,8 @@ class SettingsManager {
     const styleGuideInput = document.getElementById('style-guide');
 
     if (apiKeyInput && this.config.apiKey) {
+      this.#apiKeyMemory = this.config.apiKey;
       apiKeyInput.value = maskApiKey(this.config.apiKey);
-      apiKeyInput.dataset.fullKey = this.config.apiKey;
     }
     if (appLanguageSelect) appLanguageSelect.value = this.config.appLanguage || DEFAULT_APP_LANGUAGE;
     if (apiProviderSelect) apiProviderSelect.value = this._inferApiProvider(this.config.baseUrl);
@@ -412,9 +415,10 @@ class SettingsManager {
     const customPromptInput = document.getElementById('custom-prompt');
     const styleGuideInput = document.getElementById('style-guide');
 
-    let apiKey = apiKeyInput?.dataset.fullKey || apiKeyInput?.value || '';
+    let apiKey = this.#apiKeyMemory || apiKeyInput?.value || '';
     const inputKeyValue = apiKeyInput?.value || '';
-    if (inputKeyValue !== maskApiKey(apiKey)) apiKey = inputKeyValue.trim();
+    // If user typed something different from the mask, use the typed value
+    if (inputKeyValue && inputKeyValue !== maskApiKey(this.#apiKeyMemory)) apiKey = inputKeyValue.trim();
 
     const isEn = (appLanguageSelect?.value || this.config.appLanguage || DEFAULT_APP_LANGUAGE) === 'en-US';
     if (!apiKey) { this._showTestResult(isEn ? 'Please enter an API Key' : '请输入API Key', 'error'); return; }
@@ -470,7 +474,7 @@ class SettingsManager {
         styleGuide: this.config.styleGuide,
         documentExamples: this.config.documentExamples
       });
-      if (apiKeyInput) { apiKeyInput.dataset.fullKey = this.config.apiKey; apiKeyInput.value = maskApiKey(this.config.apiKey); }
+      if (apiKeyInput) { this.#apiKeyMemory = this.config.apiKey; apiKeyInput.value = maskApiKey(this.config.apiKey); }
       this._showTestResult(isEn ? '✅ Settings saved' : '✅ 配置已保存', 'success');
       setTimeout(() => this._hideTestResult(), 3000);
     } catch (error) {
@@ -500,8 +504,8 @@ class SettingsManager {
     const testBtn = document.getElementById('btn-test');
     if (!apiKeyInput || !testBtn) return;
 
-    let apiKey = apiKeyInput.dataset.fullKey || apiKeyInput.value;
-    if (apiKeyInput.value !== maskApiKey(apiKey)) apiKey = apiKeyInput.value.trim();
+    let apiKey = this.#apiKeyMemory || apiKeyInput.value;
+    if (apiKeyInput.value !== maskApiKey(this.#apiKeyMemory)) apiKey = apiKeyInput.value.trim();
     const baseUrl = baseUrlInput?.value.trim() || 'https://api.openai.com/v1';
     const modelName = modelNameInput?.value.trim() || 'gpt-3.5-turbo';
 
