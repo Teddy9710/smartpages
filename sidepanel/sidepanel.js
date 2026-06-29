@@ -494,6 +494,7 @@ ${bodyHtml}
     this.session = null;
     this.config = null;
     this.originalBeforeOptimization = null;
+    this.isGenerating = false;
     this.isOptimizing = false;
     this.documentApi = new DocumentApi();
     this.docUI = new DocUIHelper({
@@ -1296,6 +1297,11 @@ ${bodyHtml}
   }
 
   async generateDocument() {
+    if (this.isGenerating) return;
+    this.isGenerating = true;
+    const generateButton = document.getElementById('btn-generate');
+    if (generateButton) generateButton.disabled = true;
+
     try {
       const selectedValue = document.querySelector('input[name="description"]:checked')?.value;
       let description = '';
@@ -1342,6 +1348,9 @@ ${bodyHtml}
     } catch (error) {
       console.error('[Scribe:SidePanel] Generation failed:', error);
       this.showErrorState(this._formatUserFacingError(error, this._t('generationFailed')));
+    } finally {
+      this.isGenerating = false;
+      if (generateButton) generateButton.disabled = false;
     }
   }
 
