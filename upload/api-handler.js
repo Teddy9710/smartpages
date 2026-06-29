@@ -79,9 +79,10 @@ class APIHandler {
     if (query) {
       const lowerQuery = query.toLowerCase();
       results = results.filter(doc => 
-        doc.filename.toLowerCase().includes(lowerQuery) ||
-        doc.description.toLowerCase().includes(lowerQuery) ||
-        doc.tags.some(tag => tag.toLowerCase().includes(lowerQuery))
+        String(doc.filename || '').toLowerCase().includes(lowerQuery) ||
+        String(doc.description || '').toLowerCase().includes(lowerQuery) ||
+        (Array.isArray(doc.tags) ? doc.tags : [])
+          .some(tag => String(tag || '').toLowerCase().includes(lowerQuery))
       );
     }
 
