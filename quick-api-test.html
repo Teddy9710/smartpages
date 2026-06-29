@@ -2,6 +2,8 @@
 <html>
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https:; frame-ancestors 'none'; form-action 'none'; base-uri 'none'">
+  <meta name="referrer" content="no-referrer">
   <title>API连接测试</title>
   <style>
     body {
@@ -47,6 +49,7 @@
 </head>
 <body>
   <h1>🔧 API连接测试工具</h1>
+  <div class="section warning"><strong>仅供开发调试使用，不要输入生产环境的 API Key</strong></div>
 
   <div class="section">
     <h2>步骤1：加载API配置</h2>
@@ -57,7 +60,7 @@
   <div class="section">
     <h2>步骤2：手动输入配置</h2>
     <label>API Key:</label>
-    <input type="password" id="api-key" placeholder="sk-xxxxxxxxxxxxx">
+    <input type="password" id="api-key" placeholder="sk-xxxxxxxxxxxxx" autocomplete="new-password" spellcheck="false">
 
     <label>Base URL:</label>
     <input type="text" id="base-url" placeholder="https://api.deepseek.com">
@@ -205,10 +208,6 @@
       document.getElementById('model-name').value = 'gpt-3.5-turbo';
     }
 
-    // 自动加载配置
-    window.addEventListener('DOMContentLoaded', () => {
-      loadConfig();
-    });
   </script>
 </body>
 </html>
