@@ -1,4 +1,3 @@
-/* eslint-disable no-unreachable */
 /**
  * SmartPages - Side Panel Manager
  *
@@ -1727,57 +1726,6 @@ ${bodyHtml}
       );
       result = result.split(placeholder).join(imgTag);
       result = result.split(englishPlaceholder).join(imgTag);
-    });
-    return result;
-  }
-
-  _injectScreenshotPlaceholders(content, format = this._getOutputFormat()) {
-    if (!this.session?.steps?.length) return content;
-    let safeResult = String(content || '');
-    this.session.steps.forEach((step, index) => {
-      if (!step.screenshot) return;
-      const stepNumber = index + 1;
-      const placeholder = '[' + '鎴浘' + stepNumber + ']';
-      const englishPlaceholder = '[Screenshot ' + stepNumber + ']';
-      const imgTag = format === 'html'
-        ? '<img alt="' + '姝ラ' + stepNumber + '鎴浘" src="' + step.screenshot + '">'
-        : '![' + '姝ラ' + stepNumber + '鎴浘](' + step.screenshot + ')';
-      safeResult = safeResult.replace(
-        new RegExp('(<img\\b[^>]*?\\bsrc=["\\\'])\\s*(?:\\[' + '鎴浘' + stepNumber + '\\]|\\[Screenshot\\s*' + stepNumber + '\\])\\s*(["\\\'][^>]*>)', 'gi'),
-        '$1' + step.screenshot + '$2'
-      );
-      safeResult = safeResult.split(placeholder).join(imgTag);
-      safeResult = safeResult.split(englishPlaceholder).join(imgTag);
-    });
-    return safeResult;
-
-    var result = content;
-    this.session.steps.forEach(function(step, index) {
-      var stepNumber = index + 1;
-      var placeholder = '[' + '截图' + stepNumber + ']';
-      var englishPlaceholder = '[Screenshot ' + stepNumber + ']';
-      if (step.screenshot) {
-        var imgTag = format === 'html'
-          ? '<img alt="' + '步骤' + stepNumber + '截图" src="' + step.screenshot + '">'
-          : '![' + '步骤' + stepNumber + '截图](' + step.screenshot + ')';
-        if (format === 'html') {
-          result = result.replace(
-            new RegExp('(<img\\b[^>]*?\\bsrc=["\\\'])\\s*(?:\\[截图' + stepNumber + '\\]|\\[Screenshot\\s*' + stepNumber + '\\]|截图\\s*' + stepNumber + '|Screenshot\\s*' + stepNumber + ')\\s*(["\\\'][^>]*>)', 'gi'),
-            '$1' + step.screenshot + '$2'
-          );
-          result = result.split(placeholder).join(imgTag);
-          result = result.split(englishPlaceholder).join(imgTag);
-          result = result.replace(new RegExp('(?<![="\\\'>])截图\\s*' + stepNumber + '(?![\\]\\)<])', 'g'), imgTag);
-          result = result.replace(new RegExp('(?<![="\\\'>])Screenshot\\s*' + stepNumber + '(?![\\]\\)<])', 'gi'), imgTag);
-        } else {
-          result = result.split(placeholder).join(imgTag);
-          result = result.split(englishPlaceholder).join(imgTag);
-          result = result.replace(new RegExp('截图占位[：:]?\\s*步骤\\s*' + stepNumber + '\\s*截图', 'g'), imgTag);
-          result = result.replace(new RegExp('步骤\\s*' + stepNumber + '\\s*截图', 'g'), imgTag);
-          result = result.replace(new RegExp('截图\\s*' + stepNumber + '(?![\\]\\)])', 'g'), imgTag);
-          result = result.replace(new RegExp('Screenshot\\s*' + stepNumber + '(?![\\]\\)])', 'gi'), imgTag);
-        }
-      }
     });
     return result;
   }
