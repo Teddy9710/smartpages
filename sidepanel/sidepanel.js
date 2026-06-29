@@ -1859,11 +1859,16 @@ ${bodyHtml}
 
   _renderMarkdown(markdown) {
     const previewDiv = document.getElementById('markdown-preview');
-    if (previewDiv && typeof marked !== 'undefined') {
-      marked.setOptions({ breaks: true, gfm: true });
-      safeSetInnerHTML(previewDiv, marked.parse(markdown), true);
-      this._attachImageEditing(previewDiv);
+    if (!previewDiv) return;
+    if (typeof marked === 'undefined') {
+      console.warn('[Scribe:SidePanel] marked library not loaded; using plain text preview.');
+      previewDiv.textContent = markdown || '';
+      return;
     }
+
+    marked.setOptions({ breaks: true, gfm: true });
+    safeSetInnerHTML(previewDiv, marked.parse(markdown), true);
+    this._attachImageEditing(previewDiv);
   }
 
   _renderHtml(html) {
