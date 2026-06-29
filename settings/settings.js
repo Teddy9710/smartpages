@@ -553,6 +553,7 @@ class SettingsManager {
 
   _applyLanguage() {
     const lang = this.config.appLanguage === 'en-US' ? 'en-US' : 'zh-CN';
+    const manifestVersion = chrome.runtime.getManifest().version;
     document.documentElement.lang = lang;
     const isEn = lang === 'en-US';
     const text = isEn ? {
@@ -639,7 +640,7 @@ class SettingsManager {
       uploadedDocsTitle: 'Uploaded Reference Documents',
       docsLoading: 'Loading documents...',
       aboutHeading: 'About',
-      aboutVersion: 'Version 1.0.0',
+      aboutVersion: `Version ${manifestVersion}`,
       aboutDesc: 'Record browser workflows and automatically generate documentation.',
       aboutFeature: 'New feature: document upload and management.'
     } : {
@@ -665,7 +666,7 @@ class SettingsManager {
       uploadedDocsTitle: '已上传的参考文档',
       docsLoading: '正在加载文档列表...',
       aboutHeading: '关于',
-      aboutVersion: '版本 1.0.0',
+      aboutVersion: `版本 ${manifestVersion}`,
       aboutDesc: '智能录制网页操作并自动生成文档。',
       aboutFeature: '新增功能：文档上传与管理。'
     });
