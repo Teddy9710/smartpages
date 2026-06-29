@@ -305,6 +305,51 @@ function getRelativeTime(date) {
 // DOM UTILITIES
 // ============================================================================
 
+const HTML_URL_ATTRIBUTES = new Set(['href', 'src', 'action', 'formaction', 'poster', 'xlink:href']);
+const SAFE_IMAGE_DATA_URL = /^data:image\/(?:png|jpe?g|gif|webp);base64,[a-z0-9+/=\s]+$/i;
+
+function isSafeHtmlUrl(value, options = {}) {
+  const normalized = Array.from(String(value || ''))
+    .filter(char => char.charCodeAt(0) > 32 && char.charCodeAt(0) !== 127)
+    .join('');
+  if (!normalized) return true;
+  if (options.allowImageData && SAFE_IMAGE_DATA_URL.test(normalized)) return true;
+
+  const scheme = normalized.match(/^([a-z][a-z0-9+.-]*):/i)?.[1]?.toLowerCase();
+  return !scheme || ['http', 'https', 'mailto', 'tel'].includes(scheme);
+}
+
+function sanitizeHtmlElement(element) {
+  if (!element?.attributes) return;
+
+  for (const attr of Array.from(element.attributes)) {
+    const name = attr.name.toLowerCase();
+    if (name.startsWith('on') || name === 'style' || name === 'srcdoc') {
+      element.removeAttribute(attr.name);
+      continue;
+    }
+
+    if (HTML_URL_ATTRIBUTES.has(name)) {
+      const allowImageData = name === 'src' && String(element.tagName || '').toLowerCase() === 'img';
+      if (!isSafeHtmlUrl(attr.value, { allowImageData })) {
+        element.removeAttribute(attr.name);
+      }
+    }
+  }
+}
+
+function sanitizeHtmlDocument(doc) {
+  if (!doc?.querySelectorAll) return doc;
+
+  const dangerousSelectors = [
+    'script', 'iframe', 'object', 'embed', 'form', 'link', 'style',
+    'svg', 'math', 'meta', 'base', 'template'
+  ];
+  doc.querySelectorAll(dangerousSelectors.join(',')).forEach(el => el.remove());
+  doc.querySelectorAll('*').forEach(sanitizeHtmlElement);
+  return doc;
+}
+
 /**
  * Safely sets innerHTML, sanitizing to prevent XSS
  * @param {HTMLElement} element - Target element
@@ -312,26 +357,14 @@ function getRelativeTime(date) {
  * @param {boolean} [allowBasicFormatting=false] - Allow basic formatting tags
  */
 function safeSetInnerHTML(element, html, allowBasicFormatting = false) {
-  if (!element || !html) {
+  if (!element) return;
+  if (!html) {
     element.innerHTML = '';
     return;
   }
 
-  // Use DOMParser to parse and sanitize
   const doc = new DOMParser().parseFromString(html, 'text/html');
-
-  // Remove dangerous elements
-  const dangerousSelectors = ['script', 'iframe', 'object', 'embed', 'form', 'link', 'style'];
-  doc.querySelectorAll(dangerousSelectors.join(',')).forEach(el => el.remove());
-
-  // Remove event handlers from all elements
-  doc.querySelectorAll('*').forEach(el => {
-    for (const attr of Array.from(el.attributes)) {
-      if (attr.name.startsWith('on')) {
-        el.removeAttribute(attr.name);
-      }
-    }
-  });
+  sanitizeHtmlDocument(doc);
 
   // If basic formatting is not allowed, strip all tags
   if (!allowBasicFormatting) {
@@ -771,6 +804,9 @@ if (typeof module !== 'undefined' && module.exports) {
     isValidFileSize,
     formatDate,
     getRelativeTime,
+    isSafeHtmlUrl,
+    sanitizeHtmlElement,
+    sanitizeHtmlDocument,
     safeSetInnerHTML,
     createElement,
     debounce,

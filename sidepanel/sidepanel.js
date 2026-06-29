@@ -3268,12 +3268,7 @@ ${bodyHtml}
     marked.setOptions({ breaks: true, gfm: true });
     const rawHtml = marked.parse(markdown);
     const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
-    doc.querySelectorAll('script, iframe, object, embed, form, link, style').forEach(el => el.remove());
-    doc.querySelectorAll('*').forEach(el => {
-      for (const attr of Array.from(el.attributes)) {
-        if (attr.name.startsWith('on')) el.removeAttribute(attr.name);
-      }
-    });
+    sanitizeHtmlDocument(doc);
     return doc.body.innerHTML;
   }
 
