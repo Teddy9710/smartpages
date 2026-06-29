@@ -7,6 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
 const filesToCheck = [
   'background/background.js',
@@ -33,8 +34,12 @@ filesToCheck.forEach(filePath => {
 
     // Check for syntax errors
     try {
-      // Basic syntax check by wrapping in function
-      new Function(content);
+      const syntaxCheck = spawnSync(process.execPath, ['--check', fullPath], {
+        encoding: 'utf8'
+      });
+      if (syntaxCheck.status !== 0) {
+        throw new Error(String(syntaxCheck.stderr || syntaxCheck.error?.message || 'Unknown syntax error').trim());
+      }
       console.log(`✅ ${filePath}: No syntax errors`);
     } catch (error) {
       issues.push(`❌ ${filePath}: Syntax error - ${error.message}`);
