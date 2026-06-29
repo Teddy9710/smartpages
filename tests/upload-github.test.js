@@ -25,12 +25,12 @@ vm.runInNewContext(managerSource, sandbox);
   manager.readFileAsBase64 = async () => 'ZmlsZQ==';
 
   await assert.rejects(
-    () => manager.uploadToGitHub({ name: 'guide.md' }, { token: 'secret', repo: 'repository', branch: 'main' }),
+    () => manager.uploadToGitHub({ name: 'guide.md', size: 128 }, { token: 'secret', repo: 'repository', branch: 'main' }),
     /owner\/repository/
   );
 
   const result = await manager.uploadToGitHub(
-    { name: '../private/guide notes.md' },
+    { name: '../private/guide notes.md', size: 128 },
     { token: 'secret', repo: 'Teddy9710/smartpages', branch: 'main' }
   );
 

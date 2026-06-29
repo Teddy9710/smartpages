@@ -8,6 +8,10 @@ class DocumentStorage {
   // 保存文档到本地存储
   async saveDocument(file, options = {}) {
     try {
+      const maxFileSize = typeof MAX_FILE_SIZE === 'number' ? MAX_FILE_SIZE : 5 * 1024 * 1024;
+      if (!file || !Number.isFinite(Number(file.size)) || Number(file.size) > maxFileSize) {
+        throw new Error('File size exceeds the 5 MB upload limit');
+      }
       // 读取文件内容
       const content = await this.readFileContent(file);
       

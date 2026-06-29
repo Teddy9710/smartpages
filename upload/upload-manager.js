@@ -1,5 +1,12 @@
 // 文档上传管理器
 class DocumentUploadManager {
+  static assertFileSize(file) {
+    const maxFileSize = typeof MAX_FILE_SIZE === 'number' ? MAX_FILE_SIZE : 5 * 1024 * 1024;
+    if (!file || !Number.isFinite(Number(file.size)) || Number(file.size) > maxFileSize) {
+      throw new Error('File size exceeds the 5 MB upload limit');
+    }
+  }
+
   static parseGitHubRepository(value) {
     const match = String(value || '').trim().match(/^([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))\/([A-Za-z0-9._-]+)$/);
     if (!match) {
@@ -49,6 +56,7 @@ class DocumentUploadManager {
 
   // 上传单个文件
   async uploadFile(file, options = {}) {
+    DocumentUploadManager.assertFileSize(file);
     if (!this.isSupportedFormat(file.name)) {
       throw new Error(`不支持的文件格式: ${file.name}`);
     }
@@ -122,6 +130,7 @@ class DocumentUploadManager {
 
   // 上传到GitHub
   async uploadToGitHub(file, githubOptions) {
+    DocumentUploadManager.assertFileSize(file);
     if (!githubOptions.token || !githubOptions.repo || !githubOptions.branch) {
       throw new Error('缺少GitHub配置信息');
     }
