@@ -10,6 +10,13 @@ class DocumentUploader {
     this.storageKey = 'documents';
     this._docIndex = new Map();
     this._docsCache = null;
+    if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
+      chrome.storage.onChanged.addListener((changes, areaName) => {
+        if (areaName !== 'local' || !changes[this.storageKey]) return;
+        this._docsCache = null;
+        this._docIndex.clear();
+      });
+    }
   }
 
   /**
