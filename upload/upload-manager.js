@@ -1,5 +1,27 @@
 // 文档上传管理器
 class DocumentUploadManager {
+  static parseGitHubRepository(value) {
+    const match = String(value || '').trim().match(/^([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))\/([A-Za-z0-9._-]+)$/);
+    if (!match) {
+      throw new Error('GitHub repository must use owner/repository format');
+    }
+    return { owner: match[1], repository: match[2] };
+  }
+
+  static sanitizeGitHubFilename(value) {
+    const filename = String(value || '')
+      .split(/[\\/]/)
+      .pop()
+      .split('')
+      .filter(char => char >= ' ' && char !== '\u007f')
+      .join('')
+      .trim();
+    if (!filename || filename === '.' || filename === '..') {
+      throw new Error('Invalid GitHub upload filename');
+    }
+    return filename;
+  }
+
   constructor() {
     this.supportedFormats = ['pdf', 'docx', 'txt', 'md', 'html', 'rtf'];
     this.uploadQueue = [];
@@ -104,11 +126,13 @@ class DocumentUploadManager {
       throw new Error('缺少GitHub配置信息');
     }
 
+    const { owner, repository } = DocumentUploadManager.parseGitHubRepository(githubOptions.repo);
+    const filename = DocumentUploadManager.sanitizeGitHubFilename(file.name);
     const base64Content = await this.readFileAsBase64(file);
-    const apiUrl = `https://api.github.com/repos/${githubOptions.owner}/${githubOptions.repo}/contents/${file.name}`;
+    const apiUrl = `https://api.github.com/repos/${owner}/${repository}/contents/${encodeURIComponent(filename)}`;
     
     const requestBody = {
-      message: `Upload ${file.name} via SmartPages`,
+      message: `Upload ${filename} via SmartPages`,
       content: base64Content,
       branch: githubOptions.branch || 'main'
     };
@@ -138,7 +162,7 @@ class DocumentUploadManager {
         success: true,
         sha: result.commit.sha,
         url: result.content.download_url,
-        filename: file.name
+        filename
       };
     } catch (error) {
       console.error('GitHub上传失败:', error);

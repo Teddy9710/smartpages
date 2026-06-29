@@ -302,6 +302,11 @@ class UploadPanel {
     } catch (error) {
       console.error(this._t('failed'), error);
       this.showResults([{ success: false, error: error.message }]);
+    } finally {
+      if (uploadType === 'github') {
+        const tokenInput = document.getElementById('github-token');
+        if (tokenInput) tokenInput.value = '';
+      }
     }
   }
 
