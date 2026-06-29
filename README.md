@@ -97,7 +97,7 @@ SmartPages 是一个浏览器扩展，用来把真实网页操作流程转换为
 
 ### 5. 文档资源管理
 
-- 支持上传和管理 PDF、DOCX、TXT、MD、HTML 等文档资源。
+- 支持上传和管理 TXT、MD、HTML、RTF 文档资源。
 - 支持搜索、刷新、删除等基础管理操作。
 - 相关逻辑位于 `utils/documentUpload.js`、`utils/documentApi.js`、`utils/docUIUtils.js`。
 

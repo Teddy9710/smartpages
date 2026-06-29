@@ -93,7 +93,7 @@ The extension records key actions such as clicks, text input, and page navigatio
 
 ### 5. Document Resource Management
 
-- Upload and manage PDF, DOCX, TXT, MD, HTML, and similar document resources.
+- Upload and manage TXT, MD, HTML, and RTF document resources.
 - Search, refresh, and delete uploaded resources.
 - Related logic lives in `utils/documentUpload.js`, `utils/documentApi.js`, and `utils/docUIUtils.js`.
 

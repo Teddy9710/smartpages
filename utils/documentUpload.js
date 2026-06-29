@@ -5,7 +5,7 @@
 
 class DocumentUploader {
   constructor() {
-    this.supportedFormats = ['pdf', 'docx', 'txt', 'md', 'html', 'htm', 'rtf', 'xlsx', 'pptx'];
+    this.supportedFormats = ['txt', 'md', 'html', 'htm', 'rtf'];
     this.uploadDir = 'docs';
     this.storageKey = 'documents';
     this._docIndex = new Map();
