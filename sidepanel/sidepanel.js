@@ -2652,7 +2652,7 @@ ${markdown}`;
       : format === 'text'
         ? 'text/plain;charset=utf-8'
         : 'text/markdown;charset=utf-8';
-    const blob = new Blob([format === 'html' ? this._buildStandaloneHtmlFromCurrentContent(content) : content], { type: mimeType });
+    const blob = new Blob([format === 'html' ? this._buildDeliverableHtmlFromCurrentContent(content) : content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = createElement('a', { href: url, download: `${this._getExportBaseName(content)}.${extension}` });
     document.body.appendChild(a);
@@ -2665,7 +2665,7 @@ ${markdown}`;
     const content = document.getElementById('markdown-editor')?.value;
     if (!content) return;
 
-    const html = this._buildStandaloneHtmlFromCurrentContent(content);
+    const html = this._buildDeliverableHtmlFromCurrentContent(content);
     if (this._getHtmlImageMode() === 'linked') {
       this._exportHtmlWithLinkedImages(html);
       return;

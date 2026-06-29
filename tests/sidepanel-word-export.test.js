@@ -103,3 +103,12 @@ const SidePanelManager = loadSidePanelManager();
   assert.match(result, /break-inside: avoid/);
   assert.match(result, /max-width: 100%/);
 }
+
+{
+  const result = SidePanelManager.buildDeliverableHtml(
+    '<html><head><style>body { background: red; } img { max-width: 20px; }</style></head><body><main>Guide</main></body></html>'
+  );
+
+  assert.ok(result.indexOf('body { background: red; }') < result.indexOf('body { background: #fff; color: #111827; }'));
+  assert.ok(result.indexOf('img { max-width: 20px; }') < result.indexOf('img { max-width: 100%;'));
+}
