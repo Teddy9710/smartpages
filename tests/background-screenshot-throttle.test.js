@@ -30,7 +30,7 @@ function loadRecordingManager() {
       },
       tabs: {
         onUpdated: { addListener: () => {} },
-        get: () => Promise.resolve({ url: 'https://example.com' }),
+        get: () => Promise.resolve({ url: 'https://example.com', windowId: 42 }),
         captureVisibleTab: () => Promise.resolve('data:image/png;base64,test'),
         sendMessage: () => Promise.reject(new Error('Receiving end does not exist'))
       },
@@ -187,15 +187,15 @@ const { RecordingManager, sandbox } = loadRecordingManager();
     screenshotEvents.push({ tabId, type: message.type });
     return { success: true };
   };
-  sandbox.chrome.tabs.captureVisibleTab = async () => {
-    screenshotEvents.push({ type: 'CAPTURE_VISIBLE_TAB' });
+  sandbox.chrome.tabs.captureVisibleTab = async (windowId, options) => {
+    screenshotEvents.push({ type: 'CAPTURE_VISIBLE_TAB', windowId, options });
     return 'data:image/png;base64,screenshot';
   };
 
   await screenshotManager._captureScreenshotForStep(0);
-  assert.deepEqual(screenshotEvents, [
+  assert.deepEqual(JSON.parse(JSON.stringify(screenshotEvents)), [
     { tabId: 9, type: 'HIDE_RECORDING_INDICATOR' },
-    { type: 'CAPTURE_VISIBLE_TAB' },
+    { type: 'CAPTURE_VISIBLE_TAB', windowId: 42, options: { format: 'png' } },
     { tabId: 9, type: 'RESTORE_RECORDING_INDICATOR' }
   ]);
   assert.equal(screenshotManager.currentSession.steps[0].screenshot, 'data:image/png;base64,screenshot');

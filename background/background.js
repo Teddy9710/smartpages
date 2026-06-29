@@ -515,9 +515,9 @@ class RecordingManager {
       try {
         await this._hideRecordingIndicatorForScreenshot();
         try {
-          return await chrome.tabs.captureVisibleTab(null, {
-            format: 'png',
-            quality: SCREENSHOT_QUALITY
+          const tab = await chrome.tabs.get(this.tabId);
+          return await chrome.tabs.captureVisibleTab(tab?.windowId ?? null, {
+            format: 'png'
           });
         } finally {
           await this._restoreRecordingIndicatorAfterScreenshot();
