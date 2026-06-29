@@ -32,8 +32,7 @@
     {
       "matches": ["http://*/*", "https://*/*"],
       "js": ["content/recorder.js"],
-      "run_at": "document_end",
-      "all_frames": true
+      "run_at": "document_end"
     }
   ],
   "side_panel": {
@@ -46,12 +45,6 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "web_accessible_resources": [
-    {
-      "resources": ["utils/*", "docs/*", "upload/*", "libs/*"],
-      "matches": ["<all_urls>"]
-    }
-  ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self';"
   }

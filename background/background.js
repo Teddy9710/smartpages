@@ -378,7 +378,7 @@ class RecordingManager {
 
     try {
       await chrome.scripting.executeScript({
-        target: { tabId, allFrames: true },
+        target: { tabId },
         files: ['content/recorder.js']
       });
     } catch (error) {

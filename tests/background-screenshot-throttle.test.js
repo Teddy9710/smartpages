@@ -202,7 +202,6 @@ const { RecordingManager, sandbox } = loadRecordingManager();
 
   const edgeBlockedManager = new RecordingManager();
   const injectionTargets = [];
-  let injectionAttempt = 0;
   edgeBlockedManager.state = 'idle';
   edgeBlockedManager.currentSession = null;
   edgeBlockedManager._persistState = async () => {};
@@ -211,10 +210,6 @@ const { RecordingManager, sandbox } = loadRecordingManager();
 
   sandbox.chrome.scripting.executeScript = async (details) => {
     injectionTargets.push(details.target);
-    injectionAttempt += 1;
-    if (injectionAttempt === 1) {
-      throw new Error('Blocked');
-    }
     return [];
   };
   sandbox.chrome.tabs.sendMessage = async () => ({ success: true });
@@ -227,7 +222,6 @@ const { RecordingManager, sandbox } = loadRecordingManager();
     console.warn = originalWarnForBlockedInjection;
   }
   assert.deepEqual(JSON.parse(JSON.stringify(injectionTargets)), [
-    { tabId: 9, allFrames: true },
     { tabId: 9 }
   ]);
 
