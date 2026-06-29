@@ -10,6 +10,15 @@ vm.runInNewContext(source, sandbox);
 
 const APIHandler = sandbox.window.APIHandler;
 
+function createUploadRequest(values) {
+  return {
+    formData: async () => ({
+      get: key => values[key] ?? null
+    }),
+    headers: { get: () => null }
+  };
+}
+
 (async () => {
   const handler = new APIHandler();
   handler.documents.set('legacy', {
@@ -30,6 +39,27 @@ const APIHandler = sandbox.window.APIHandler;
 
   const tagMatches = await handler.searchDocuments('reference');
   assert.deepEqual(Array.from(tagMatches, doc => doc.id), ['tagged']);
+
+  const invalidTags = await handler.handleUpload(createUploadRequest({
+    file: { name: 'guide.txt' },
+    filename: 'guide.txt',
+    size: '10',
+    type: 'text/plain',
+    tags: 'not-json'
+  }));
+  assert.equal(invalidTags.success, false);
+  assert.equal(invalidTags.error, 'tags 参数不是有效的 JSON 格式');
+
+  const invalidMetadata = await handler.handleUpload(createUploadRequest({
+    file: { name: 'guide.txt' },
+    filename: 'guide.txt',
+    size: '10',
+    type: 'text/plain',
+    tags: '[]',
+    metadata: '{broken'
+  }));
+  assert.equal(invalidMetadata.success, false);
+  assert.equal(invalidMetadata.error, 'metadata 参数不是有效的 JSON 格式');
 })().catch(error => {
   console.error(error);
   process.exit(1);

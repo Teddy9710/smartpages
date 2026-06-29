@@ -15,8 +15,18 @@ class APIHandler {
       const size = formData.get('size');
       const type = formData.get('type');
       const description = formData.get('description') || '';
-      const tags = JSON.parse(formData.get('tags') || '[]');
-      const metadata = JSON.parse(formData.get('metadata') || '{}');
+      let tags;
+      let metadata;
+      try {
+        tags = JSON.parse(formData.get('tags') || '[]');
+      } catch (error) {
+        return { success: false, error: 'tags 参数不是有效的 JSON 格式' };
+      }
+      try {
+        metadata = JSON.parse(formData.get('metadata') || '{}');
+      } catch (error) {
+        return { success: false, error: 'metadata 参数不是有效的 JSON 格式' };
+      }
 
       // 验证文件
       if (!file) {
