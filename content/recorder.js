@@ -670,7 +670,7 @@
     return {
       kind: role,
       selectedText: getElementText(element),
-      selectedValue: maskSensitiveValue(element.getAttribute('data-value') || element.getAttribute('value') || element.getAttribute('aria-value text') || ''),
+      selectedValue: maskSensitiveValue(element.getAttribute('data-value') || element.getAttribute('value') || element.getAttribute('aria-valuetext') || ''),
       selectedState: selected !== null ? selected : '',
       containerLabel
     };
