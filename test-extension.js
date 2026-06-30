@@ -50,12 +50,11 @@ async function testExtension() {
     // 测试4: 检查Storage
     console.log('\n--- 测试Storage ---');
     try {
-      const data = await new Promise((resolve, reject) => {
-        chrome.storage.local.get(['apiKey', 'baseUrl', 'modelName', 'smartDescription'], (result) => {
-          if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
-          else resolve(result);
-        });
-      });
+      const [sessionData, localData] = await Promise.all([
+        chrome.storage.session.get(['apiKey']),
+        chrome.storage.local.get(['baseUrl', 'modelName', 'smartDescription'])
+      ]);
+      const data = { ...localData, apiKey: sessionData.apiKey || '' };
       logTest('读取配置成功', data && typeof data === 'object', { configKeys: Object.keys(data) });
     } catch (error) {
       logTest('读取配置成功', false, { error: error.message });

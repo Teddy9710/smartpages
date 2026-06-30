@@ -2,11 +2,11 @@
 
 // 1. 检查配置
 async function checkConfig() {
-  const config = await new Promise((resolve, reject) => {
-    chrome.storage.local.get(['apiKey', 'baseUrl', 'modelName'], (result) => {
-      resolve(result);
-    });
-  });
+  const [sessionConfig, localConfig] = await Promise.all([
+    chrome.storage.session.get(['apiKey']),
+    chrome.storage.local.get(['baseUrl', 'modelName'])
+  ]);
+  const config = { ...localConfig, apiKey: sessionConfig.apiKey || '' };
 
   console.log('=== API配置检查 ===');
   console.log('API Key:', config.apiKey ? '已配置' : '未配置');

@@ -7,6 +7,7 @@ function loadSidePanelManager() {
   const source = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.js'), 'utf8');
   const sandbox = {
     console,
+    Buffer,
     DocumentApi: class {},
     DocUIHelper: class {},
     debounce: (fn) => fn,
@@ -92,6 +93,20 @@ const { SidePanelManager, sandbox } = loadSidePanelManager();
   assert.match(svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
   assert.match(svg, /<foreignObject width="100%" height="100%">/);
   assert.match(svg, /<img src="data:image\/png;base64,AAA=" \/>/);
+}
+
+{
+  assert.throws(
+    () => SidePanelManager.buildImagePdfDocument([
+      { dataUrl: 'data:image/png;base64,iVBORw0KGgo=', width: 10, height: 10 }
+    ]),
+    /JPEG/i
+  );
+
+  const jpegPdf = SidePanelManager.buildImagePdfDocument([
+    { dataUrl: 'data:image/jpeg;base64,/9j/2Q==', width: 10, height: 10 }
+  ]);
+  assert.match(Buffer.from(jpegPdf).toString('latin1'), /\/Filter \/DCTDecode/);
 }
 
 {

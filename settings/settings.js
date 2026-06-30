@@ -400,6 +400,13 @@ class SettingsManager {
     else { apiKeyInput.type = 'password'; toggleBtn.textContent = isEn ? 'Show' : '显示'; }
   }
 
+  async _requestApiHostPermission(baseUrl) {
+    const originPattern = `${new URL(baseUrl).origin}/*`;
+    const permission = { origins: [originPattern] };
+    if (await chrome.permissions.contains(permission)) return true;
+    return chrome.permissions.request({ origins: [originPattern] });
+  }
+
   async saveConfig() {
     const apiKeyInput = document.getElementById('api-key');
     const appLanguageSelect = document.getElementById('app-language');
@@ -441,6 +448,18 @@ class SettingsManager {
       return;
     }
 
+    const permissionBaseUrl = baseUrlInput?.value.trim() || 'https://api.openai.com/v1';
+    try {
+      const granted = await this._requestApiHostPermission(permissionBaseUrl);
+      if (!granted) {
+        this._showTestResult(isEn ? 'API host permission is required' : '需要授权访问 API 服务地址', 'error');
+        return;
+      }
+    } catch (error) {
+      this._showTestResult((isEn ? 'Invalid API URL or permission request failed: ' : 'API 地址无效或权限请求失败：') + error.message, 'error');
+      return;
+    }
+
     this.config = {
       apiKey,
       baseUrl: baseUrlInput?.value.trim() || '',
@@ -459,8 +478,9 @@ class SettingsManager {
     };
 
     try {
+      await storagePromise('session', 'set', { apiKey: this.config.apiKey });
       await storagePromise('local', 'set', {
-        apiKey: this.config.apiKey, baseUrl: this.config.baseUrl,
+        baseUrl: this.config.baseUrl,
         modelName: this.config.modelName,
         apiFormat: this.config.apiFormat,
         appLanguage: this.config.appLanguage,
@@ -474,6 +494,7 @@ class SettingsManager {
         styleGuide: this.config.styleGuide,
         documentExamples: this.config.documentExamples
       });
+      await storagePromise('local', 'remove', 'apiKey');
       if (apiKeyInput) { this.#apiKeyMemory = this.config.apiKey; apiKeyInput.value = maskApiKey(this.config.apiKey); }
       this._showTestResult(isEn ? '✅ Settings saved' : '✅ 配置已保存', 'success');
       setTimeout(() => this._hideTestResult(), 3000);

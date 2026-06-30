@@ -88,7 +88,11 @@
     // 加载插件配置
     async function loadConfig() {
       try {
-        const result = await chrome.storage.local.get(['apiKey', 'baseUrl', 'modelName']);
+        const [sessionConfig, localConfig] = await Promise.all([
+          chrome.storage.session.get(['apiKey']),
+          chrome.storage.local.get(['baseUrl', 'modelName'])
+        ]);
+        const result = { ...localConfig, apiKey: sessionConfig.apiKey || '' };
         document.getElementById('api-key').value = result.apiKey || '';
         document.getElementById('base-url').value = result.baseUrl || '';
         document.getElementById('model-name').value = result.modelName || '';

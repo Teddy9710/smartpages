@@ -736,13 +736,13 @@ function extractFunctionName(code) {
 // ============================================================================
 
 /**
- * Loads AI configuration from chrome.storage.local
+ * Loads persistent AI settings and the session-only API key.
  * @async
  * @returns {Promise<{apiKey: string, baseUrl: string, modelName: string, smartDescription: boolean}>}
  */
 async function loadConfig() {
-  const result = await storagePromise('local', 'get', [
-    'apiKey',
+  const [result, sessionResult] = await Promise.all([
+    storagePromise('local', 'get', [
     'baseUrl',
     'modelName',
     'smartDescription',
@@ -756,6 +756,8 @@ async function loadConfig() {
     'appLanguage',
     'styleGuide',
     'documentExamples'
+    ]),
+    storagePromise('session', 'get', ['apiKey']).catch(() => ({}))
   ]);
   const parsedMaxTokens = Number.parseInt(result.maxTokens, 10);
   const maxTokens = Number.isFinite(parsedMaxTokens)
@@ -767,7 +769,7 @@ async function loadConfig() {
     : DEFAULT_MAX_INPUT_TOKENS;
 
   return {
-    apiKey: result.apiKey || '',
+    apiKey: sessionResult.apiKey || '',
     baseUrl: result.baseUrl || 'https://api.openai.com/v1',
     modelName: result.modelName || 'gpt-3.5-turbo',
     smartDescription: result.smartDescription !== undefined ? result.smartDescription : true,

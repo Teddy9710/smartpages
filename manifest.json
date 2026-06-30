@@ -12,7 +12,7 @@
     "sidePanel",
     "activeTab"
   ],
-  "host_permissions": [
+  "optional_host_permissions": [
     "http://*/*",
     "https://*/*"
   ],
@@ -28,13 +28,6 @@
   "background": {
     "service_worker": "background/background.js"
   },
-  "content_scripts": [
-    {
-      "matches": ["http://*/*", "https://*/*"],
-      "js": ["content/recorder.js"],
-      "run_at": "document_end"
-    }
-  ],
   "side_panel": {
     "default_path": "sidepanel/sidepanel.html"
   },

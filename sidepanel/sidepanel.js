@@ -325,6 +325,9 @@ ${bodyHtml}
     const objects = ['<< /Type /Catalog /Pages 2 0 R >>'];
     const pageRefs = [];
     const imagePages = (pages || []).filter(page => page?.dataUrl);
+    if (imagePages.some(page => !/^data:image\/jpeg;base64,/i.test(page.dataUrl))) {
+      throw new Error('Image PDF pages must be JPEG data URLs');
+    }
     const pageCount = Math.max(1, imagePages.length);
     const pagesObjectIndex = 2;
     let nextObjectIndex = 3;
@@ -2940,20 +2943,38 @@ ${markdown}`;
       const nameBytes = encoder.encode(file.name.replace(/\\/g, '/'));
       const data = new Uint8Array(await file.blob.arrayBuffer());
       const crc = this._crc32(data);
-      const localHeader = this._createZipLocalHeader(nameBytes, data.length, crc);
-      chunks.push(localHeader, data);
+      let payload = data;
+      let compressionMethod = 0;
+      if (this._shouldCompressZipFile(file)) {
+        const compressed = await this._compressZipData(data);
+        if (compressed && compressed.length < data.length) {
+          payload = compressed;
+          compressionMethod = 8;
+        }
+      }
+      const localHeader = this._createZipLocalHeader(nameBytes, payload.length, data.length, crc, compressionMethod);
+      chunks.push(localHeader, payload);
       centralDirectory.push({
         nameBytes,
         crc,
         size: data.length,
+        compressedSize: payload.length,
+        compressionMethod,
         offset
       });
-      offset += localHeader.length + data.length;
+      offset += localHeader.length + payload.length;
     }
 
     const centralStart = offset;
     centralDirectory.forEach(entry => {
-      const header = this._createZipCentralHeader(entry.nameBytes, entry.size, entry.crc, entry.offset);
+      const header = this._createZipCentralHeader(
+        entry.nameBytes,
+        entry.compressedSize,
+        entry.size,
+        entry.crc,
+        entry.offset,
+        entry.compressionMethod
+      );
       chunks.push(header);
       offset += header.length;
     });
@@ -2961,17 +2982,34 @@ ${markdown}`;
     return new Blob(chunks, { type: 'application/zip' });
   }
 
-  _createZipLocalHeader(nameBytes, size, crc) {
+  _shouldCompressZipFile(file) {
+    const type = String(file?.blob?.type || '').toLowerCase();
+    const name = String(file?.name || '').toLowerCase();
+    return type.startsWith('text/') || /\.(?:txt|md|html|css|js|json|xml|csv)$/i.test(name);
+  }
+
+  async _compressZipData(data) {
+    if (typeof CompressionStream === 'undefined' || typeof Response === 'undefined') return null;
+    try {
+      const stream = new Blob([data]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+      return new Uint8Array(await new Response(stream).arrayBuffer());
+    } catch (error) {
+      console.warn('[Scribe:SidePanel] ZIP compression unavailable; storing file without compression.', error);
+      return null;
+    }
+  }
+
+  _createZipLocalHeader(nameBytes, compressedSize, size, crc, compressionMethod = 0) {
     const header = new Uint8Array(30 + nameBytes.length);
     const view = new DataView(header.buffer);
     view.setUint32(0, 0x04034b50, true);
     view.setUint16(4, 20, true);
     view.setUint16(6, 0, true);
-    view.setUint16(8, 0, true);
+    view.setUint16(8, compressionMethod, true);
     view.setUint16(10, 0, true);
     view.setUint16(12, 0, true);
     view.setUint32(14, crc, true);
-    view.setUint32(18, size, true);
+    view.setUint32(18, compressedSize, true);
     view.setUint32(22, size, true);
     view.setUint16(26, nameBytes.length, true);
     view.setUint16(28, 0, true);
@@ -2979,18 +3017,18 @@ ${markdown}`;
     return header;
   }
 
-  _createZipCentralHeader(nameBytes, size, crc, offset) {
+  _createZipCentralHeader(nameBytes, compressedSize, size, crc, offset, compressionMethod = 0) {
     const header = new Uint8Array(46 + nameBytes.length);
     const view = new DataView(header.buffer);
     view.setUint32(0, 0x02014b50, true);
     view.setUint16(4, 20, true);
     view.setUint16(6, 20, true);
     view.setUint16(8, 0, true);
-    view.setUint16(10, 0, true);
+    view.setUint16(10, compressionMethod, true);
     view.setUint16(12, 0, true);
     view.setUint16(14, 0, true);
     view.setUint32(16, crc, true);
-    view.setUint32(20, size, true);
+    view.setUint32(20, compressedSize, true);
     view.setUint32(24, size, true);
     view.setUint16(28, nameBytes.length, true);
     view.setUint16(30, 0, true);
