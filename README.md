@@ -1,213 +1,59 @@
 # SmartPages
 
-[English](README.en.md)
+<p align="right"><a href="README.en.md">English</a></p>
 
 <p align="center">
-  <img src="icons/icon128.png" width="96" height="96" alt="SmartPages icon">
+  <img src="icons/icon128.png" width="96" height="96" alt="SmartPages 图标">
 </p>
 
+<h3 align="center">录一次操作，自动写成清晰文档</h3>
+
 <p align="center">
-  <strong>浏览器操作录制 + AI 文档生成助手</strong><br>
-  <small>An open-source alternative to Scribe & Tango. Record once, AI writes the doc.</small><br>
-  记录网页操作流程，自动生成可直接编辑、可优化、可导出的操作文档。
+  开源的浏览器工作流录制与 AI 文档生成工具。<br>
+  自动捕获操作和截图，生成可编辑、可优化、可导出的专业文档。
 </p>
 
 <p align="center">
   <img alt="Chrome Extension MV3" src="https://img.shields.io/badge/Chrome%20Extension-MV3-2563eb">
-  <img alt="Vanilla JavaScript" src="https://img.shields.io/badge/JavaScript-ES2022-f7df1e">
-  <img alt="Markdown HTML" src="https://img.shields.io/badge/Export-Markdown%20%2F%20HTML-14b8a6">
-  <img alt="License" src="https://img.shields.io/badge/License-GPL%20v3-111827">
+  <img alt="Version 1.2.0" src="https://img.shields.io/badge/version-1.2.0-7c3aed">
+  <img alt="Export formats" src="https://img.shields.io/badge/export-Markdown%20%7C%20HTML%20%7C%20PDF-14b8a6">
+  <img alt="License GPL v3" src="https://img.shields.io/badge/license-GPL%20v3-111827">
 </p>
 
 <p align="center">
-  <img src="docs/assets/smartpages-demo-zh.gif" width="860" alt="SmartPages 中文演示">
+  <img src="docs/assets/smartpages-demo-zh.gif" width="860" alt="SmartPages 从录制网页操作到生成文档的演示">
 </p>
 
----
+## 为什么选择 SmartPages
 
-## 项目简介
+写操作手册、测试用例或 Bug 复现步骤，最费时间的往往不是操作本身，而是重新整理每一步、截图和措辞。SmartPages 把这段重复劳动压缩成一次录制。
 
-SmartPages 是一个浏览器扩展，用来把真实网页操作流程转换为结构化文档。它适合测试、实施、产品、客服、运维，以及任何经常需要编写“如何操作”文档的人。
-
-扩展会记录点击、输入、页面跳转等关键步骤，并为每一步保留截图。录制结束后，它会调用已配置的 GPT、Gemini、Claude 或其他兼容模型生成文档。用户可以在侧边栏中直接编辑预览内容，也可以切换到 Markdown 源码编辑、AI 二次优化、回退、复制、下载 Markdown，或导出独立 HTML。
-
----
-
-## 示例与宣传素材
-
-- [示例文档目录](docs/examples/README.md)：包含 Bug 复现说明、后台操作手册、客服知识库 3 个典型输出样例。
-- [转化资产包](docs/conversion-assets.md)：整理了发帖可复用的 GIF、截图、社媒图和短介绍。
-- [中文演示 GIF](docs/assets/smartpages-demo-zh.gif)：适合放在 README、掘金、V2EX 和即刻首屏。
-
----
-
-## 界面一览
-
-<p align="center">
-  <img src="docs/assets/readme-hero.png" width="760" alt="SmartPages product preview">
-</p>
-
-| 页面 | 作用 |
-| --- | --- |
-| Popup 弹窗 | 开始录制、停止录制、查看录制状态、打开文档助手 |
-| Side Panel 文档助手 | 选择文档类型、生成文档、直接编辑预览、编辑 Markdown、AI 优化、回退、导出 |
-| Settings 设置页 | 配置模型服务商、API Key、Base URL、模型名、Token、提示词、风格指南和示例文档 |
-| Content Script | 注入目标网页，采集用户操作和截图 |
-| Background Service Worker | 管理录制会话、消息转发、截图和脚本注入 |
-
----
-
-## 核心功能
-
-### 1. 网页操作录制
-
-- 一键开始或停止录制。
-- 自动记录点击、输入、路由变化等操作。
-- 每个步骤可关联页面截图。
-- Content Script 未注入时自动补注入，减少手动刷新页面的打断。
-
-### 2. AI 文档生成
-
-- 根据录制步骤生成 Markdown 文档。
-- 支持用户指南、教程文档、测试用例、问题报告等文档类型。
-- 支持追加要求或完全自定义提示词。
-- 支持风格指南，让生成内容遵循固定语气、结构、标题层级和写作规范；风格指南可使用纯文本、Markdown 或 HTML。
-- 支持按文档类型配置示例文档，示例可使用 Markdown 或 HTML，让模型参考示例的结构、颗粒度和版式层级，但不照抄示例事实。
-- 支持选择最终输出格式，默认 Markdown，也可生成 HTML 或纯文本，并尽量延续参考文档风格。
-- 支持配置最大输出 Token，减少长文档被截断的概率。
-
-### 3. 文档编辑与导出
-
-- 生成后可在预览区直接修改，不需要先点击编辑按钮。
-- 支持 Markdown 预览和源码编辑双模式。
-- 一键复制当前格式的文档内容。
-- 按当前输出格式下载 `.md`、`.html` 或 `.txt` 文件。
-- 导出独立 HTML 文件。
-- AI 二次优化：输入优化要求后重新润色文档。
-- 支持回退到 AI 优化前版本。
-
-### 4. 模型服务配置
-
-- 设置页提供常见模型服务商下拉选项。
-- 选择服务商后自动填入推荐 Base URL 和模型名。
-- Base URL 仍支持手动输入，兼容 OpenAI-compatible API。
-- 根据当前服务商显示对应 API Key 获取入口。
-- 支持中文和英文界面切换；切换为英文后，默认生成文档也会使用英文。
-- 支持 GPT / OpenAI、Gemini / Google、Claude / Anthropic、GLM、DeepSeek、MiniMax、Kimi、OpenRouter、SiliconFlow、DashScope 和自定义 OpenAI-compatible API。
-
-### 5. 文档资源管理
-
-- 支持上传和管理 TXT、MD、HTML、RTF 文档资源。
-- 支持搜索、刷新、删除等基础管理操作。
-- 相关逻辑位于 `utils/documentUpload.js`、`utils/documentApi.js`、`utils/docUIUtils.js`。
-
----
-
-## 工作流程
-
-```mermaid
-flowchart LR
-  A["打开目标网页"] --> B["点击扩展并开始录制"]
-  B --> C["记录操作和截图"]
-  C --> D["停止录制"]
-  D --> E["选择文档类型或自定义目标"]
-  E --> F["调用模型生成 Markdown"]
-  F --> G["预览直接编辑 / 源码编辑 / AI 优化"]
-  G --> H["复制 Markdown"]
-  G --> I["下载 .md"]
-  G --> J["导出 .html"]
-```
-
----
-
-## 架构概览
-
-```mermaid
-flowchart TB
-  subgraph Extension["浏览器扩展"]
-    Popup["popup/\n录制入口"]
-    SidePanel["sidepanel/\n文档助手"]
-    Settings["settings/\n配置中心"]
-    Background["background/\nService Worker"]
-    Content["content/\n页面录制脚本"]
-    Utils["utils/\n公共能力"]
-  end
-
-  Page["目标网页"] <--> Content
-  Popup <--> Background
-  SidePanel <--> Background
-  Settings <--> Utils
-  Background <--> Content
-  SidePanel --> Utils
-  Utils --> Storage["Chrome Storage"]
-  SidePanel --> LLM["Model API\nOpenAI-compatible or Anthropic"]
-```
-
----
-
-## 支持的模型 API
-
-项目支持两类模型 API。
-
-OpenAI、Gemini、GLM、DeepSeek、MiniMax、Kimi、OpenRouter、SiliconFlow、DashScope 和自定义兼容服务使用 OpenAI-compatible Chat Completions 格式：
-
-```text
-POST {Base URL}/chat/completions
-```
-
-Claude / Anthropic 使用 Anthropic Messages API：
-
-```text
-POST {Base URL}/messages
-```
-
-只要服务商兼容上述请求格式，通常都可以通过设置页配置。
-
-| 配置项 | 说明 | 示例 |
+| 自动捕获 | AI 成文 | 灵活交付 |
 | --- | --- | --- |
-| 界面语言 | 设置扩展主要页面语言，也影响默认生成语言 | 中文、English |
-| 模型服务商 | 常见 API 预设，也可选择自定义 | GPT / OpenAI、Gemini / Google、Claude / Anthropic、GLM、DeepSeek、MiniMax、Kimi、OpenRouter |
-| API Key | 模型服务密钥 | `sk-...` |
-| Base URL | API 基础地址 | `https://api.openai.com/v1` |
-| 模型名 | 模型名称 | `gpt-4o-mini`、`gemini-3-flash-preview`、`claude-sonnet-4-20250514` |
-| 最大输出 Token | 控制生成文档长度 | `4000` |
-| 输出格式 | 控制最终生成和下载格式 | Markdown、HTML、纯文本 |
-| 提示词模式 | 追加要求或完全自定义 | 默认提示词 + 我的要求 |
-| 风格指南 | 固定写作规范 | 标题层级、语气、术语、禁用表达 |
-| 示例文档 | 按文档类型提供参考样例，支持 Markdown 或 HTML | 用户指南、教程、测试用例、问题报告 |
+| 记录点击、输入、页面跳转和步骤截图 | 生成用户指南、教程、测试用例、问题报告 | 直接编辑、AI 润色，导出 Markdown、HTML、纯文本和 PDF |
 
-注意：不同服务商的模型名、Base URL、上下文长度和计费规则不同，请以对应服务商文档为准。
+- **自带模型选择权**：支持 GPT、Gemini、Claude、DeepSeek 等服务，也兼容自定义 OpenAI-compatible API。
+- **文档风格可控**：可配置提示词、风格指南和示例文档，让输出贴近团队规范。
+- **开源且可自托管配置**：扩展本身开源，API Key 保存在浏览器 Chrome Storage 中。
 
----
+## 它如何工作
 
-## 生成文档格式
+1. 在目标网页点击扩展图标，开始录制。
+2. 正常完成操作，SmartPages 自动记录步骤和截图。
+3. 停止录制，在侧边栏选择文档类型或输入自定义目标。
+4. 调用你配置的模型生成文档。
+5. 直接编辑、AI 优化，然后复制或导出。
 
-| 格式 | 用途 | 当前支持 |
-| --- | --- | --- |
-| Markdown `.md` | 默认生成格式，方便编辑和复制 | 支持 |
-| HTML `.html` | 可作为最终生成格式，也可由其他格式导出 | 支持 |
-| Text `.txt` | 纯文本交付或复制 | 支持 |
-| PDF `.pdf` | 固定版式交付 | 暂未内置，可先导出 HTML 后用浏览器打印为 PDF |
+## 安装
 
----
+### 直接加载源码
 
-## 安装使用
-
-### 方式一：直接加载源码目录
-
-适合只想使用扩展、不关心构建流程的场景。
-
-1. 下载或克隆本项目。
-2. 打开 Chrome/Edge 的扩展管理页：
-   - Chrome: `chrome://extensions/`
-   - Edge: `edge://extensions/`
+1. 下载或克隆本仓库。
+2. 打开 `chrome://extensions/` 或 `edge://extensions/`。
 3. 开启“开发者模式”。
-4. 点击“加载已解压的扩展程序”。
-5. 选择项目根目录 `smartpages/`。
+4. 点击“加载已解压的扩展程序”，选择项目根目录。
 
-### 方式二：构建后加载 `dist/`
-
-适合开发、发布或确认打包产物的场景。
+### 构建后加载
 
 ```bash
 git clone https://github.com/Teddy9710/smartpages.git
@@ -216,129 +62,98 @@ npm install
 npm run build
 ```
 
-然后在浏览器扩展管理页加载构建产物：
+回到扩展管理页，选择项目中的 `dist/` 目录。后续修改代码后重新运行 `npm run build`，再刷新扩展。
 
-1. 打开扩展管理页：
-   - Chrome: `chrome://extensions/`
-   - Edge: `edge://extensions/`
-2. 开启“开发者模式”。
-3. 点击“加载已解压的扩展程序”。
-4. 选择项目中的 `dist/` 文件夹，不要选择项目根目录。
-5. 后续修改代码后，重新运行 `npm run build`，再回到扩展管理页点击该扩展的“刷新”按钮。
+## 快速开始
 
-开发时也可以使用 watch 构建：
+1. 打开扩展设置，选择模型服务商并填写 API Key、Base URL 和模型名。
+2. 点击“测试连接”。
+3. 打开需要记录的网页，开始录制并完成操作。
+4. 停止录制，在侧边栏选择文档目标并生成。
+5. 在预览区直接修改，或使用 AI 继续优化。
+6. 复制内容，或导出为 Markdown、HTML、纯文本、Word、ZIP、图片和 PDF。
 
-```bash
-npm run dev
-```
+> PDF 按钮会打开浏览器打印窗口；选择“另存为 PDF”即可保存固定版式文件。
 
-`npm run dev` 会持续更新 `dist/`，但浏览器通常仍需要手动刷新扩展才能加载最新内容。
+## 核心能力
 
----
+### 记录真实网页操作
 
-## 快速上手
+- 捕获点击、输入和 SPA 路由变化。
+- 为关键步骤保留页面截图。
+- 需要时自动补注入录制脚本，减少手动刷新。
 
-1. 打开设置页，选择模型服务商，填写 API Key、Base URL 和模型名。
-2. 点击“测试连接”，确认模型 API 可用。
-3. 选择默认输出格式，默认是 Markdown，也可以选择 HTML 或纯文本。
-4. 如有固定规范，在设置页填写风格指南或示例文档，内容可以是纯文本、Markdown 或 HTML。
-5. 打开需要记录流程的网页。
-6. 点击扩展图标，开始录制。
-7. 在网页上完成操作流程。
-8. 停止录制，进入侧边栏。
-9. 选择推荐的文档目标，或输入自定义描述。
-10. 生成文档后直接在预览区修改，也可以切换源码编辑、AI 优化或导出。
+### 生成符合目标的文档
 
----
+- 内置用户指南、教程、测试用例、问题报告等文档目标。
+- 支持追加要求或完全自定义提示词。
+- 可按文档类型提供风格指南和 Markdown / HTML 示例。
+- 可设置输出格式和最大 Token，适应不同交付场景。
 
-## 项目结构
+### 在侧边栏完成交付
 
-```text
-smartpages/
-├── manifest.json              # Chrome Extension Manifest V3 配置
-├── popup/                     # 扩展弹窗：开始/停止录制
-├── sidepanel/                 # 文档助手：生成、预览、编辑、导出
-├── settings/                  # 设置页：模型、提示词、风格指南、示例文档
-├── background/                # Service Worker：会话、截图、消息转发
-├── content/                   # Content Script：网页操作录制
-├── utils/                     # 通用工具、配置、文档上传 API/UI 工具
-├── styles/                    # 共享样式变量
-├── libs/                      # 本地第三方库，例如 marked.js
-├── icons/                     # 扩展图标
-├── upload/                    # 文档上传相关扩展模块
-├── docs/                      # 文档、素材和测试资料
-├── scripts/                   # 构建辅助脚本
-├── validate.js                # JS 语法校验脚本
-└── vite.config.js             # 构建配置
-```
+- 在渲染预览中直接编辑，也可切换到 Markdown 源码。
+- 支持 AI 二次优化与版本回退。
+- 支持复制、下载和多种导出格式。
+- 可管理 TXT、Markdown、HTML、RTF 等文档资源。
 
----
+## 产品界面
 
-## 主要命令
+<p align="center">
+  <img src="docs/assets/readme-hero.png" width="760" alt="SmartPages 产品界面">
+</p>
 
-```bash
-npm run build       # 生成 dist/ 扩展目录
-npm run dev         # watch 模式构建
-npm run lint        # ESLint 检查
-npm run lint:fix    # 自动修复可修复问题
-npm run typecheck   # TypeScript 类型检查
-node validate.js    # 核心 JS 文件语法校验
-```
-
----
-
-## 安全与隐私
-
-- API Key 存储在 Chrome Storage 中。
-- 扩展页面启用 CSP，禁止外部脚本直接注入。
-- 第三方库本地打包，避免运行时依赖 CDN。
-- 生成提示词会要求对密码、Token、手机号、身份证号等敏感内容进行遮蔽。
-- 文档渲染使用受控方式处理动态内容，降低 XSS 风险。
-
----
-
-## 当前状态
-
-| 模块 | 状态 |
+| 界面 | 用途 |
 | --- | --- |
-| 操作录制 | 可用 |
-| 截图采集 | 可用 |
-| AI 文档生成 | 可用 |
-| 风格指南和示例文档 | 可用 |
-| 可选输出格式 | 可用 |
-| 模型服务商下拉和自定义 Base URL | 可用 |
-| 预览区直接编辑 | 可用 |
-| Markdown 导出 | 可用 |
-| HTML 导出 | 可用 |
-| AI 二次优化与回退 | 可用 |
-| 文档上传管理 | 可用 |
-| PDF 直接导出 | 规划中 |
+| Popup 弹窗 | 开始或停止录制，查看状态，打开文档助手 |
+| Side Panel 侧边栏 | 生成、编辑、优化和导出文档 |
+| Settings 设置页 | 配置模型、提示词、风格指南、示例文档和输出格式 |
 
----
+## 模型兼容
 
-## 开发建议
+SmartPages 支持两类 API：
 
-- 修改 UI 后运行 `npm run build`。
-- 修改 JS 后运行 `node validate.js` 和 `npm run typecheck`。
-- 录制相关问题优先检查 `background/background.js` 与 `content/recorder.js`。
-- 文档生成质量优先调整 `utils/common.js` 中的默认提示词和 `sidepanel/sidepanel.js` 中的文档类型说明。
-- 设置页字段变更需要同步 `settings/settings.html`、`settings/settings.js` 和 `utils/common.js`。
+- **OpenAI-compatible Chat Completions**：GPT / OpenAI、Gemini / Google、GLM、DeepSeek、MiniMax、Kimi、OpenRouter、SiliconFlow、DashScope，以及自定义兼容服务。
+- **Anthropic Messages API**：Claude / Anthropic。
 
----
+不同服务商的模型名、Base URL、上下文长度和计费规则不同，请以对应官方文档为准。
 
-## 贡献
+## 隐私与安全
 
-欢迎贡献代码！提交 Pull Request 前请阅读 [贡献者许可协议 (CLA)](CONTRIBUTING.md)。
+- API Key 存储在 Chrome Storage 中，不写入仓库。
+- 录制数据只在生成文档时发送到你配置的模型 API。
+- 扩展页面启用 Manifest V3 CSP，第三方脚本在本地打包。
+- 动态 HTML 在渲染和导出前经过清理，降低 XSS 风险。
+- 生成提示词要求遮蔽密码、Token、手机号、证件号等敏感内容；录制前仍建议主动避开敏感信息。
 
-## License
+## 开发与贡献
 
-SmartPages 采用**双许可（Dual License）**模式：
+```bash
+npm run dev         # watch 模式构建 dist/
+npm test            # 运行测试
+npm run lint        # ESLint 检查
+npm run typecheck   # TypeScript 类型检查
+npm run build       # 生成可加载的 dist/
+npm run verify      # 完整验证
+```
 
-| 用途 | 协议 | 说明 |
+更多资料：
+
+- [快速上手](QUICKSTART.md)
+- [测试指南](TESTING.md)
+- [故障排查](TROUBLESHOOTING.md)
+- [代码结构](CODE_STRUCTURE.md)
+- [示例文档](docs/examples/README.md)
+
+欢迎提交 Issue 和 Pull Request。贡献前请阅读[贡献者许可协议（CLA）](CONTRIBUTING.md)。
+
+## 许可证
+
+SmartPages 采用双许可证模式：
+
+| 使用场景 | 许可证 | 说明 |
 | --- | --- | --- |
-| 个人/学习/非商业 | [GPL v3](LICENSE) | 免费，可修改和分发，但修改后的代码也必须开源 |
-| 商业用途 | 商业授权 | 需联系作者获取商业授权许可 |
+| 个人、学习、非商业用途 | [GPL v3](LICENSE) | 可免费使用、修改和分发；衍生作品需继续开源 |
+| 商业用途 | 商业许可证 | 集成到商业产品、SaaS 或企业部署前需另行获得授权 |
 
-- 版权所有者（汪鸿儒）保留所有商业权利，可不受限制地商业使用。
-- 未经授权，不得将本软件用于任何商业目的，包括但不限于商业产品集成、SaaS 服务、企业部署。
-- 商业授权咨询请通过 GitHub Issues 联系作者。
+版权所有者保留全部商业权利。商业授权请通过 [GitHub Issues](https://github.com/Teddy9710/smartpages/issues) 联系作者。
