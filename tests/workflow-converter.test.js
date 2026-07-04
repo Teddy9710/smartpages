@@ -70,6 +70,12 @@ const nestedScroll = api.convertSession({
 });
 assert.deepEqual(JSON.parse(JSON.stringify(nestedScroll.workflow.steps[0].input)), { x: 98, y: 765 });
 
+const malformedScroll = api.convertSession({
+  pageUrl: 'https://example.com/start',
+  steps: [{ type: 'scroll', scroll: { x: 'bad', y: Infinity } }],
+});
+assert.deepEqual(JSON.parse(JSON.stringify(malformedScroll.workflow.steps[0].input)), { x: 0, y: 0 });
+
 const directMappings = api.convertSession({
   pageUrl: 'https://example.com/start',
   steps: [

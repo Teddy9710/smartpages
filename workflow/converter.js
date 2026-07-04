@@ -48,6 +48,11 @@
     return step.elementName || step.name || step.elementRole || step.elementType || step.tagName || `value-${index + 1}`;
   }
 
+  function finiteNumber(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : 0;
+  }
+
   function convertSession(session, options) {
     options = options || {};
     if (!session || !Array.isArray(session.steps) || session.steps.length === 0) {
@@ -79,8 +84,8 @@
         step.input = { url: recorded.to || recorded.url || session.pageUrl };
       } else if (action === 'scroll') {
         step.input = {
-          x: Number(recorded.scroll?.x ?? recorded.x ?? 0),
-          y: Number(recorded.scroll?.y ?? recorded.y ?? 0),
+          x: finiteNumber(recorded.scroll?.x ?? recorded.x ?? 0),
+          y: finiteNumber(recorded.scroll?.y ?? recorded.y ?? 0),
         };
       } else {
         step.target = targetFor(recorded);
