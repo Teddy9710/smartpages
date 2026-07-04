@@ -53,6 +53,8 @@ const invalidCases = [
   [{ ...validWorkflow(), steps: [{ id: 'bad', action: 'launch', risk: 'low' }] }, 'UNKNOWN_ACTION'],
   [{ ...validWorkflow(), steps: [{ id: 'bad', action: 'wait', risk: 'critical' }] }, 'INVALID_RISK'],
   [{ ...validWorkflow(), steps: [{ id: 'bad', action: 'click', risk: 'low' }] }, 'MISSING_TARGET'],
+  [{ ...validWorkflow(), steps: [{ id: 'bad', action: 'click', risk: 'low', target: [] }] }, 'MISSING_TARGET'],
+  [{ ...validWorkflow(), steps: [{ id: 'bad', action: 'click', risk: 'low', target: {} }] }, 'MISSING_TARGET'],
 ];
 
 for (const [workflow, code] of invalidCases) {
