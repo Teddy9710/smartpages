@@ -14,6 +14,7 @@ const copyTargets = [
   { src: 'styles', dest: '.' },
   { src: 'skills', dest: '.' },
   { src: 'docs', dest: '.' },
+  { src: 'workflow', dest: '.' },
   // Modules with subdirectory nesting - use rename.stripBase
   { src: 'popup/*', dest: 'popup', rename: { stripBase: 1 } },
   { src: 'sidepanel/*', dest: 'sidepanel', rename: { stripBase: 1 } },
