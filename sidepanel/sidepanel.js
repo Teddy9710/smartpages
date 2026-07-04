@@ -2724,8 +2724,8 @@ ${markdown}`;
       }
 
       const jsonFilename = `${baseName}.smartpages.json`;
-      const metadata = `<!-- SmartPages Workflow: Workflow ID=${workflow.workflowId}; Version=${workflow.workflowVersion}; JSON=${jsonFilename} -->`;
-      const markdownBlob = new Blob([`${metadata}\n${content}`], { type: 'text/markdown;charset=utf-8' });
+      const metadata = `<!-- SmartPages Workflow ID: ${workflow.workflowId}; Version: ${workflow.workflowVersion}; File: ${jsonFilename} -->`;
+      const markdownBlob = new Blob([`${metadata}\n\n${content}`], { type: 'text/markdown;charset=utf-8' });
       const jsonBlob = new Blob([`${JSON.stringify(workflow, null, 2)}\n`], { type: 'application/json;charset=utf-8' });
 
       this._downloadBlob(`${baseName}.md`, markdownBlob);

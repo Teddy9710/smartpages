@@ -75,7 +75,7 @@ function createManager() {
   const jsonText = await manager.downloads[1].blob.text();
   const workflow = JSON.parse(jsonText);
   assert.ok(jsonText.endsWith('\n'));
-  assert.match(markdown, /^<!-- SmartPages Workflow: Workflow ID=checkout-demo-flow; Version=1; JSON=Checkout_ Demo _ Flow\.smartpages\.json -->\n/);
+  assert.ok(markdown.startsWith('<!-- SmartPages Workflow ID: checkout-demo-flow; Version: 1; File: Checkout_ Demo _ Flow.smartpages.json -->\n\n'));
   assert.ok(markdown.endsWith(editorContent));
   assert.equal(workflow.workflowId, 'checkout-demo-flow');
   assert.equal(workflow.workflowVersion, 1);
