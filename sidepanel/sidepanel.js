@@ -857,6 +857,9 @@ ${bodyHtml}
       generationFailed: 'Failed to generate document. Please try again.',
       workflowExportEmptyContent: 'Enter document content before exporting a workflow.',
       workflowExportEmptySession: 'Record at least one step before exporting a workflow.',
+      workflowExportUnavailable: 'Workflow export is unavailable. Please reload the extension and try again.',
+      workflowExportConversionFailed: 'Failed to convert the recording into an executable workflow.',
+      workflowExportInvalid: 'The generated workflow is invalid and could not be exported.',
       workflowExportFailed: 'Failed to export executable workflow.',
       copyDone: 'Document copied to clipboard.',
       copyFailed: 'Copy failed. Please select the text manually.',
@@ -894,6 +897,9 @@ ${bodyHtml}
       generationFailed: '生成文档失败，请重试',
       workflowExportEmptyContent: '请先输入文档内容，再导出工作流。',
       workflowExportEmptySession: '请先录制至少一个步骤，再导出工作流。',
+      workflowExportUnavailable: '工作流导出功能暂不可用，请重新加载扩展后重试。',
+      workflowExportConversionFailed: '无法将录制内容转换为可执行工作流。',
+      workflowExportInvalid: '生成的工作流无效，无法导出。',
       workflowExportFailed: '导出可执行工作流失败。',
       copyDone: '文档已复制到剪贴板。',
       copyFailed: '复制失败，请手动选择文本',
@@ -2699,9 +2705,7 @@ ${markdown}`;
       const converter = globalThis.SmartPagesWorkflowConverter;
       const schema = globalThis.SmartPagesWorkflowSchema;
       if (!converter?.convertSession || !schema?.validateWorkflow) {
-        const error = new Error('Workflow converter or schema is unavailable.');
-        error.code = 'WORKFLOW_EXPORT_UNAVAILABLE';
-        throw error;
+        throw new ExtensionError(this._t('workflowExportUnavailable'), 'WORKFLOW_EXPORT_UNAVAILABLE');
       }
 
       const baseName = this._getExportBaseName(content);
@@ -2712,15 +2716,11 @@ ${markdown}`;
           workflowId: baseName
         })?.workflow;
       } catch (conversionError) {
-        const error = new Error(conversionError?.message || this._t('workflowExportFailed'));
-        error.code = 'WORKFLOW_EXPORT_CONVERSION';
-        throw error;
+        throw new ExtensionError(this._t('workflowExportConversionFailed'), 'WORKFLOW_EXPORT_CONVERSION');
       }
       const validation = schema.validateWorkflow(workflow);
       if (!validation.ok) {
-        const error = new Error(`Workflow validation failed: ${validation.code}.`);
-        error.code = 'WORKFLOW_EXPORT_INVALID';
-        throw error;
+        throw new ExtensionError(this._t('workflowExportInvalid'), 'WORKFLOW_EXPORT_INVALID');
       }
 
       const jsonFilename = `${baseName}.smartpages.json`;
