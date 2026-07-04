@@ -92,6 +92,7 @@ $RECYCLE.BIN/
 .claude/
 .playwright-cli/
 .skills-staging/
+.worktrees/
 skills/
 project-architect/
 project-architect.skill
