@@ -64,7 +64,7 @@
 
     const workflowId = slug(options.workflowId || session.sessionId || session.title, 'recorded-workflow');
     const variables = [];
-    const variableCounts = Object.create(null);
+    const variableNames = new Set();
     const steps = session.steps.map((recorded, index) => {
       const action = actionFor(recorded);
       const riskText = `${recorded.elementType || ''} ${recorded.elementName || ''} ${recorded.name || ''} ${recorded.action || ''} ${recorded.text || ''}`;
@@ -78,15 +78,19 @@
       if (action === 'navigate') {
         step.input = { url: recorded.to || recorded.url || session.pageUrl };
       } else if (action === 'scroll') {
-        step.input = { x: Number(recorded.x) || 0, y: Number(recorded.y) || 0 };
+        step.input = {
+          x: Number(recorded.scroll?.x ?? recorded.x ?? 0),
+          y: Number(recorded.scroll?.y ?? recorded.y ?? 0),
+        };
       } else {
         step.target = targetFor(recorded);
         if (action === 'input' || action === 'select') {
           const label = variableLabel(recorded, index);
           const baseName = slug(label, `value-${index + 1}`);
-          const count = (variableCounts[baseName] || 0) + 1;
-          variableCounts[baseName] = count;
-          const name = count === 1 ? baseName : `${baseName}-${count}`;
+          let name = baseName;
+          let suffix = 2;
+          while (variableNames.has(name)) name = `${baseName}-${suffix++}`;
+          variableNames.add(name);
           variables.push({ name, required: true, secret: SECRET.test(`${label} ${recorded.elementType || ''}`) });
           step.input = { value: `{variable:${name}}` };
         }
@@ -98,7 +102,7 @@
       schemaVersion: '1.0',
       workflowId,
       workflowVersion: 1,
-      title: session.title || workflowId,
+      title: options.title || session.pageTitle || 'SmartPages workflow',
       generatedAt: options.now || new Date().toISOString(),
       allowedOrigins: [page.origin],
       variables,

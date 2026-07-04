@@ -8,7 +8,7 @@ const api = loadBrowserScript('workflow/converter.js', 'SmartPagesWorkflowConver
 
 const sample = api.convertSession({
   sessionId: 'session-42',
-  title: 'Edit profile',
+  pageTitle: 'Edit profile',
   pageUrl: 'https://example.com/profile?tab=main',
   steps: [
     { type: 'click', selector: '#name', elementName: 'Name', tagName: 'input' },
@@ -64,6 +64,12 @@ const navigation = api.convertSession({
 assert.deepEqual(JSON.parse(JSON.stringify(navigation.workflow.steps[0].input)), { url: 'https://example.com/next' });
 assert.deepEqual(JSON.parse(JSON.stringify(navigation.workflow.steps[1].input)), { x: 12, y: 345 });
 
+const nestedScroll = api.convertSession({
+  pageUrl: 'https://example.com/start',
+  steps: [{ type: 'scroll', scroll: { x: 98, y: 765 }, x: 1, y: 2 }],
+});
+assert.deepEqual(JSON.parse(JSON.stringify(nestedScroll.workflow.steps[0].input)), { x: 98, y: 765 });
+
 const directMappings = api.convertSession({
   pageUrl: 'https://example.com/start',
   steps: [
@@ -94,6 +100,37 @@ assert.equal(duplicates.workflow.workflowId, 'my-stable-workflow');
 assert.deepEqual(Array.from(duplicates.workflow.variables, variable => variable.name), ['email-address', 'email-address-2']);
 assert.deepEqual(Array.from(duplicates.workflow.steps, step => step.input.value),
   ['{variable:email-address}', '{variable:email-address-2}']);
+
+const adversarialNames = api.convertSession({
+  sessionId: 'id-must-not-be-title',
+  pageTitle: 'Recorded page title',
+  pageUrl: 'https://example.com',
+  steps: [
+    { type: 'input', selector: '#one', elementName: 'email', value: 'one' },
+    { type: 'input', selector: '#two', elementName: 'email-2', value: 'two' },
+    { type: 'input', selector: '#three', elementName: 'email', formValue: { value: 'nested-secret' } },
+  ],
+}, { title: 'Explicit workflow title' });
+assert.equal(adversarialNames.workflow.title, 'Explicit workflow title');
+assert.deepEqual(Array.from(adversarialNames.workflow.variables, variable => variable.name),
+  ['email', 'email-2', 'email-3']);
+assert.deepEqual(Array.from(adversarialNames.workflow.steps, step => step.input.value),
+  ['{variable:email}', '{variable:email-2}', '{variable:email-3}']);
+assert.equal(JSON.stringify(adversarialNames).includes('nested-secret'), false);
+
+const pageTitle = api.convertSession({
+  sessionId: 'separate-id',
+  pageTitle: 'Page title wins',
+  pageUrl: 'https://example.com',
+  steps: [{ type: 'click', selector: '#x' }],
+});
+assert.equal(pageTitle.workflow.title, 'Page title wins');
+const defaultTitle = api.convertSession({
+  sessionId: 'separate-id',
+  pageUrl: 'https://example.com',
+  steps: [{ type: 'click', selector: '#x' }],
+});
+assert.equal(defaultTitle.workflow.title, 'SmartPages workflow');
 
 assert.throws(() => api.convertSession({ pageUrl: 'ftp://example.com', steps: [{ type: 'click', selector: '#x' }] }),
   error => error.code === 'INVALID_PAGE_URL');
