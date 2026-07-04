@@ -4,7 +4,7 @@
   const VERSION = '1.0';
   const ACTIONS = Object.freeze(['navigate', 'click', 'input', 'select', 'scroll', 'wait', 'assert']);
   const RISKS = Object.freeze(['low', 'medium', 'high']);
-  const TARGET_REQUIRED_ACTIONS = new Set(['navigate', 'click', 'input', 'select', 'assert']);
+  const TARGET_REQUIRED_ACTIONS = new Set(['click', 'input', 'select']);
 
   function invalid(code, message) {
     return { ok: false, code, message };
@@ -60,8 +60,9 @@
       if (!RISKS.includes(step.risk)) {
         return invalid('INVALID_RISK', `Invalid risk for step ${step.id}.`);
       }
-      if (TARGET_REQUIRED_ACTIONS.has(step.action) &&
-          (typeof step.target !== 'string' || step.target.trim() === '')) {
+      const hasTarget = (typeof step.target === 'string' && step.target.trim() !== '') ||
+        (step.target !== null && typeof step.target === 'object');
+      if (TARGET_REQUIRED_ACTIONS.has(step.action) && !hasTarget) {
         return invalid('MISSING_TARGET', `Action ${step.action} requires a target.`);
       }
     }

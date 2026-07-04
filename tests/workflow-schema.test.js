@@ -23,6 +23,18 @@ const accepted = api.validateWorkflow(validWorkflow());
 assert.equal(accepted.ok, true);
 assert.equal(accepted.workflow.workflowId, 'checkout');
 
+const navigateWithoutTarget = validWorkflow();
+navigateWithoutTarget.steps = [{ id: 'open', action: 'navigate', risk: 'low', input: { url: 'https://example.com/cart' } }];
+assert.equal(api.validateWorkflow(navigateWithoutTarget).ok, true);
+
+const assertWithoutTarget = validWorkflow();
+assertWithoutTarget.steps = [{ id: 'check', action: 'assert', risk: 'low', conditions: [{ type: 'url' }] }];
+assert.equal(api.validateWorkflow(assertWithoutTarget).ok, true);
+
+const objectTarget = validWorkflow();
+objectTarget.steps = [{ id: 'buy', action: 'click', risk: 'high', target: { selector: '#buy' } }];
+assert.equal(api.validateWorkflow(objectTarget).ok, true);
+
 const invalidCases = [
   [null, 'INVALID_WORKFLOW'],
   [{}, 'UNSUPPORTED_SCHEMA'],
