@@ -64,6 +64,23 @@ const navigation = api.convertSession({
 assert.deepEqual(JSON.parse(JSON.stringify(navigation.workflow.steps[0].input)), { url: 'https://example.com/next' });
 assert.deepEqual(JSON.parse(JSON.stringify(navigation.workflow.steps[1].input)), { x: 12, y: 345 });
 
+const directMappings = api.convertSession({
+  pageUrl: 'https://example.com/start',
+  steps: [
+    { type: 'select', selector: '#language', elementName: 'Language', value: 'Chinese' },
+    { type: 'navigate', url: 'https://example.com/from-recorded-url' },
+    { type: 'click', selector: '#confirm', elementName: '确认订单' },
+  ],
+});
+assert.equal(directMappings.workflow.steps[0].action, 'select');
+assert.equal(directMappings.workflow.steps[0].input.value, '{variable:language}');
+assert.equal(JSON.stringify(directMappings).includes('Chinese'), false);
+assert.deepEqual(JSON.parse(JSON.stringify(directMappings.workflow.steps[1].input)), {
+  url: 'https://example.com/from-recorded-url',
+});
+assert.equal(directMappings.workflow.steps[2].risk, 'high');
+assert.equal(directMappings.workflow.steps.some(step => Object.hasOwn(step, 'postconditions')), false);
+
 const duplicates = api.convertSession({
   sessionId: 'ignored',
   title: '  My Stable Workflow!  ',
@@ -77,5 +94,22 @@ assert.equal(duplicates.workflow.workflowId, 'my-stable-workflow');
 assert.deepEqual(Array.from(duplicates.workflow.variables, variable => variable.name), ['email-address', 'email-address-2']);
 assert.deepEqual(Array.from(duplicates.workflow.steps, step => step.input.value),
   ['{variable:email-address}', '{variable:email-address-2}']);
+
+assert.throws(() => api.convertSession({ pageUrl: 'ftp://example.com', steps: [{ type: 'click', selector: '#x' }] }),
+  error => error.code === 'INVALID_PAGE_URL');
+
+const withoutSchema = loadBrowserScript('workflow/converter.js', 'SmartPagesWorkflowConverter');
+assert.equal(withoutSchema.convertSession({
+  pageUrl: 'https://example.com',
+  steps: [{ type: 'click', selector: '#works' }],
+}).workflow.steps[0].action, 'click');
+
+const rejectingConverter = loadBrowserScript('workflow/converter.js', 'SmartPagesWorkflowConverter', {
+  SmartPagesWorkflowSchema: { validateWorkflow: () => ({ ok: false, code: 'TEST_REJECTION' }) },
+});
+assert.throws(() => rejectingConverter.convertSession({
+  pageUrl: 'https://example.com',
+  steps: [{ type: 'click', selector: '#invalid' }],
+}), error => error.code === 'INVALID_GENERATED_WORKFLOW' && /TEST_REJECTION/.test(error.message));
 
 console.log('workflow-converter tests passed');

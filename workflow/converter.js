@@ -24,6 +24,7 @@
     if (step.type === 'navigate') return 'navigate';
     if (step.type === 'scroll') return 'scroll';
     if (step.type === 'input') return 'input';
+    if (step.type === 'select') return 'select';
     if (step.type === 'change') {
       const kind = `${step.elementRole || ''} ${step.tagName || ''} ${step.elementType || ''}`;
       return /select|combobox/i.test(kind) ? 'select' : 'input';
@@ -75,7 +76,7 @@
 
       if (index === 0) step.preconditions = [{ type: 'url', url: session.pageUrl }];
       if (action === 'navigate') {
-        step.input = { url: recorded.to || session.pageUrl };
+        step.input = { url: recorded.to || recorded.url || session.pageUrl };
       } else if (action === 'scroll') {
         step.input = { x: Number(recorded.x) || 0, y: Number(recorded.y) || 0 };
       } else {
