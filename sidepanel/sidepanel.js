@@ -544,6 +544,7 @@ ${bodyHtml}
     this._bindButton('btn-edit', () => this.switchToEdit());
     this._bindButton('btn-copy', () => this.copyDocument());
     this._bindButton('btn-download', () => this.downloadDocument());
+    this._bindButton('btn-export-workflow', () => this.exportExecutableWorkflow());
     this._bindButton('btn-export-html', () => this.exportHtmlDocument());
     this._bindButton('btn-export-word', () => this.exportWordDocument());
     this._bindButton('btn-export-pdf', () => this.exportPdfDocument());
@@ -760,6 +761,8 @@ ${bodyHtml}
       revert: 'Revert',
       copy: 'Copy',
       download: 'Download',
+      workflowExport: 'JSON Workflow',
+      workflowExportTitle: 'Export executable workflow',
       html: 'HTML',
       word: 'Word',
       pdf: 'PDF',
@@ -805,6 +808,8 @@ ${bodyHtml}
       revert: '回退',
       copy: '复制',
       download: '下载',
+      workflowExport: 'JSON 工作流',
+      workflowExportTitle: '导出可执行工作流',
       html: 'HTML',
       word: 'Word',
       pdf: 'PDF',
@@ -850,6 +855,9 @@ ${bodyHtml}
       customRequired: 'Please enter a custom description',
       generating: 'Generating document...',
       generationFailed: 'Failed to generate document. Please try again.',
+      workflowExportEmptyContent: 'Enter document content before exporting a workflow.',
+      workflowExportEmptySession: 'Record at least one step before exporting a workflow.',
+      workflowExportFailed: 'Failed to export executable workflow.',
       copyDone: 'Document copied to clipboard.',
       copyFailed: 'Copy failed. Please select the text manually.',
       contentRequired: 'Please generate or enter document content first.',
@@ -884,6 +892,9 @@ ${bodyHtml}
       customRequired: '请输入自定义描述',
       generating: '正在生成文档...',
       generationFailed: '生成文档失败，请重试',
+      workflowExportEmptyContent: '请先输入文档内容，再导出工作流。',
+      workflowExportEmptySession: '请先录制至少一个步骤，再导出工作流。',
+      workflowExportFailed: '导出可执行工作流失败。',
       copyDone: '文档已复制到剪贴板。',
       copyFailed: '复制失败，请手动选择文本',
       contentRequired: '请先生成或输入文档内容',
@@ -991,6 +1002,12 @@ ${bodyHtml}
     setButton('#btn-revert-optimization', text.revert);
     setButton('#btn-copy', text.copy);
     setButton('#btn-download', text.download);
+    setButton('#btn-export-workflow', text.workflowExport);
+    const workflowExportButton = document.getElementById('btn-export-workflow');
+    if (workflowExportButton) {
+      workflowExportButton.title = text.workflowExportTitle;
+      workflowExportButton.setAttribute('aria-label', text.workflowExportTitle);
+    }
     setButton('#btn-export-html', text.html);
     setButton('#btn-export-word', text.word);
     setButton('#btn-export-pdf', text.pdf);
@@ -2661,6 +2678,63 @@ ${markdown}`;
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  }
+
+  exportExecutableWorkflow() {
+    this._ensureEditorContentFresh();
+    const content = document.getElementById('markdown-editor')?.value || '';
+
+    try {
+      if (!content.trim()) {
+        const error = new Error(this._t('workflowExportEmptyContent'));
+        error.code = 'WORKFLOW_EXPORT_EMPTY_CONTENT';
+        throw error;
+      }
+      if (!Array.isArray(this.session?.steps) || this.session.steps.length === 0) {
+        const error = new Error(this._t('workflowExportEmptySession'));
+        error.code = 'WORKFLOW_EXPORT_EMPTY_SESSION';
+        throw error;
+      }
+
+      const converter = globalThis.SmartPagesWorkflowConverter;
+      const schema = globalThis.SmartPagesWorkflowSchema;
+      if (!converter?.convertSession || !schema?.validateWorkflow) {
+        const error = new Error('Workflow converter or schema is unavailable.');
+        error.code = 'WORKFLOW_EXPORT_UNAVAILABLE';
+        throw error;
+      }
+
+      const baseName = this._getExportBaseName(content);
+      let workflow;
+      try {
+        workflow = converter.convertSession(this.session, {
+          title: baseName,
+          workflowId: baseName
+        })?.workflow;
+      } catch (conversionError) {
+        const error = new Error(conversionError?.message || this._t('workflowExportFailed'));
+        error.code = 'WORKFLOW_EXPORT_CONVERSION';
+        throw error;
+      }
+      const validation = schema.validateWorkflow(workflow);
+      if (!validation.ok) {
+        const error = new Error(`Workflow validation failed: ${validation.code}.`);
+        error.code = 'WORKFLOW_EXPORT_INVALID';
+        throw error;
+      }
+
+      const jsonFilename = `${baseName}.smartpages.json`;
+      const metadata = `<!-- SmartPages Workflow: Workflow ID=${workflow.workflowId}; Version=${workflow.workflowVersion}; JSON=${jsonFilename} -->`;
+      const markdownBlob = new Blob([`${metadata}\n${content}`], { type: 'text/markdown;charset=utf-8' });
+      const jsonBlob = new Blob([`${JSON.stringify(workflow, null, 2)}\n`], { type: 'application/json;charset=utf-8' });
+
+      this._downloadBlob(`${baseName}.md`, markdownBlob);
+      this._downloadBlob(jsonFilename, jsonBlob);
+    } catch (error) {
+      const code = error?.code || 'WORKFLOW_EXPORT_FAILED';
+      const message = error?.message || this._t('workflowExportFailed');
+      this._showError(`${code}: ${message}`);
+    }
   }
 
   exportHtmlDocument() {
