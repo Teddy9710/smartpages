@@ -22,7 +22,7 @@ function element(id) {
     appendChild(child) { this.children.push(child); return child; },
     replaceChildren(...children) { this.children = children; },
     addEventListener() {}, removeEventListener() {}, focus() { this.focused = true; },
-    querySelectorAll() { return this.children.filter(child => child.tagName === 'INPUT'); }
+    querySelectorAll() { return this.children.flatMap(child => child.tagName === 'INPUT' ? [child] : child.querySelectorAll?.('input') || []); }
   };
 }
 
@@ -67,7 +67,8 @@ function manager() {
     workflowRunInvalid: 'Workflow cannot be run.', workflowRunStatusRUNNING: 'Running', workflowRunStatusWAITING_CONFIRMATION: 'Confirmation required',
     workflowRunStatusWAITING_INPUT: 'Input required', workflowRunStatusFAILED: 'Failed', workflowRunStatusCOMPLETED: 'Completed', workflowRunStatusCANCELLED: 'Cancelled',
     workflowRunStep: 'Step {{id}}: {{description}}', workflowRunOrigin: 'Site: {{value}}', workflowRunAction: 'Action: {{value}}',
-    workflowRunTarget: 'Target: {{value}}', workflowRunVariables: 'Variables: {{value}}', workflowRunNoVariables: 'None'
+    workflowRunTarget: 'Target: {{value}}', workflowRunVariables: 'Variables: {{value}}', workflowRunNoVariables: 'None',
+    workflowRunApprove: 'Approve', workflowRunContinue: 'Continue'
   };
   value._ensureEditorContentFresh = () => {};
   value._getExportBaseName = () => 'Replay';
@@ -94,17 +95,34 @@ function manager() {
   for (const status of states) {
     value._renderWorkflowRun({ status, runId: 'r', currentStepId: 's', pendingStep: { id: 's', description: 'Pay', origin: 'https://shop.example', action: 'click', target: { accessibleName: 'Pay now' }, variableNames: ['email', 'password'], variables: { password: 'SECRET-VALUE' } } });
     assert.ok(elements['workflow-run-status'].textContent);
-    assert.equal(elements['btn-workflow-approve'].hidden, status !== 'WAITING_CONFIRMATION');
+    assert.equal(elements['btn-workflow-approve'].hidden, !['WAITING_CONFIRMATION', 'WAITING_INPUT'].includes(status));
     assert.equal(elements['btn-workflow-reject'].hidden, status !== 'WAITING_CONFIRMATION');
     assert.equal(elements['btn-workflow-cancel'].hidden, ['FAILED', 'COMPLETED', 'CANCELLED'].includes(status));
     if (status === 'WAITING_INPUT') {
       const renderedInputs = elements['workflow-run-inputs'].children.flatMap(label => label.children || []);
-      assert.deepEqual(renderedInputs.map(input => input.name), ['email']);
+      assert.deepEqual(renderedInputs.map(input => input.name), ['email', 'password']);
+      assert.equal(renderedInputs[1].type, 'password');
       assert.doesNotMatch(JSON.stringify(elements['workflow-run-inputs']), /SECRET-VALUE/);
+      assert.equal(elements['btn-workflow-approve'].hidden, false);
+      assert.equal(elements['btn-workflow-approve'].textContent, 'Continue');
     }
   }
   assert.match(elements['workflow-run-summary'].textContent, /shop\.example|click|Pay now|email|password/);
   assert.doesNotMatch(elements['workflow-run-summary'].textContent, /SECRET-VALUE/);
+
+  sent.length = 0;
+  value._workflowReplayVariables = [{ name: 'email' }, { name: 'password', secret: true }];
+  value._renderWorkflowRun({ status: 'WAITING_INPUT', runId: 'run-input', currentStepId: 'step-input', pendingStep: { id: 'step-input', variableNames: ['email', 'password'] } });
+  const inputFields = elements['workflow-run-inputs'].children.flatMap(label => label.children || []);
+  inputFields[0].value = 'person@example.com';
+  inputFields[1].value = 'top-secret';
+  responder = async () => ({ status: 'RUNNING', runId: 'run-input', currentStepId: 'next' });
+  await value.approveWorkflowStep();
+  assert.deepEqual(JSON.parse(JSON.stringify(sent[0])), {
+    type: 'WORKFLOW_RESUME_RUN', runId: 'run-input', expectedStepId: 'step-input', approved: true,
+    variables: { email: 'person@example.com', password: 'top-secret' }
+  });
+  assert.equal(inputFields[1].value, '');
 
   sent.length = 0;
   value.workflowRun = { status: 'WAITING_CONFIRMATION', runId: 'run-x', currentStepId: 'step-x', pendingStep: { id: 'step-x' } };

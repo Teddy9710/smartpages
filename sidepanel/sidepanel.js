@@ -880,7 +880,7 @@ ${bodyHtml}
       workflowRunStep: 'Step {{id}}: {{description}}', workflowRunOrigin: 'Site: {{value}}',
       workflowRunAction: 'Action: {{value}}', workflowRunTarget: 'Target: {{value}}',
       workflowRunVariables: 'Variables: {{value}}', workflowRunNoVariables: 'None',
-      workflowRunApprove: 'Approve', workflowRunReject: 'Reject', workflowRunCancel: 'Cancel',
+      workflowRunApprove: 'Approve', workflowRunContinue: 'Continue', workflowRunReject: 'Reject', workflowRunCancel: 'Cancel',
       copyDone: 'Document copied to clipboard.',
       copyFailed: 'Copy failed. Please select the text manually.',
       contentRequired: 'Please generate or enter document content first.',
@@ -930,7 +930,7 @@ ${bodyHtml}
       workflowRunStep: '步骤 {{id}}：{{description}}', workflowRunOrigin: '网站：{{value}}',
       workflowRunAction: '操作：{{value}}', workflowRunTarget: '目标：{{value}}',
       workflowRunVariables: '变量：{{value}}', workflowRunNoVariables: '无',
-      workflowRunApprove: '批准', workflowRunReject: '拒绝', workflowRunCancel: '取消',
+      workflowRunApprove: '批准', workflowRunContinue: '继续', workflowRunReject: '拒绝', workflowRunCancel: '取消',
       copyDone: '文档已复制到剪贴板。',
       copyFailed: '复制失败，请手动选择文本',
       contentRequired: '请先生成或输入文档内容',
@@ -2808,19 +2808,23 @@ ${markdown}`;
     inputs?.replaceChildren();
     if (state === 'WAITING_INPUT' && inputs) {
       const definitions = new Map((this._workflowReplayVariables || []).map(item => [item.name, item]));
-      variableNames.filter(name => !definitions.get(name)?.secret && !/(password|token|secret)/i.test(name)).forEach(name => {
+      variableNames.forEach(name => {
         const label = document.createElement('label');
         label.textContent = name;
         const input = document.createElement('input');
-        input.type = 'text'; input.name = name; input.autocomplete = 'off';
+        const secret = definitions.get(name)?.secret || /(password|token|secret)/i.test(name);
+        input.type = secret ? 'password' : 'text'; input.name = name; input.autocomplete = 'off';
         label.appendChild(input); inputs.appendChild(label);
       });
     }
     const confirmation = state === 'WAITING_CONFIRMATION';
-    this._setWorkflowRunElementVisible(document.getElementById('btn-workflow-approve'), confirmation);
+    const waitingInput = state === 'WAITING_INPUT';
+    const approveButton = document.getElementById('btn-workflow-approve');
+    this._setWorkflowRunElementVisible(approveButton, confirmation || waitingInput);
+    if (approveButton) approveButton.textContent = this._t(waitingInput ? 'workflowRunContinue' : 'workflowRunApprove');
     this._setWorkflowRunElementVisible(document.getElementById('btn-workflow-reject'), confirmation);
     this._setWorkflowRunElementVisible(document.getElementById('btn-workflow-cancel'), !['FAILED', 'COMPLETED', 'CANCELLED', 'STARTING'].includes(state));
-    if (confirmation) document.getElementById('btn-workflow-approve')?.focus();
+    if (confirmation || waitingInput) approveButton?.focus();
   }
 
   _readWorkflowRunVariables() {
