@@ -4,7 +4,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 class FakeElement {
-  constructor({ role = '', name = '', tagName = 'BUTTON', visible = true, value = '', options = [] } = {}) {
+  constructor({ role = '', name = '', tagName = 'BUTTON', visible = true, value = '', options = [], type = '', href = '', id = '', ariaLabel = '', labelledBy = '' } = {}) {
     this.role = role;
     this.tagName = tagName;
     this.textContent = name;
@@ -15,8 +15,16 @@ class FakeElement {
     this.clicked = 0;
     this.focused = false;
     this.labels = [];
+    this.type = type;
+    this.href = href;
+    this.id = id;
+    this.ariaLabel = ariaLabel;
+    this.labelledBy = labelledBy;
   }
-  getAttribute(name) { return name === 'role' ? this.role || null : name === 'aria-label' ? this.ariaLabel || null : null; }
+  getAttribute(name) {
+    const values = { role: this.role, 'aria-label': this.ariaLabel, 'aria-labelledby': this.labelledBy, type: this.type, href: this.href, id: this.id };
+    return values[name] || null;
+  }
   getBoundingClientRect() { return this.visible ? { width: 10, height: 10 } : { width: 0, height: 0 }; }
   click() { this.clicked += 1; }
   focus() { this.focused = true; }
@@ -40,6 +48,7 @@ function createEnvironment() {
       const role = /^\[role="(.+)"\]$/.exec(selector)?.[1];
       return role ? elements.filter(element => element.role === role) : elements;
     },
+    getElementById(id) { return elements.find(element => element.id === id) || null; },
   };
   const location = { href: 'https://example.com/start', origin: 'https://example.com', pathname: '/start', assign: url => assigned.push(url) };
   const chrome = { runtime: { onMessage: {
@@ -76,6 +85,27 @@ const plain = value => JSON.parse(JSON.stringify(value));
   env.selectors.set('.raw-save', rawButton);
   assert.equal((await env.api.executeStep({ action: 'click', target: { selector: '.missing', rawSelector: '.raw-save' } }, context)).ok, true);
   assert.equal(rawButton.clicked, 1);
+
+  const implicitButton = new FakeElement({ tagName: 'BUTTON', name: 'Native Save' });
+  env.elements.push(implicitButton);
+  assert.equal((await env.api.executeStep({ action: 'click', target: { role: 'button', name: 'native save' } }, context)).ok, true);
+  assert.equal(implicitButton.clicked, 1);
+
+  const overriddenButton = new FakeElement({ tagName: 'BUTTON', role: 'link', name: 'Override Link' });
+  env.elements.push(overriddenButton);
+  assert.equal((await env.api.executeStep({ action: 'click', target: { role: 'button', name: 'override link' } }, context)).code, 'TARGET_NOT_FOUND');
+  assert.equal((await env.api.executeStep({ action: 'click', target: { role: 'link', name: 'override link' } }, context)).ok, true);
+
+  const labelledText = new FakeElement({ tagName: 'SPAN', name: 'Referenced Name', id: 'reference' });
+  const labelledButton = new FakeElement({ tagName: 'BUTTON', ariaLabel: 'Conflicting Name', labelledBy: 'reference' });
+  env.elements.push(labelledText, labelledButton);
+  assert.equal((await env.api.executeStep({ action: 'click', target: { role: 'button', name: 'referenced name' } }, context)).ok, true);
+
+  const labelledInput = new FakeElement({ tagName: 'INPUT', type: 'text', value: 'typed secret' });
+  labelledInput.labels = [{ textContent: 'Account Name' }];
+  env.elements.push(labelledInput);
+  assert.equal(env.api.findTarget({ role: 'textbox', name: 'account name' }).ok, true);
+  assert.equal(env.api.findTarget({ role: 'textbox', name: 'typed secret' }).code, 'TARGET_NOT_FOUND');
   assert.equal((await env.api.executeStep({ action: 'click', target: { selector: '#save', rawSelector: '.raw-save' } }, context)).ok, true);
   assert.equal(button.clicked, 2);
   assert.equal(rawButton.clicked, 1);

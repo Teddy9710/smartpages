@@ -17,11 +17,39 @@
     const labelledText = labelled && global.document.getElementById
       ? labelled.split(/\s+/).map(id => global.document.getElementById(id)?.textContent || '').join(' ')
       : '';
-    const labelText = element.labels?.length
+    let labelText = element.labels?.length
       ? Array.from(element.labels).map(label => label.textContent || '').join(' ')
       : '';
-    return normalize(element.getAttribute?.('aria-label') || labelledText || labelText ||
-      element.textContent || element.value || element.getAttribute?.('value'));
+    if (!labelText && element.id) {
+      try {
+        const escapedId = global.CSS?.escape ? global.CSS.escape(element.id) : String(element.id).replace(/["\\]/g, '\\$&');
+        labelText = global.document.querySelector(`label[for="${escapedId}"]`)?.textContent || '';
+      } catch (_error) { /* Ignore malformed legacy ids. */ }
+    }
+    const tag = String(element.tagName || '').toLowerCase();
+    const type = String(element.getAttribute?.('type') || '').toLowerCase();
+    const nativeText = tag === 'input' && ['button', 'submit', 'reset'].includes(type)
+      ? element.value || element.getAttribute?.('value')
+      : ['button', 'a', 'option', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag)
+        ? element.textContent
+        : '';
+    return normalize(labelledText || element.getAttribute?.('aria-label') || labelText || nativeText);
+  }
+
+  function implicitRole(element) {
+    const explicit = normalize(element.getAttribute?.('role'));
+    if (explicit) return explicit;
+    const tag = String(element.tagName || '').toLowerCase();
+    const type = String(element.getAttribute?.('type') || 'text').toLowerCase();
+    if (tag === 'button' || (tag === 'input' && ['button', 'submit', 'reset'].includes(type))) return 'button';
+    if (tag === 'a' && element.getAttribute?.('href')) return 'link';
+    if (tag === 'textarea' || (tag === 'input' && ['text', 'email', 'password', 'search', 'tel', 'url'].includes(type))) return 'textbox';
+    if (tag === 'input' && type === 'checkbox') return 'checkbox';
+    if (tag === 'input' && type === 'radio') return 'radio';
+    if (tag === 'select') return 'combobox';
+    if (tag === 'option') return 'option';
+    if (/^h[1-6]$/.test(tag)) return 'heading';
+    return '';
   }
 
   function findTarget(target) {
@@ -37,13 +65,27 @@
     if (!locator.role && !locator.name) return fail('TARGET_NOT_FOUND', 'Target was not found.');
     let candidates;
     try {
-      candidates = Array.from(locator.role
-        ? global.document.querySelectorAll(`[role="${String(locator.role).replace(/["\\]/g, '\\$&')}"]`)
-        : global.document.querySelectorAll('*'));
+      const selectorsByRole = {
+        button: 'button,input[type="button"],input[type="submit"],input[type="reset"]',
+        link: 'a[href]',
+        textbox: 'textarea,input:not([type]),input[type="text"],input[type="email"],input[type="password"],input[type="search"],input[type="tel"],input[type="url"]',
+        checkbox: 'input[type="checkbox"]',
+        radio: 'input[type="radio"]',
+        combobox: 'select',
+        option: 'option',
+        heading: 'h1,h2,h3,h4,h5,h6',
+      };
+      const role = normalize(locator.role);
+      const explicitSelector = role ? `[role="${role.replace(/["\\]/g, '\\$&')}"]` : '*';
+      const nativeSelector = selectorsByRole[role];
+      const collected = [global.document.querySelectorAll(explicitSelector)];
+      if (nativeSelector) collected.push(global.document.querySelectorAll(nativeSelector));
+      candidates = Array.from(new Set(collected.flatMap(list => Array.from(list))));
     } catch (_error) {
       candidates = [];
     }
     candidates = candidates.filter(element => isVisible(element) &&
+      (!locator.role || implicitRole(element) === normalize(locator.role)) &&
       (!locator.name || accessibleName(element) === normalize(locator.name)));
     if (candidates.length === 1) return { ok: true, element: candidates[0], method: 'semantic' };
     if (candidates.length > 1) return fail('AMBIGUOUS_TARGET', 'Semantic target matched multiple visible elements.');
