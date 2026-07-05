@@ -860,11 +860,52 @@ const WorkflowRunStatus = Object.freeze({
   READY: 'READY', RUNNING: 'RUNNING', WAITING_CONFIRMATION: 'WAITING_CONFIRMATION',
   WAITING_INPUT: 'WAITING_INPUT', FAILED: 'FAILED', COMPLETED: 'COMPLETED', CANCELLED: 'CANCELLED'
 });
+const WORKFLOW_RUN_STORAGE_KEY = 'smartpagesWorkflowRun';
 
 class WorkflowRunManager {
   constructor() {
     this.run = null;
     this._starting = false;
+    this._hydrated = false;
+    this._transition = Promise.resolve();
+    this._persistence = Promise.resolve();
+  }
+
+  _serialize(operation) {
+    const next = this._transition.then(operation, operation);
+    this._transition = next.catch(() => {});
+    return next;
+  }
+
+  async _storage(method, value) {
+    const area = chrome.storage?.session || chrome.storage?.local;
+    if (!area?.[method]) return method === 'get' ? {} : undefined;
+    return await area[method](value);
+  }
+
+  async ensureHydrated() {
+    if (this._hydrated) return;
+    const saved = (await this._storage('get', [WORKFLOW_RUN_STORAGE_KEY]))?.[WORKFLOW_RUN_STORAGE_KEY];
+    if (saved) {
+      this.run = saved;
+      if ([WorkflowRunStatus.READY, WorkflowRunStatus.RUNNING].includes(this.run.status)) {
+        this.run.status = WorkflowRunStatus.FAILED;
+        this.run.endedAt = new Date().toISOString();
+        this.run.navigationPending = false;
+        this._log(this.run.pendingStep, 'RUN_INTERRUPTED');
+      }
+    }
+    this._hydrated = true;
+    if (saved) await this._persist();
+  }
+
+  async _persist() {
+    if (!this.run) return;
+    const checkpoint = structuredClone(this.run);
+    checkpoint.variables = {};
+    const write = this._persistence.then(() => this._storage('set', { [WORKFLOW_RUN_STORAGE_KEY]: checkpoint }));
+    this._persistence = write.catch(() => {});
+    await write;
   }
 
   _error(code, message) {
@@ -879,9 +920,11 @@ class WorkflowRunManager {
   }
 
   async start(workflow, variables = {}, tabId) {
-    if (this._isActive() || this._starting) throw this._error('RUN_IN_PROGRESS', 'A workflow run is already active.');
+    if (this._starting) throw this._error('RUN_IN_PROGRESS', 'A workflow run is already active.');
     this._starting = true;
     try {
+      await this.ensureHydrated();
+      if (this._isActive()) throw this._error('RUN_IN_PROGRESS', 'A workflow run is already active.');
       const validation = globalThis.SmartPagesWorkflowSchema?.validateWorkflow?.(workflow);
       if (!validation?.ok) throw this._error(validation?.code || 'INVALID_WORKFLOW', validation?.message || 'Workflow is invalid.');
       if (!Number.isInteger(tabId) || tabId <= 0) throw this._error('INVALID_TAB', 'tabId must be a positive integer.');
@@ -900,6 +943,7 @@ class WorkflowRunManager {
         navigationPending: false
       };
       await this._notify();
+      await this._persist();
       return await this._advance();
     } finally {
       this._starting = false;
@@ -920,7 +964,9 @@ class WorkflowRunManager {
       }
       this.run.status = WorkflowRunStatus.RUNNING;
       this.run.pendingStep = step;
+      const claim = { runId: this.run.runId, index: this.run.nextStepIndex, stepId: step.id };
       await this._notify();
+      if (!this._matches(claim) || this.run.status !== WorkflowRunStatus.RUNNING) return this.getStatus();
       let result;
       try {
         result = await chrome.tabs.sendMessage(this.run.tabId, {
@@ -930,7 +976,7 @@ class WorkflowRunManager {
       } catch (error) {
         result = { ok: false, code: 'EXECUTION_FAILED', message: error?.message };
       }
-      if (this.run.status === WorkflowRunStatus.CANCELLED) return this.getStatus();
+      if (!this._matches(claim) || this.run.status !== WorkflowRunStatus.RUNNING) return this.getStatus();
       this._log(step, result?.code || (result?.ok ? 'STEP_COMPLETED' : 'EXECUTION_FAILED'));
       if (!result?.ok) {
         this.run.status = result?.code === 'MISSING_VARIABLE'
@@ -956,11 +1002,15 @@ class WorkflowRunManager {
     return this.getStatus();
   }
 
-  async resume({ approved, variables } = {}) {
+  async resume({ approved, variables, runId, expectedStepId } = {}) {
+    await this.ensureHydrated();
     if (!this.run || ![WorkflowRunStatus.WAITING_CONFIRMATION, WorkflowRunStatus.WAITING_INPUT].includes(this.run.status)) {
       throw this._error('INVALID_RUN_STATE', 'Workflow run is not waiting for confirmation or input.');
     }
-    if (!approved) return await this.cancel();
+    if (runId !== this.run.runId || expectedStepId !== this.run.pendingStep?.id) {
+      throw this._error('STALE_APPROVAL', 'Approval does not match the pending run and step.');
+    }
+    if (!approved) return await this._cancelUnlocked();
     if (variables && typeof variables === 'object' && !Array.isArray(variables)) {
       Object.assign(this.run.variables, variables);
     }
@@ -969,7 +1019,13 @@ class WorkflowRunManager {
   }
 
   async cancel() {
+    await this.ensureHydrated();
+    return await this._cancelUnlocked();
+  }
+
+  async _cancelUnlocked() {
     if (!this.run) throw this._error('NO_RUN', 'No workflow run exists.');
+    if (!this._isActive()) throw this._error('INVALID_RUN_STATE', 'Workflow run is already terminal.');
     this.run.status = WorkflowRunStatus.CANCELLED;
     this.run.endedAt = new Date().toISOString();
     this._log(this.run.pendingStep, 'CANCELLED');
@@ -978,9 +1034,20 @@ class WorkflowRunManager {
   }
 
   async handleTabComplete(tabId, tab) {
+    return this._serialize(async () => {
+    await this.ensureHydrated();
     if (!this._isActive() || this.run.tabId !== tabId || !this.run.navigationPending) return;
-    await this._ensureWorkflowReplayer(tabId);
     const step = this.run.pendingStep;
+    const claim = { runId: this.run.runId, index: this.run.nextStepIndex, stepId: step?.id };
+    this.run.navigationPending = false;
+    await this._persist();
+    try {
+      await this._ensureWorkflowReplayer(tabId);
+    } catch (_error) {
+      if (this._matches(claim)) await this._fail(step, 'REPLAYER_INJECTION_FAILED');
+      return;
+    }
+    if (!this._matches(claim) || this.run.status !== WorkflowRunStatus.RUNNING) return;
     const condition = step?.postcondition ?? step?.postconditions;
     const urlMatches = condition?.type === 'url' && (condition.value || condition.url)
       ? tab?.url === (condition.value || condition.url)
@@ -1005,6 +1072,26 @@ class WorkflowRunManager {
     this.run.pendingStep = null;
     this.run.nextStepIndex += 1;
     await this._advance();
+    });
+  }
+
+  async handleTabRemoved(tabId) {
+    return this._serialize(async () => {
+      await this.ensureHydrated();
+      if (this._isActive() && this.run.tabId === tabId) await this._fail(this.run.pendingStep, 'TAB_CLOSED');
+    });
+  }
+
+  _matches(claim) {
+    return this.run?.runId === claim.runId && this.run.nextStepIndex === claim.index && this.run.pendingStep?.id === claim.stepId;
+  }
+
+  async _fail(step, code) {
+    this.run.status = WorkflowRunStatus.FAILED;
+    this.run.endedAt = new Date().toISOString();
+    this.run.navigationPending = false;
+    this._log(step, code);
+    await this._notify();
   }
 
   async _ensureWorkflowReplayer(tabId) {
@@ -1039,6 +1126,7 @@ class WorkflowRunManager {
   }
 
   async _notify() {
+    await this._persist();
     try {
       await chrome.runtime.sendMessage({ type: 'WORKFLOW_RUN_CHANGED', status: this.getStatus() });
     } catch (_error) { /* Notifications are best effort. */ }
@@ -1146,8 +1234,10 @@ async function handleWorkflowMessage(message) {
       return await workflowRunManager.start(message.workflow, message.variables || {}, message.tabId);
     case 'WORKFLOW_RESUME_RUN':
       if (typeof message.approved !== 'boolean') return { error: 'Missing approved parameter', code: 'INVALID_PARAMETERS' };
-      return await workflowRunManager.resume({ approved: message.approved, variables: message.variables });
+      if (!message.runId || !message.expectedStepId) return { error: 'Missing approval binding', code: 'INVALID_PARAMETERS' };
+      return await workflowRunManager.resume({ approved: message.approved, variables: message.variables, runId: message.runId, expectedStepId: message.expectedStepId });
     case 'WORKFLOW_GET_RUN_STATUS':
+      await workflowRunManager.ensureHydrated();
       return workflowRunManager.getStatus();
     case 'WORKFLOW_CANCEL_RUN':
       return await workflowRunManager.cancel();
@@ -1226,6 +1316,11 @@ if (!chrome.runtime.scribeTabUpdateListener) {
     await recordingManager.resumeRecordingInTab(tabId, tab);
   };
   chrome.tabs.onUpdated.addListener(chrome.runtime.scribeTabUpdateListener);
+}
+
+if (chrome.tabs.onRemoved?.addListener && !chrome.runtime.scribeTabRemovedListener) {
+  chrome.runtime.scribeTabRemovedListener = tabId => workflowRunManager.handleTabRemoved(tabId);
+  chrome.tabs.onRemoved.addListener(chrome.runtime.scribeTabRemovedListener);
 }
 
 // ============================================================================

@@ -10,7 +10,7 @@ function workflow(steps = [{ id: 's1', action: 'wait', risk: 'low', input: { ms:
   };
 }
 
-function loadBackground() {
+function loadBackground(sharedStore = {}) {
   const listeners = [];
   const messages = [];
   const injections = [];
@@ -31,6 +31,7 @@ function loadBackground() {
       },
       tabs: {
         onUpdated: { addListener() {} },
+        onRemoved: { addListener(listener) { sandbox.tabRemovedListener = listener; } },
         get: async tabId => ({ id: tabId, url: 'https://example.com/page', windowId: 1 }),
         sendMessage: async (tabId, message) => {
           messages.push({ destination: 'tab', tabId, message });
@@ -39,7 +40,13 @@ function loadBackground() {
         captureVisibleTab: async () => 'data:'
       },
       scripting: { executeScript: async details => { injections.push(details); } },
-      storage: { local: { getBytesInUse: async () => 0 } },
+      storage: {
+        session: {
+          get: async keys => Object.fromEntries(keys.filter(key => key in sharedStore).map(key => [key, structuredClone(sharedStore[key])])),
+          set: async values => Object.assign(sharedStore, structuredClone(values))
+        },
+        local: { getBytesInUse: async () => 0 }
+      },
       notifications: { onClicked: { addListener() {} } }
     },
     self: { addEventListener() {}, clients: { claim: async () => {} } },
@@ -88,19 +95,19 @@ async function route(listener, message) {
     assert.equal(status.status, 'WAITING_CONFIRMATION');
     assert.equal(status.currentStepId, 'danger');
     assert.equal(messages.filter(item => item.destination === 'tab').length, 0);
-    status = await manager.resume({ approved: true });
+    status = await manager.resume({ approved: true, runId: status.runId, expectedStepId: 'danger' });
     assert.equal(status.status, 'COMPLETED');
     assert.equal(status.currentStepId, null);
     assert.equal(messages.filter(item => item.destination === 'tab').length, 1);
-    await assert.rejects(() => manager.resume({ approved: true }), /not waiting/i);
+    await assert.rejects(() => manager.resume({ approved: true, runId: status.runId, expectedStepId: 'danger' }), /not waiting/i);
     assert.equal(messages.filter(item => item.destination === 'tab').length, 1);
   }
 
   {
     const { Manager } = loadBackground();
     const rejected = new Manager();
-    await rejected.start(workflow([{ id: 'danger', action: 'click', risk: 'high', target: '#pay' }]), {}, 1);
-    assert.equal((await rejected.resume({ approved: false })).status, 'CANCELLED');
+    const pending = await rejected.start(workflow([{ id: 'danger', action: 'click', risk: 'high', target: '#pay' }]), {}, 1);
+    assert.equal((await rejected.resume({ approved: false, runId: pending.runId, expectedStepId: 'danger' })).status, 'CANCELLED');
     const cancelled = new Manager();
     await cancelled.start(workflow([{ id: 'danger', action: 'click', risk: 'high', target: '#pay' }]), {}, 1);
     assert.equal((await cancelled.cancel()).status, 'CANCELLED');
@@ -158,7 +165,8 @@ async function route(listener, message) {
     const manager = new Manager();
     const input = workflow([{ id: 'input', action: 'input', risk: 'low', target: '#name', input: { value: { variable: 'name' } } }]);
     assert.equal((await manager.start(input, {}, 1)).status, 'WAITING_INPUT');
-    assert.equal((await manager.resume({ approved: true, variables: { name: 'Ada' } })).status, 'COMPLETED');
+    const waiting = manager.getStatus();
+    assert.equal((await manager.resume({ approved: true, variables: { name: 'Ada' }, runId: waiting.runId, expectedStepId: 'input' })).status, 'COMPLETED');
     assert.equal(JSON.stringify(manager.getStatus()).includes('Ada'), false);
   }
 
@@ -216,12 +224,127 @@ async function route(listener, message) {
     assert.equal(calls, 1);
   }
 
+  // Concurrent completion events atomically claim one pending navigation.
+  {
+    const { Manager, sandbox, messages } = loadBackground();
+    sandbox.chrome.tabs.sendMessage = async (tabId, message) => {
+      messages.push({ destination: 'tab', tabId, message });
+      return { ok: true, code: 'NAVIGATION_STARTED', postconditionPending: true };
+    };
+    const manager = new Manager();
+    await manager.start(workflow([{ id: 'nav-race', action: 'navigate', risk: 'low', input: { url: 'https://example.com/next' }, postcondition: { type: 'url', value: 'https://example.com/next' } }]), {}, 1);
+    let releaseInjection;
+    sandbox.chrome.scripting.executeScript = async () => await new Promise(resolve => { releaseInjection = resolve; });
+    const first = manager.handleTabComplete(1, { url: 'https://example.com/next' });
+    const second = manager.handleTabComplete(1, { url: 'https://example.com/next' });
+    await new Promise(resolve => setImmediate(resolve));
+    releaseInjection();
+    await Promise.all([first, second]);
+    assert.equal(manager.getStatus().status, 'COMPLETED');
+    assert.equal(manager.getStatus().nextStepIndex, 1);
+    assert.equal(manager.getStatus().logs.filter(log => log.result === 'STEP_COMPLETED').length, 1);
+  }
+
+  // Cancelling while RUNNING but before dispatch prevents the step message.
+  {
+    const { Manager, sandbox, messages } = loadBackground();
+    let notifications = 0;
+    let releaseNotify;
+    sandbox.chrome.runtime.sendMessage = async () => {
+      notifications += 1;
+      if (notifications === 2) await new Promise(resolve => { releaseNotify = resolve; });
+    };
+    const manager = new Manager();
+    const starting = manager.start(workflow(), {}, 1);
+    while (!releaseNotify) await new Promise(resolve => setImmediate(resolve));
+    await manager.cancel();
+    releaseNotify();
+    await starting;
+    assert.equal(manager.getStatus().status, 'CANCELLED');
+    assert.equal(messages.filter(item => item.destination === 'tab' && item.message.type === 'WORKFLOW_EXECUTE_STEP').length, 0);
+  }
+
+  // Session checkpoints survive service-worker restart without secret values.
+  {
+    const store = {};
+    const first = loadBackground(store);
+    const pending = await first.manager.start(workflow([{ id: 'confirm', action: 'click', risk: 'high', target: '#save' }]), { password: 'never-store-me' }, 1);
+    assert.equal(JSON.stringify(store).includes('never-store-me'), false);
+    assert.equal(JSON.stringify(store).includes('password'), false);
+    const second = loadBackground(store);
+    await second.manager.ensureHydrated();
+    assert.equal(second.manager.getStatus().status, 'WAITING_CONFIRMATION');
+    assert.equal(second.manager.getStatus().currentStepId, 'confirm');
+    assert.equal((await second.manager.resume({ approved: true, runId: pending.runId, expectedStepId: 'confirm' })).status, 'COMPLETED');
+  }
+
+  // An in-flight checkpoint is failed on restart instead of redispatched.
+  {
+    const store = {};
+    const first = loadBackground(store);
+    let releaseNotify;
+    let notifications = 0;
+    first.sandbox.chrome.runtime.sendMessage = async () => {
+      notifications += 1;
+      if (notifications === 2) await new Promise(resolve => { releaseNotify = resolve; });
+    };
+    first.manager.start(workflow(), { secret: 'hidden' }, 1);
+    while (!releaseNotify) await new Promise(resolve => setImmediate(resolve));
+    const restarted = loadBackground(store);
+    await restarted.manager.ensureHydrated();
+    assert.equal(restarted.manager.getStatus().status, 'FAILED');
+    assert.equal(restarted.manager.getStatus().logs.at(-1).result, 'RUN_INTERRUPTED');
+    assert.equal(restarted.messages.filter(item => item.destination === 'tab').length, 0);
+    releaseNotify();
+  }
+
+  // Approval tokens are bound to both run and step.
+  {
+    const { Manager } = loadBackground();
+    const manager = new Manager();
+    const runA = await manager.start(workflow([{ id: 'a', action: 'click', risk: 'high', target: '#a' }]), {}, 1);
+    await manager.cancel();
+    const runB = await manager.start(workflow([{ id: 'b', action: 'click', risk: 'high', target: '#b' }]), {}, 1);
+    await assert.rejects(() => manager.resume({ approved: true, runId: runA.runId, expectedStepId: 'a' }), /STALE_APPROVAL/);
+    assert.equal(manager.getStatus().runId, runB.runId);
+    assert.equal(manager.getStatus().status, 'WAITING_CONFIRMATION');
+  }
+
+  {
+    const { Manager, sandbox } = loadBackground();
+    const manager = new Manager();
+    sandbox.chrome.tabs.sendMessage = async () => ({ ok: true, code: 'NAVIGATION_STARTED', postconditionPending: true });
+    await manager.start(workflow([{ id: 'nav-inject', action: 'navigate', risk: 'low', input: { url: 'https://example.com/next' }, postcondition: { type: 'url', value: 'https://example.com/next' } }]), {}, 1);
+    sandbox.chrome.scripting.executeScript = async () => { throw new Error('blocked'); };
+    await manager.handleTabComplete(1, { url: 'https://example.com/next' });
+    assert.equal(manager.getStatus().status, 'FAILED');
+    assert.equal(manager.getStatus().logs.at(-1).result, 'REPLAYER_INJECTION_FAILED');
+  }
+
+  {
+    const loaded = loadBackground();
+    await loaded.manager.start(workflow([{ id: 'close', action: 'click', risk: 'high', target: '#x' }]), {}, 9);
+    await loaded.sandbox.tabRemovedListener(9);
+    assert.equal(loaded.manager.getStatus().status, 'FAILED');
+    assert.equal(loaded.manager.getStatus().logs.at(-1).result, 'TAB_CLOSED');
+  }
+
+  {
+    const { Manager } = loadBackground();
+    const manager = new Manager();
+    await manager.start(workflow(), {}, 1);
+    const logs = manager.getStatus().logs.length;
+    await assert.rejects(() => manager.cancel(), /INVALID_RUN_STATE/);
+    assert.equal(manager.getStatus().status, 'COMPLETED');
+    assert.equal(manager.getStatus().logs.length, logs);
+  }
+
   {
     const { listeners } = loadBackground();
     const listener = listeners[0];
     assert.equal((await route(listener, { type: 'WORKFLOW_START_RUN', workflow: workflow(), variables: {}, tabId: 2 })).status, 'COMPLETED');
     assert.equal((await route(listener, { type: 'WORKFLOW_GET_RUN_STATUS' })).status, 'COMPLETED');
-    assert.equal((await route(listener, { type: 'WORKFLOW_CANCEL_RUN' })).status, 'CANCELLED');
+    assert.equal((await route(listener, { type: 'WORKFLOW_CANCEL_RUN' })).code, 'INVALID_RUN_STATE');
     const missing = await route(listener, { type: 'WORKFLOW_START_RUN' });
     assert.match(missing.error, /Missing workflow/);
     assert.equal(missing.code, 'INVALID_PARAMETERS');
@@ -235,6 +358,8 @@ async function route(listener, message) {
     const concurrent = await route(listener, { type: 'WORKFLOW_START_RUN', workflow: workflow(), variables: {}, tabId: 2 });
     assert.equal(concurrent.code, 'RUN_IN_PROGRESS');
     assert.match(concurrent.error, /RUN_IN_PROGRESS/);
+    const unbound = await route(listener, { type: 'WORKFLOW_RESUME_RUN', approved: true });
+    assert.equal(unbound.code, 'INVALID_PARAMETERS');
   }
 
   {
