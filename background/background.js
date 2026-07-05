@@ -11,7 +11,7 @@
  */
 
 // Import common utilities (importScripts for service worker)
-importScripts('../utils/common.js');
+importScripts('../utils/common.js', '../workflow/schema.js');
 
 // ============================================================================
 // RECORDING STATE MANAGEMENT
@@ -856,6 +856,194 @@ async function _getLinkedCodesForDocument(docId) {
 // MESSAGE ROUTING
 // ============================================================================
 
+const WorkflowRunStatus = Object.freeze({
+  READY: 'READY', RUNNING: 'RUNNING', WAITING_CONFIRMATION: 'WAITING_CONFIRMATION',
+  WAITING_INPUT: 'WAITING_INPUT', FAILED: 'FAILED', COMPLETED: 'COMPLETED', CANCELLED: 'CANCELLED'
+});
+
+class WorkflowRunManager {
+  constructor() {
+    this.run = null;
+    this._starting = false;
+  }
+
+  _error(code, message) {
+    const error = new Error(`${code}: ${message}`);
+    error.code = code;
+    return error;
+  }
+
+  _isActive() {
+    return this.run && [WorkflowRunStatus.READY, WorkflowRunStatus.RUNNING,
+      WorkflowRunStatus.WAITING_CONFIRMATION, WorkflowRunStatus.WAITING_INPUT].includes(this.run.status);
+  }
+
+  async start(workflow, variables = {}, tabId) {
+    if (this._isActive() || this._starting) throw this._error('RUN_IN_PROGRESS', 'A workflow run is already active.');
+    this._starting = true;
+    try {
+      const validation = globalThis.SmartPagesWorkflowSchema?.validateWorkflow?.(workflow);
+      if (!validation?.ok) throw this._error(validation?.code || 'INVALID_WORKFLOW', validation?.message || 'Workflow is invalid.');
+      if (!Number.isInteger(tabId) || tabId <= 0) throw this._error('INVALID_TAB', 'tabId must be a positive integer.');
+      let tab;
+      try { tab = await chrome.tabs.get(tabId); } catch (_error) { /* normalized below */ }
+      if (!tab?.url) throw this._error('INVALID_TAB', 'Tab does not exist or has no URL.');
+      if (!globalThis.SmartPagesWorkflowSchema.isOriginAllowed(tab.url, workflow.allowedOrigins)) {
+        throw this._error('ORIGIN_NOT_ALLOWED', 'Current tab origin is not allowed.');
+      }
+      await this._ensureWorkflowReplayer(tabId);
+      this.run = {
+        runId: globalThis.crypto?.randomUUID?.() || `workflow-${Date.now()}`,
+        workflow, variables: { ...(variables || {}) }, tabId,
+        status: WorkflowRunStatus.READY, nextStepIndex: 0, pendingStep: null,
+        logs: [], startedAt: new Date().toISOString(), endedAt: null,
+        navigationPending: false
+      };
+      await this._notify();
+      return await this._advance();
+    } finally {
+      this._starting = false;
+    }
+  }
+
+  async _advance() {
+    if (!this._isActive()) return this.getStatus();
+    while (this.run.nextStepIndex < this.run.workflow.steps.length) {
+      if (this.run.status === WorkflowRunStatus.CANCELLED) break;
+      const step = this.run.workflow.steps[this.run.nextStepIndex];
+      if (step.risk === 'high' && this.run.pendingStep !== step) {
+        this.run.pendingStep = step;
+        this.run.status = WorkflowRunStatus.WAITING_CONFIRMATION;
+        this._log(step, 'AWAITING_CONFIRMATION');
+        await this._notify();
+        return this.getStatus();
+      }
+      this.run.status = WorkflowRunStatus.RUNNING;
+      this.run.pendingStep = step;
+      await this._notify();
+      let result;
+      try {
+        result = await chrome.tabs.sendMessage(this.run.tabId, {
+          type: 'WORKFLOW_EXECUTE_STEP', step,
+          variables: { ...this.run.variables }, allowedOrigins: [...this.run.workflow.allowedOrigins]
+        });
+      } catch (error) {
+        result = { ok: false, code: 'EXECUTION_FAILED', message: error?.message };
+      }
+      if (this.run.status === WorkflowRunStatus.CANCELLED) return this.getStatus();
+      this._log(step, result?.code || (result?.ok ? 'STEP_COMPLETED' : 'EXECUTION_FAILED'));
+      if (!result?.ok) {
+        this.run.status = result?.code === 'MISSING_VARIABLE'
+          ? WorkflowRunStatus.WAITING_INPUT : WorkflowRunStatus.FAILED;
+        if (this.run.status === WorkflowRunStatus.FAILED) this.run.endedAt = new Date().toISOString();
+        await this._notify();
+        return this.getStatus();
+      }
+      if (result.code === 'NAVIGATION_STARTED' && result.postconditionPending) {
+        this.run.navigationPending = true;
+        await this._notify();
+        return this.getStatus();
+      }
+      this.run.navigationPending = false;
+      this.run.pendingStep = null;
+      this.run.nextStepIndex += 1;
+    }
+    if (this.run.status !== WorkflowRunStatus.CANCELLED) {
+      this.run.status = WorkflowRunStatus.COMPLETED;
+      this.run.endedAt = new Date().toISOString();
+      await this._notify();
+    }
+    return this.getStatus();
+  }
+
+  async resume({ approved, variables } = {}) {
+    if (!this.run || ![WorkflowRunStatus.WAITING_CONFIRMATION, WorkflowRunStatus.WAITING_INPUT].includes(this.run.status)) {
+      throw this._error('INVALID_RUN_STATE', 'Workflow run is not waiting for confirmation or input.');
+    }
+    if (!approved) return await this.cancel();
+    if (variables && typeof variables === 'object' && !Array.isArray(variables)) {
+      Object.assign(this.run.variables, variables);
+    }
+    this.run.status = WorkflowRunStatus.RUNNING;
+    return await this._advance();
+  }
+
+  async cancel() {
+    if (!this.run) throw this._error('NO_RUN', 'No workflow run exists.');
+    this.run.status = WorkflowRunStatus.CANCELLED;
+    this.run.endedAt = new Date().toISOString();
+    this._log(this.run.pendingStep, 'CANCELLED');
+    await this._notify();
+    return this.getStatus();
+  }
+
+  async handleTabComplete(tabId, tab) {
+    if (!this._isActive() || this.run.tabId !== tabId || !this.run.navigationPending) return;
+    await this._ensureWorkflowReplayer(tabId);
+    const step = this.run.pendingStep;
+    const condition = step?.postcondition ?? step?.postconditions;
+    const urlMatches = condition?.type === 'url' && (condition.value || condition.url)
+      ? tab?.url === (condition.value || condition.url)
+      : condition?.type === 'url' && (condition.origin !== undefined || condition.path !== undefined)
+        ? (() => {
+          try {
+            const parsed = new URL(tab?.url);
+            return (condition.origin === undefined || parsed.origin === condition.origin) &&
+              (condition.path === undefined || parsed.pathname === condition.path);
+          } catch (_error) { return false; }
+        })()
+        : false;
+    if (!urlMatches) {
+      this.run.status = WorkflowRunStatus.FAILED;
+      this.run.endedAt = new Date().toISOString();
+      this._log(step, 'POSTCONDITION_FAILED');
+      await this._notify();
+      return;
+    }
+    this._log(step, 'STEP_COMPLETED');
+    this.run.navigationPending = false;
+    this.run.pendingStep = null;
+    this.run.nextStepIndex += 1;
+    await this._advance();
+  }
+
+  async _ensureWorkflowReplayer(tabId) {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['workflow/schema.js'] });
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['content/workflow-replayer.js'] });
+  }
+
+  _log(step, result) {
+    if (!this.run) return;
+    this.run.logs.push({
+      stepId: step?.id || null, action: step?.action || null,
+      result: String(result || 'UNKNOWN'), timestamp: new Date().toISOString()
+    });
+  }
+
+  getStatus() {
+    if (!this.run) return null;
+    const pending = this.run.pendingStep;
+    return {
+      runId: this.run.runId, workflowId: this.run.workflow.workflowId,
+      tabId: this.run.tabId, status: this.run.status,
+      nextStepIndex: this.run.nextStepIndex,
+      pendingStep: pending ? { id: pending.id, action: pending.action, risk: pending.risk } : null,
+      logs: this.run.logs.map(log => ({ ...log })),
+      startedAt: this.run.startedAt, endedAt: this.run.endedAt
+    };
+  }
+
+  async _notify() {
+    try {
+      await chrome.runtime.sendMessage({ type: 'WORKFLOW_RUN_CHANGED', status: this.getStatus() });
+    } catch (_error) { /* Notifications are best effort. */ }
+  }
+}
+
+globalThis.WorkflowRunManager = WorkflowRunManager;
+const workflowRunManager = new WorkflowRunManager();
+globalThis.workflowRunManager = workflowRunManager;
+
 /**
  * Global recording manager instance
  * @type {RecordingManager}
@@ -892,6 +1080,10 @@ const DOCUMENT_MESSAGE_TYPES = [
   'GET_LINKED_CODES_FOR_DOCUMENT'
 ];
 
+const WORKFLOW_MESSAGE_TYPES = [
+  'WORKFLOW_START_RUN', 'WORKFLOW_RESUME_RUN', 'WORKFLOW_GET_RUN_STATUS', 'WORKFLOW_CANCEL_RUN'
+];
+
 /**
  * Main message handler (singleton pattern to prevent duplicate listeners)
  * @param {Object} message - Message object
@@ -909,6 +1101,8 @@ function messageHandler(message, sender, sendResponse) {
         return await handleRecordingMessage(message, sender);
       } else if (DOCUMENT_MESSAGE_TYPES.includes(message.type)) {
         return await handleDocumentMessage(message);
+      } else if (WORKFLOW_MESSAGE_TYPES.includes(message.type)) {
+        return await handleWorkflowMessage(message);
       } else {
         console.warn('[Scribe:Background] Unknown message type:', message.type);
         return { error: 'Unknown message type: ' + message.type };
@@ -926,6 +1120,27 @@ function messageHandler(message, sender, sendResponse) {
   });
 
   return true; // Keep message channel open
+}
+
+async function handleWorkflowMessage(message) {
+  switch (message.type) {
+    case 'WORKFLOW_START_RUN':
+      if (!message.workflow) return { error: 'Missing workflow parameter' };
+      if (!Number.isInteger(message.tabId) || message.tabId <= 0) return { error: 'Missing or invalid tabId parameter' };
+      if (message.variables !== undefined && (!message.variables || typeof message.variables !== 'object' || Array.isArray(message.variables))) {
+        return { error: 'Invalid variables parameter' };
+      }
+      return await workflowRunManager.start(message.workflow, message.variables || {}, message.tabId);
+    case 'WORKFLOW_RESUME_RUN':
+      if (typeof message.approved !== 'boolean') return { error: 'Missing approved parameter' };
+      return await workflowRunManager.resume({ approved: message.approved, variables: message.variables });
+    case 'WORKFLOW_GET_RUN_STATUS':
+      return workflowRunManager.getStatus();
+    case 'WORKFLOW_CANCEL_RUN':
+      return await workflowRunManager.cancel();
+    default:
+      return { error: 'Unknown workflow message type: ' + message.type };
+  }
 }
 
 /**
@@ -994,6 +1209,7 @@ if (!chrome.runtime.scribeMessageListener) {
 if (!chrome.runtime.scribeTabUpdateListener) {
   chrome.runtime.scribeTabUpdateListener = async function(tabId, changeInfo, tab) {
     if (changeInfo.status !== 'complete') return;
+    await workflowRunManager.handleTabComplete(tabId, tab);
     await recordingManager.resumeRecordingInTab(tabId, tab);
   };
   chrome.tabs.onUpdated.addListener(chrome.runtime.scribeTabUpdateListener);
