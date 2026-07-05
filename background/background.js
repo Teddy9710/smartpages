@@ -1114,14 +1114,22 @@ function messageHandler(message, sender, sendResponse) {
       }
     } catch (error) {
       console.error('[Scribe:Background] Handler error:', error);
-      return { error: error.message || '操作失败', code: error.code || 'WORKFLOW_RUN_ERROR' };
+      const response = { error: error.message || '操作失败' };
+      if (WORKFLOW_MESSAGE_TYPES.includes(message.type)) {
+        response.code = error.code || 'WORKFLOW_RUN_ERROR';
+      }
+      return response;
     }
   })().then(result => {
     console.log('[Scribe:Background] Sending response:', result);
     sendResponse(result);
   }).catch(error => {
     console.error('[Scribe:Background] Response error:', error);
-    sendResponse({ error: error.message || '响应失败', code: error.code || 'WORKFLOW_RUN_ERROR' });
+    const response = { error: error.message || '响应失败' };
+    if (WORKFLOW_MESSAGE_TYPES.includes(message.type)) {
+      response.code = error.code || 'WORKFLOW_RUN_ERROR';
+    }
+    sendResponse(response);
   });
 
   return true; // Keep message channel open

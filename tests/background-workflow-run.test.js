@@ -236,4 +236,12 @@ async function route(listener, message) {
     assert.equal(concurrent.code, 'RUN_IN_PROGRESS');
     assert.match(concurrent.error, /RUN_IN_PROGRESS/);
   }
+
+  {
+    const { listeners, sandbox } = loadBackground();
+    sandbox.chrome.tabs.get = async () => null;
+    const response = await route(listeners[0], { type: 'START_RECORDING', tabId: 4 });
+    assert.deepEqual(Object.keys(response), ['error']);
+    assert.equal(typeof response.error, 'string');
+  }
 })().catch(error => { console.error(error); process.exit(1); });
