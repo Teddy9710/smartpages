@@ -321,6 +321,23 @@ async function route(listener, message) {
     assert.equal(manager.getStatus().logs.at(-1).result, 'REPLAYER_INJECTION_FAILED');
   }
 
+  // A late injection rejection cannot overwrite a cancellation.
+  {
+    const { Manager, sandbox } = loadBackground();
+    sandbox.chrome.tabs.sendMessage = async () => ({ ok: true, code: 'NAVIGATION_STARTED', postconditionPending: true });
+    const manager = new Manager();
+    await manager.start(workflow([{ id: 'nav-cancel', action: 'navigate', risk: 'low', input: { url: 'https://example.com/next' }, postcondition: { type: 'url', value: 'https://example.com/next' } }]), {}, 1);
+    let rejectInjection;
+    sandbox.chrome.scripting.executeScript = async () => await new Promise((_resolve, reject) => { rejectInjection = reject; });
+    const completing = manager.handleTabComplete(1, { url: 'https://example.com/next' });
+    while (!rejectInjection) await new Promise(resolve => setImmediate(resolve));
+    await manager.cancel();
+    rejectInjection(new Error('late blocked'));
+    await completing;
+    assert.equal(manager.getStatus().status, 'CANCELLED');
+    assert.equal(manager.getStatus().logs.some(log => log.result === 'REPLAYER_INJECTION_FAILED'), false);
+  }
+
   {
     const loaded = loadBackground();
     await loaded.manager.start(workflow([{ id: 'close', action: 'click', risk: 'high', target: '#x' }]), {}, 9);

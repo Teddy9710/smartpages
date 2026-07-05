@@ -1044,7 +1044,9 @@ class WorkflowRunManager {
     try {
       await this._ensureWorkflowReplayer(tabId);
     } catch (_error) {
-      if (this._matches(claim)) await this._fail(step, 'REPLAYER_INJECTION_FAILED');
+      if (this._matches(claim) && this.run.status === WorkflowRunStatus.RUNNING) {
+        await this._fail(step, 'REPLAYER_INJECTION_FAILED');
+      }
       return;
     }
     if (!this._matches(claim) || this.run.status !== WorkflowRunStatus.RUNNING) return;
