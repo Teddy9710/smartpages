@@ -147,7 +147,12 @@
         return fail('ORIGIN_NOT_ALLOWED', 'Navigation origin is not allowed.');
       }
       global.location.assign(url);
-      return { ok: true, code: 'NAVIGATION_STARTED' };
+      const navigationPostcondition = step.postcondition ?? step.postconditions;
+      return {
+        ok: true,
+        code: 'NAVIGATION_STARTED',
+        postconditionPending: Boolean(navigationPostcondition && Object.keys(navigationPostcondition).length),
+      };
     }
     const condition = step.action === 'assert' ? (step.condition ?? step.conditions) : null;
     if (condition && !checkCondition(condition)) return fail('PRECONDITION_FAILED', 'Assertion failed.');

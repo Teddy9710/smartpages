@@ -68,6 +68,17 @@ const plain = value => JSON.parse(JSON.stringify(value));
   env.selectors.set('#save', button);
   assert.deepEqual(plain(await env.api.executeStep({ action: 'click', target: { selector: '#save' } }, context)), { ok: true, code: 'STEP_COMPLETED' });
   assert.equal(button.clicked, 1);
+  assert.equal(env.api.checkCondition({ type: 'url', value: 'https://example.com/start' }), true);
+  assert.equal(env.api.checkCondition({ type: 'visible', selector: '#save' }), true);
+  assert.equal(env.api.checkCondition({ type: 'hidden', selector: '#save' }), false);
+
+  const rawButton = new FakeElement();
+  env.selectors.set('.raw-save', rawButton);
+  assert.equal((await env.api.executeStep({ action: 'click', target: { selector: '.missing', rawSelector: '.raw-save' } }, context)).ok, true);
+  assert.equal(rawButton.clicked, 1);
+  assert.equal((await env.api.executeStep({ action: 'click', target: { selector: '#save', rawSelector: '.raw-save' } }, context)).ok, true);
+  assert.equal(button.clicked, 2);
+  assert.equal(rawButton.clicked, 1);
 
   const input = new FakeElement({ tagName: 'INPUT' });
   env.selectors.set('#name', input);
@@ -86,6 +97,11 @@ const plain = value => JSON.parse(JSON.stringify(value));
   assert.equal((await env.api.executeStep({ action: 'click', target: { selector: '[invalid', rawSelector: '.missing', role: 'button', name: 'submit order' } }, context)).ok, true);
   env.elements.push(new FakeElement({ role: 'button', name: 'SUBMIT ORDER' }));
   assert.equal((await env.api.executeStep({ action: 'click', target: { role: 'button', name: 'submit order' } }, context)).code, 'AMBIGUOUS_TARGET');
+  env.elements.push(new FakeElement({ role: 'link', name: 'Only visible match', visible: false }));
+  const visibleLink = new FakeElement({ role: 'link', name: 'Only visible match' });
+  env.elements.push(visibleLink);
+  assert.equal((await env.api.executeStep({ action: 'click', target: { role: 'link', name: 'only visible match' } }, context)).ok, true);
+  assert.equal(visibleLink.clicked, 1);
   assert.equal((await env.api.executeStep({ action: 'click', target: { role: 'link', name: 'missing' } }, context)).code, 'TARGET_NOT_FOUND');
 
   assert.equal((await env.api.executeStep({ action: 'assert', precondition: { type: 'url', value: 'https://example.com/nope' } }, context)).code, 'PRECONDITION_FAILED');
@@ -94,14 +110,16 @@ const plain = value => JSON.parse(JSON.stringify(value));
 
   assert.equal((await env.api.executeStep({ action: 'navigate', input: { url: 'https://evil.example/x' } }, context)).code, 'ORIGIN_NOT_ALLOWED');
   assert.equal(env.assigned.length, 0);
-  assert.deepEqual(plain(await env.api.executeStep({ action: 'navigate', input: { url: 'https://example.com/next' } }, context)), { ok: true, code: 'NAVIGATION_STARTED' });
+  assert.deepEqual(plain(await env.api.executeStep({ action: 'navigate', input: { url: 'https://example.com/next' } }, context)), { ok: true, code: 'NAVIGATION_STARTED', postconditionPending: false });
   assert.deepEqual(env.assigned, ['https://example.com/next']);
+  assert.deepEqual(plain(await env.api.executeStep({ action: 'navigate', input: { url: 'https://example.com/final' }, postcondition: { type: 'url', value: 'https://example.com/final' } }, context)), { ok: true, code: 'NAVIGATION_STARTED', postconditionPending: true });
 
   assert.equal((await env.api.executeStep({ action: 'scroll', input: { x: 'bad', y: 12 } }, context)).ok, true);
   assert.deepEqual(env.scrolls.at(-1), [0, 12]);
   assert.equal((await env.api.executeStep({ action: 'wait', input: { ms: 50000 } }, context)).ok, true);
   assert.equal(env.waits.at(-1), 10000);
   assert.deepEqual(plain(await env.api.executeStep({ action: 'assert', condition: { type: 'hidden', selector: '#missing' } }, context)), { ok: true, code: 'STEP_COMPLETED' });
+  assert.equal((await env.api.executeStep({ action: 'assert', condition: { type: 'visible', selector: '#missing' } }, context)).code, 'PRECONDITION_FAILED');
   assert.equal((await env.api.executeStep({ action: 'input', target: { selector: '#name' }, input: { value: { variable: 'absent' } } }, context)).code, 'MISSING_VARIABLE');
   assert.equal((await env.api.executeStep({ action: 'dance' }, context)).code, 'UNSUPPORTED_ACTION');
 
