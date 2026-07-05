@@ -506,6 +506,8 @@ ${bodyHtml}
       getApi: () => this.documentApi
     });
     this.cleanupFunctions = [];
+    this.workflowRun = null;
+    this.workflowRunRequestPending = false;
     this.toastContainer = null;
     this.imageCropState = {
       imageElement: null,
@@ -545,6 +547,10 @@ ${bodyHtml}
     this._bindButton('btn-copy', () => this.copyDocument());
     this._bindButton('btn-download', () => this.downloadDocument());
     this._bindButton('btn-export-workflow', () => this.exportExecutableWorkflow());
+    this._bindButton('btn-run-workflow', () => this.startWorkflowReplay());
+    this._bindButton('btn-workflow-approve', () => this.approveWorkflowStep());
+    this._bindButton('btn-workflow-reject', () => this.rejectWorkflowStep());
+    this._bindButton('btn-workflow-cancel', () => this.cancelWorkflowReplay());
     this._bindButton('btn-export-html', () => this.exportHtmlDocument());
     this._bindButton('btn-export-word', () => this.exportWordDocument());
     this._bindButton('btn-export-pdf', () => this.exportPdfDocument());
@@ -763,6 +769,8 @@ ${bodyHtml}
       download: 'Download',
       workflowExport: 'JSON Workflow',
       workflowExportTitle: 'Export executable workflow',
+      workflowRun: 'Test Run',
+      workflowRunTitle: 'Test run workflow',
       html: 'HTML',
       word: 'Word',
       pdf: 'PDF',
@@ -810,6 +818,8 @@ ${bodyHtml}
       download: '下载',
       workflowExport: 'JSON 工作流',
       workflowExportTitle: '导出可执行工作流',
+      workflowRun: '测试运行',
+      workflowRunTitle: '测试运行工作流',
       html: 'HTML',
       word: 'Word',
       pdf: 'PDF',
@@ -861,6 +871,16 @@ ${bodyHtml}
       workflowExportConversionFailed: 'Failed to convert the recording into an executable workflow.',
       workflowExportInvalid: 'The generated workflow is invalid and could not be exported.',
       workflowExportFailed: 'Failed to export executable workflow.',
+      workflowRunStarting: 'Starting test run…',
+      workflowRunFailed: 'Test run failed. Please try again.',
+      workflowRunInvalid: 'Workflow cannot be run.',
+      workflowRunStatusRUNNING: 'Running', workflowRunStatusWAITING_CONFIRMATION: 'Confirmation required',
+      workflowRunStatusWAITING_INPUT: 'Input required', workflowRunStatusFAILED: 'Failed',
+      workflowRunStatusCOMPLETED: 'Completed', workflowRunStatusCANCELLED: 'Cancelled',
+      workflowRunStep: 'Step {{id}}: {{description}}', workflowRunOrigin: 'Site: {{value}}',
+      workflowRunAction: 'Action: {{value}}', workflowRunTarget: 'Target: {{value}}',
+      workflowRunVariables: 'Variables: {{value}}', workflowRunNoVariables: 'None',
+      workflowRunApprove: 'Approve', workflowRunReject: 'Reject', workflowRunCancel: 'Cancel',
       copyDone: 'Document copied to clipboard.',
       copyFailed: 'Copy failed. Please select the text manually.',
       contentRequired: 'Please generate or enter document content first.',
@@ -901,6 +921,16 @@ ${bodyHtml}
       workflowExportConversionFailed: '无法将录制内容转换为可执行工作流。',
       workflowExportInvalid: '生成的工作流无效，无法导出。',
       workflowExportFailed: '导出可执行工作流失败。',
+      workflowRunStarting: '正在启动测试运行…',
+      workflowRunFailed: '测试运行失败，请重试。',
+      workflowRunInvalid: '当前工作流无法运行。',
+      workflowRunStatusRUNNING: '运行中', workflowRunStatusWAITING_CONFIRMATION: '需要确认',
+      workflowRunStatusWAITING_INPUT: '需要输入', workflowRunStatusFAILED: '失败',
+      workflowRunStatusCOMPLETED: '已完成', workflowRunStatusCANCELLED: '已取消',
+      workflowRunStep: '步骤 {{id}}：{{description}}', workflowRunOrigin: '网站：{{value}}',
+      workflowRunAction: '操作：{{value}}', workflowRunTarget: '目标：{{value}}',
+      workflowRunVariables: '变量：{{value}}', workflowRunNoVariables: '无',
+      workflowRunApprove: '批准', workflowRunReject: '拒绝', workflowRunCancel: '取消',
       copyDone: '文档已复制到剪贴板。',
       copyFailed: '复制失败，请手动选择文本',
       contentRequired: '请先生成或输入文档内容',
@@ -1009,6 +1039,15 @@ ${bodyHtml}
     setButton('#btn-copy', text.copy);
     setButton('#btn-download', text.download);
     setButton('#btn-export-workflow', text.workflowExport);
+    setButton('#btn-run-workflow', text.workflowRun);
+    setButton('#btn-workflow-approve', text.workflowRunApprove);
+    setButton('#btn-workflow-reject', text.workflowRunReject);
+    setButton('#btn-workflow-cancel', text.workflowRunCancel);
+    const workflowRunButton = document.getElementById('btn-run-workflow');
+    if (workflowRunButton) {
+      workflowRunButton.title = text.workflowRunTitle;
+      workflowRunButton.setAttribute('aria-label', text.workflowRunTitle);
+    }
     const workflowExportButton = document.getElementById('btn-export-workflow');
     if (workflowExportButton) {
       workflowExportButton.title = text.workflowExportTitle;
@@ -2686,6 +2725,152 @@ ${markdown}`;
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
   }
 
+  _buildWorkflowForReplay() {
+    this._ensureEditorContentFresh();
+    const content = document.getElementById('markdown-editor')?.value || '';
+    const converter = globalThis.SmartPagesWorkflowConverter;
+    const schema = globalThis.SmartPagesWorkflowSchema;
+    if (!content.trim() || !Array.isArray(this.session?.steps) || !this.session.steps.length || !converter?.convertSession || !schema?.validateWorkflow) {
+      throw new Error('invalid workflow');
+    }
+    const baseName = this._getExportBaseName(content);
+    const workflow = converter.convertSession(this.session, { title: baseName, workflowId: baseName })?.workflow;
+    if (!schema.validateWorkflow(workflow).ok) throw new Error('invalid workflow');
+    return workflow;
+  }
+
+  async startWorkflowReplay() {
+    if (this.workflowRunRequestPending) return;
+    this.workflowRunRequestPending = true;
+    const startButton = document.getElementById('btn-run-workflow');
+    if (startButton) startButton.disabled = true;
+    this._renderWorkflowRun({ status: 'STARTING' });
+    try {
+      const workflow = this._buildWorkflowForReplay();
+      this._workflowReplayWorkflow = workflow;
+      this._workflowReplayVariables = Array.isArray(workflow.variables) ? workflow.variables : [];
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!Number.isInteger(tab?.id)) throw new Error('missing tab');
+      try { this._workflowReplayOrigin = new URL(tab.url).origin; } catch (_error) { this._workflowReplayOrigin = ''; }
+      const response = await chrome.runtime.sendMessage({ type: 'WORKFLOW_START_RUN', workflow, variables: {}, tabId: tab.id });
+      if (!response || response.error) throw new Error('start failed');
+      this._renderWorkflowRun(response.status && typeof response.status === 'object' ? response.status : response);
+    } catch (_error) {
+      this._showNotification(this._t('workflowRunFailed'), 'error');
+    } finally {
+      this.workflowRunRequestPending = false;
+      if (startButton) startButton.disabled = false;
+    }
+  }
+
+  _setWorkflowRunElementVisible(element, visible) {
+    if (!element) return;
+    element.hidden = !visible;
+    element.classList?.toggle('hidden', !visible);
+  }
+
+  _renderWorkflowRun(status) {
+    if (!status || typeof status !== 'object') return;
+    this.workflowRun = status;
+    const state = String(status.status || 'FAILED');
+    const panel = document.getElementById('workflow-run-panel');
+    this._setWorkflowRunElementVisible(panel, true);
+    const statusElement = document.getElementById('workflow-run-status');
+    if (statusElement) statusElement.textContent = state === 'STARTING' ? this._t('workflowRunStarting') : this._t(`workflowRunStatus${state}`);
+    const sanitizedStep = status.pendingStep || {};
+    const workflowStep = this._workflowReplayWorkflow?.steps?.find(item => item.id === (status.currentStepId || sanitizedStep.id)) || {};
+    const step = { ...workflowStep, ...sanitizedStep };
+    if (!step.origin && this._workflowReplayOrigin) step.origin = this._workflowReplayOrigin;
+    if (!step.description) {
+      const index = this._workflowReplayWorkflow?.steps?.findIndex(item => item.id === step.id);
+      step.description = index >= 0 ? (this.session?.steps?.[index]?.description || this.session?.steps?.[index]?.elementName || '') : '';
+    }
+    const stepId = status.currentStepId || step.id || '';
+    const stepElement = document.getElementById('workflow-run-step');
+    if (stepElement) stepElement.textContent = stepId || step.description
+      ? this._t('workflowRunStep', { id: stepId, description: step.description || '' }) : '';
+    const target = typeof step.target === 'object'
+      ? (step.target.accessibleName || step.target.name || step.target.selector || '') : (step.target || '');
+    const referencedVariables = JSON.stringify(step.input || {}).match(/\{variable:([^}]+)\}/g) || [];
+    const variableNames = Array.isArray(step.variableNames)
+      ? step.variableNames.map(String)
+      : referencedVariables.map(value => value.slice(10, -1));
+    const summary = [
+      step.origin && this._t('workflowRunOrigin', { value: step.origin }),
+      step.action && this._t('workflowRunAction', { value: step.action }),
+      target && this._t('workflowRunTarget', { value: target }),
+      variableNames.length && this._t('workflowRunVariables', { value: variableNames.join(', ') })
+    ].filter(Boolean).join('\n');
+    const summaryElement = document.getElementById('workflow-run-summary');
+    if (summaryElement) summaryElement.textContent = summary;
+
+    const inputs = document.getElementById('workflow-run-inputs');
+    inputs?.replaceChildren();
+    if (state === 'WAITING_INPUT' && inputs) {
+      const definitions = new Map((this._workflowReplayVariables || []).map(item => [item.name, item]));
+      variableNames.filter(name => !definitions.get(name)?.secret && !/(password|token|secret)/i.test(name)).forEach(name => {
+        const label = document.createElement('label');
+        label.textContent = name;
+        const input = document.createElement('input');
+        input.type = 'text'; input.name = name; input.autocomplete = 'off';
+        label.appendChild(input); inputs.appendChild(label);
+      });
+    }
+    const confirmation = state === 'WAITING_CONFIRMATION';
+    this._setWorkflowRunElementVisible(document.getElementById('btn-workflow-approve'), confirmation);
+    this._setWorkflowRunElementVisible(document.getElementById('btn-workflow-reject'), confirmation);
+    this._setWorkflowRunElementVisible(document.getElementById('btn-workflow-cancel'), !['FAILED', 'COMPLETED', 'CANCELLED', 'STARTING'].includes(state));
+    if (confirmation) document.getElementById('btn-workflow-approve')?.focus();
+  }
+
+  _readWorkflowRunVariables() {
+    const result = {};
+    document.getElementById('workflow-run-inputs')?.querySelectorAll('input').forEach(input => {
+      if (input.name && input.value) result[input.name] = input.value;
+      input.value = '';
+    });
+    return result;
+  }
+
+  async _resumeWorkflowStep(approved) {
+    if (this.workflowRunRequestPending) return;
+    const runId = this.workflowRun?.runId;
+    const expectedStepId = this.workflowRun?.currentStepId || this.workflowRun?.pendingStep?.id;
+    if (!runId || !expectedStepId) return;
+    this.workflowRunRequestPending = true;
+    const buttons = ['btn-workflow-approve', 'btn-workflow-reject'].map(id => document.getElementById(id)).filter(Boolean);
+    buttons.forEach(button => { button.disabled = true; });
+    try {
+      const variables = approved ? this._readWorkflowRunVariables() : {};
+      const response = await chrome.runtime.sendMessage({ type: 'WORKFLOW_RESUME_RUN', runId, expectedStepId, approved, variables });
+      if (!response || response.error) throw new Error('resume failed');
+      this._renderWorkflowRun(response.status && typeof response.status === 'object' ? response.status : response);
+    } catch (_error) {
+      this._showNotification(this._t('workflowRunFailed'), 'error');
+    } finally {
+      this.workflowRunRequestPending = false;
+      buttons.forEach(button => { button.disabled = false; });
+    }
+  }
+
+  approveWorkflowStep() { return this._resumeWorkflowStep(true); }
+  rejectWorkflowStep() { return this._resumeWorkflowStep(false); }
+
+  async cancelWorkflowReplay() {
+    const runId = this.workflowRun?.runId;
+    if (!runId || this.workflowRunRequestPending || ['FAILED', 'COMPLETED', 'CANCELLED'].includes(this.workflowRun?.status)) return;
+    this.workflowRunRequestPending = true;
+    try {
+      const response = await chrome.runtime.sendMessage({ type: 'WORKFLOW_CANCEL_RUN', runId });
+      if (!response || response.error) throw new Error('cancel failed');
+      this._renderWorkflowRun(response.status && typeof response.status === 'object' ? response.status : response);
+    } catch (_error) {
+      this._showNotification(this._t('workflowRunFailed'), 'error');
+    } finally {
+      this.workflowRunRequestPending = false;
+    }
+  }
+
   exportExecutableWorkflow() {
     this._ensureEditorContentFresh();
     const content = document.getElementById('markdown-editor')?.value || '';
@@ -3486,7 +3671,9 @@ document.addEventListener('DOMContentLoaded', () => { sidePanelManager = new Sid
 window.addEventListener('unload', () => { if (sidePanelManager) sidePanelManager.cleanup(); });
 
 chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === 'START_AI_ANALYSIS' && sidePanelManager) {
+  if (message.type === 'WORKFLOW_RUN_CHANGED' && sidePanelManager && message.status) {
+    sidePanelManager._renderWorkflowRun(message.status);
+  } else if (message.type === 'START_AI_ANALYSIS' && sidePanelManager) {
     sidePanelManager.session = message.session;
     sidePanelManager.config = message.config;
     sidePanelManager._showDescriptionSelector();
