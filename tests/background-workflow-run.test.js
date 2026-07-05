@@ -71,7 +71,7 @@ async function route(listener, message) {
     const dispatches = messages.filter(item => item.destination === 'tab' && item.message.type === 'WORKFLOW_EXECUTE_STEP');
     assert.equal(dispatches.length, 1);
     assert.deepEqual(JSON.parse(JSON.stringify(injections.map(item => item.files))), [
-      ['workflow/schema.js'], ['content/workflow-replayer.js']
+      ['workflow/schema.js', 'content/workflow-replayer.js']
     ]);
     assert.equal(messages.some(item => item.destination === 'runtime' && item.message.type === 'WORKFLOW_RUN_CHANGED'), true);
     const json = JSON.stringify(manager.getStatus());
@@ -86,9 +86,11 @@ async function route(listener, message) {
     const high = workflow([{ id: 'danger', action: 'click', risk: 'high', target: '#pay' }]);
     let status = await manager.start(high, {}, 1);
     assert.equal(status.status, 'WAITING_CONFIRMATION');
+    assert.equal(status.currentStepId, 'danger');
     assert.equal(messages.filter(item => item.destination === 'tab').length, 0);
     status = await manager.resume({ approved: true });
     assert.equal(status.status, 'COMPLETED');
+    assert.equal(status.currentStepId, null);
     assert.equal(messages.filter(item => item.destination === 'tab').length, 1);
     await assert.rejects(() => manager.resume({ approved: true }), /not waiting/i);
     assert.equal(messages.filter(item => item.destination === 'tab').length, 1);
@@ -196,6 +198,25 @@ async function route(listener, message) {
   }
 
   {
+    const { Manager, sandbox, injections } = loadBackground();
+    let calls = 0;
+    sandbox.chrome.tabs.sendMessage = async () => {
+      calls += 1;
+      return { ok: true, code: 'NAVIGATION_STARTED', postconditionPending: true };
+    };
+    const manager = new Manager();
+    await manager.start(workflow([{ id: 'nav-fail', action: 'navigate', risk: 'low', input: { url: 'https://example.com/next' }, postcondition: { type: 'url', value: 'https://example.com/next' } }]), {}, 1);
+    const injectionsBeforeReload = injections.length;
+    await manager.handleTabComplete(1, { url: 'https://example.com/wrong' });
+    const status = manager.getStatus();
+    assert.equal(status.status, 'FAILED');
+    assert.equal(status.logs.at(-1).result, 'POSTCONDITION_FAILED');
+    assert.equal(status.currentStepId, null);
+    assert.equal(injections.length, injectionsBeforeReload + 1);
+    assert.equal(calls, 1);
+  }
+
+  {
     const { listeners } = loadBackground();
     const listener = listeners[0];
     assert.equal((await route(listener, { type: 'WORKFLOW_START_RUN', workflow: workflow(), variables: {}, tabId: 2 })).status, 'COMPLETED');
@@ -203,5 +224,16 @@ async function route(listener, message) {
     assert.equal((await route(listener, { type: 'WORKFLOW_CANCEL_RUN' })).status, 'CANCELLED');
     const missing = await route(listener, { type: 'WORKFLOW_START_RUN' });
     assert.match(missing.error, /Missing workflow/);
+    assert.equal(missing.code, 'INVALID_PARAMETERS');
+  }
+
+  {
+    const { listeners } = loadBackground();
+    const listener = listeners[0];
+    const high = workflow([{ id: 'route-danger', action: 'click', risk: 'high', target: '#pay' }]);
+    await route(listener, { type: 'WORKFLOW_START_RUN', workflow: high, variables: {}, tabId: 2 });
+    const concurrent = await route(listener, { type: 'WORKFLOW_START_RUN', workflow: workflow(), variables: {}, tabId: 2 });
+    assert.equal(concurrent.code, 'RUN_IN_PROGRESS');
+    assert.match(concurrent.error, /RUN_IN_PROGRESS/);
   }
 })().catch(error => { console.error(error); process.exit(1); });

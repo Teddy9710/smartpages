@@ -1008,8 +1008,10 @@ class WorkflowRunManager {
   }
 
   async _ensureWorkflowReplayer(tabId) {
-    await chrome.scripting.executeScript({ target: { tabId }, files: ['workflow/schema.js'] });
-    await chrome.scripting.executeScript({ target: { tabId }, files: ['content/workflow-replayer.js'] });
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['workflow/schema.js', 'content/workflow-replayer.js']
+    });
   }
 
   _log(step, result) {
@@ -1023,10 +1025,13 @@ class WorkflowRunManager {
   getStatus() {
     if (!this.run) return null;
     const pending = this.run.pendingStep;
+    const terminal = [WorkflowRunStatus.FAILED, WorkflowRunStatus.COMPLETED, WorkflowRunStatus.CANCELLED]
+      .includes(this.run.status);
     return {
       runId: this.run.runId, workflowId: this.run.workflow.workflowId,
       tabId: this.run.tabId, status: this.run.status,
       nextStepIndex: this.run.nextStepIndex,
+      currentStepId: terminal ? null : (pending?.id || this.run.workflow.steps[this.run.nextStepIndex]?.id || null),
       pendingStep: pending ? { id: pending.id, action: pending.action, risk: pending.risk } : null,
       logs: this.run.logs.map(log => ({ ...log })),
       startedAt: this.run.startedAt, endedAt: this.run.endedAt
@@ -1109,14 +1114,14 @@ function messageHandler(message, sender, sendResponse) {
       }
     } catch (error) {
       console.error('[Scribe:Background] Handler error:', error);
-      return { error: error.message || '操作失败' };
+      return { error: error.message || '操作失败', code: error.code || 'WORKFLOW_RUN_ERROR' };
     }
   })().then(result => {
     console.log('[Scribe:Background] Sending response:', result);
     sendResponse(result);
   }).catch(error => {
     console.error('[Scribe:Background] Response error:', error);
-    sendResponse({ error: error.message || '响应失败' });
+    sendResponse({ error: error.message || '响应失败', code: error.code || 'WORKFLOW_RUN_ERROR' });
   });
 
   return true; // Keep message channel open
@@ -1125,14 +1130,14 @@ function messageHandler(message, sender, sendResponse) {
 async function handleWorkflowMessage(message) {
   switch (message.type) {
     case 'WORKFLOW_START_RUN':
-      if (!message.workflow) return { error: 'Missing workflow parameter' };
-      if (!Number.isInteger(message.tabId) || message.tabId <= 0) return { error: 'Missing or invalid tabId parameter' };
+      if (!message.workflow) return { error: 'Missing workflow parameter', code: 'INVALID_PARAMETERS' };
+      if (!Number.isInteger(message.tabId) || message.tabId <= 0) return { error: 'Missing or invalid tabId parameter', code: 'INVALID_PARAMETERS' };
       if (message.variables !== undefined && (!message.variables || typeof message.variables !== 'object' || Array.isArray(message.variables))) {
-        return { error: 'Invalid variables parameter' };
+        return { error: 'Invalid variables parameter', code: 'INVALID_PARAMETERS' };
       }
       return await workflowRunManager.start(message.workflow, message.variables || {}, message.tabId);
     case 'WORKFLOW_RESUME_RUN':
-      if (typeof message.approved !== 'boolean') return { error: 'Missing approved parameter' };
+      if (typeof message.approved !== 'boolean') return { error: 'Missing approved parameter', code: 'INVALID_PARAMETERS' };
       return await workflowRunManager.resume({ approved: message.approved, variables: message.variables });
     case 'WORKFLOW_GET_RUN_STATUS':
       return workflowRunManager.getStatus();
