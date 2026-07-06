@@ -508,6 +508,10 @@ ${bodyHtml}
     this.cleanupFunctions = [];
     this.workflowRun = null;
     this.workflowRunRequestPending = false;
+    this._workflowReplayOperation = 0;
+    this._workflowReplayUpdateRevision = 0;
+    this._workflowReplayPendingOperation = null;
+    this._workflowReplayActiveRunId = null;
     this.toastContainer = null;
     this.imageCropState = {
       imageElement: null,
@@ -2741,6 +2745,9 @@ ${markdown}`;
 
   async startWorkflowReplay() {
     if (this.workflowRunRequestPending) return;
+    const operation = ++this._workflowReplayOperation;
+    const updateRevision = this._workflowReplayUpdateRevision;
+    this._workflowReplayPendingOperation = operation;
     this.workflowRunRequestPending = true;
     const startButton = document.getElementById('btn-run-workflow');
     if (startButton) startButton.disabled = true;
@@ -2754,12 +2761,25 @@ ${markdown}`;
       try { this._workflowReplayOrigin = new URL(tab.url).origin; } catch (_error) { this._workflowReplayOrigin = ''; }
       const response = await chrome.runtime.sendMessage({ type: 'WORKFLOW_START_RUN', workflow, variables: {}, tabId: tab.id });
       if (!response || response.error) throw new Error('start failed');
-      this._renderWorkflowRun(response.status && typeof response.status === 'object' ? response.status : response);
+      const status = response.status && typeof response.status === 'object' ? response.status : response;
+      if (!this._canApplyWorkflowResponse(status, operation, updateRevision)) return;
+      this._workflowReplayActiveRunId = status.runId || null;
+      this._renderWorkflowRun(status);
     } catch (_error) {
+      if (operation !== this._workflowReplayOperation || updateRevision !== this._workflowReplayUpdateRevision) return;
+      this.workflowRun = null;
+      this._workflowReplayWorkflow = null;
+      this._workflowReplayVariables = [];
+      this._workflowReplayOrigin = '';
+      this._workflowReplayActiveRunId = null;
+      this._renderWorkflowRun({ status: 'FAILED', runId: null, currentStepId: null });
       this._showNotification(this._t('workflowRunFailed'), 'error');
     } finally {
-      this.workflowRunRequestPending = false;
-      if (startButton) startButton.disabled = false;
+      if (this._workflowReplayPendingOperation === operation) {
+        this._workflowReplayPendingOperation = null;
+        this.workflowRunRequestPending = false;
+        if (startButton) startButton.disabled = false;
+      }
     }
   }
 
@@ -2769,10 +2789,57 @@ ${markdown}`;
     element.classList?.toggle('hidden', !visible);
   }
 
+  _isTerminalWorkflowStatus(status) {
+    return ['FAILED', 'COMPLETED', 'CANCELLED'].includes(status);
+  }
+
+  _wouldRegressTerminalWorkflow(status) {
+    return this.workflowRun?.runId && this.workflowRun.runId === status?.runId
+      && this._isTerminalWorkflowStatus(this.workflowRun.status)
+      && status?.status !== this.workflowRun.status;
+  }
+
+  _canApplyWorkflowResponse(status, operation, updateRevision) {
+    return operation === this._workflowReplayOperation
+      && updateRevision === this._workflowReplayUpdateRevision
+      && !this._wouldRegressTerminalWorkflow(status);
+  }
+
+  _collectWorkflowVariableRefs(value) {
+    const names = new Set();
+    const visited = new WeakSet();
+    let visitedCount = 0;
+    const visit = (item, depth) => {
+      if (depth > 20 || visitedCount >= 1000 || !item || typeof item !== 'object') return;
+      if (visited.has(item)) return;
+      visited.add(item);
+      visitedCount += 1;
+      if (Array.isArray(item)) {
+        item.forEach(entry => visit(entry, depth + 1));
+        return;
+      }
+      const prototype = Object.getPrototypeOf(item);
+      if (prototype !== null && Object.getPrototypeOf(prototype) !== null) return;
+      if (Object.prototype.hasOwnProperty.call(item, 'variable')
+          && typeof item.variable === 'string' && item.variable.trim()) {
+        names.add(item.variable.trim());
+      }
+      Object.keys(item).forEach(key => {
+        if (!['__proto__', 'prototype', 'constructor'].includes(key)) visit(item[key], depth + 1);
+      });
+    };
+    visit(value, 0);
+    return [...names];
+  }
+
   _renderWorkflowRun(status) {
     if (!status || typeof status !== 'object') return;
-    this.workflowRun = status;
     const state = String(status.status || 'FAILED');
+    const nextStepId = status.currentStepId || status.pendingStep?.id || '';
+    const renderKey = `${status.runId || ''}:${state}:${nextStepId}`;
+    const transitioned = renderKey !== this._workflowRunRenderKey;
+    this.workflowRun = status;
+    this._workflowRunRenderKey = renderKey;
     const panel = document.getElementById('workflow-run-panel');
     this._setWorkflowRunElementVisible(panel, true);
     const statusElement = document.getElementById('workflow-run-status');
@@ -2791,10 +2858,10 @@ ${markdown}`;
       ? this._t('workflowRunStep', { id: stepId, description: step.description || '' }) : '';
     const target = typeof step.target === 'object'
       ? (step.target.accessibleName || step.target.name || step.target.selector || '') : (step.target || '');
-    const referencedVariables = JSON.stringify(step.input || {}).match(/\{variable:([^}]+)\}/g) || [];
-    const variableNames = Array.isArray(step.variableNames)
-      ? step.variableNames.map(String)
-      : referencedVariables.map(value => value.slice(10, -1));
+    const variableNames = [...new Set([
+      ...(Array.isArray(status.pendingStep?.variableNames) ? status.pendingStep.variableNames.map(String) : []),
+      ...this._collectWorkflowVariableRefs(workflowStep.input),
+    ].filter(name => name.trim()))];
     const summary = [
       step.origin && this._t('workflowRunOrigin', { value: step.origin }),
       step.action && this._t('workflowRunAction', { value: step.action }),
@@ -2805,8 +2872,8 @@ ${markdown}`;
     if (summaryElement) summaryElement.textContent = summary;
 
     const inputs = document.getElementById('workflow-run-inputs');
-    inputs?.replaceChildren();
-    if (state === 'WAITING_INPUT' && inputs) {
+    if (transitioned) inputs?.replaceChildren();
+    if (transitioned && state === 'WAITING_INPUT' && inputs) {
       const definitions = new Map((this._workflowReplayVariables || []).map(item => [item.name, item]));
       variableNames.forEach(name => {
         const label = document.createElement('label');
@@ -2824,7 +2891,8 @@ ${markdown}`;
     if (approveButton) approveButton.textContent = this._t(waitingInput ? 'workflowRunContinue' : 'workflowRunApprove');
     this._setWorkflowRunElementVisible(document.getElementById('btn-workflow-reject'), confirmation);
     this._setWorkflowRunElementVisible(document.getElementById('btn-workflow-cancel'), !['FAILED', 'COMPLETED', 'CANCELLED', 'STARTING'].includes(state));
-    if (confirmation || waitingInput) approveButton?.focus();
+    if (transitioned && waitingInput) inputs?.querySelectorAll('input')?.[0]?.focus();
+    else if (transitioned && confirmation) approveButton?.focus();
   }
 
   _readWorkflowRunVariables() {
@@ -2841,6 +2909,9 @@ ${markdown}`;
     const runId = this.workflowRun?.runId;
     const expectedStepId = this.workflowRun?.currentStepId || this.workflowRun?.pendingStep?.id;
     if (!runId || !expectedStepId) return;
+    const operation = ++this._workflowReplayOperation;
+    const updateRevision = this._workflowReplayUpdateRevision;
+    this._workflowReplayPendingOperation = operation;
     this.workflowRunRequestPending = true;
     const buttons = ['btn-workflow-approve', 'btn-workflow-reject'].map(id => document.getElementById(id)).filter(Boolean);
     buttons.forEach(button => { button.disabled = true; });
@@ -2848,12 +2919,19 @@ ${markdown}`;
       const variables = approved ? this._readWorkflowRunVariables() : {};
       const response = await chrome.runtime.sendMessage({ type: 'WORKFLOW_RESUME_RUN', runId, expectedStepId, approved, variables });
       if (!response || response.error) throw new Error('resume failed');
-      this._renderWorkflowRun(response.status && typeof response.status === 'object' ? response.status : response);
+      const status = response.status && typeof response.status === 'object' ? response.status : response;
+      if (!this._canApplyWorkflowResponse(status, operation, updateRevision)) return;
+      this._workflowReplayActiveRunId = status.runId || runId;
+      this._renderWorkflowRun(status);
     } catch (_error) {
+      if (operation !== this._workflowReplayOperation || updateRevision !== this._workflowReplayUpdateRevision) return;
       this._showNotification(this._t('workflowRunFailed'), 'error');
     } finally {
-      this.workflowRunRequestPending = false;
-      buttons.forEach(button => { button.disabled = false; });
+      if (this._workflowReplayPendingOperation === operation) {
+        this._workflowReplayPendingOperation = null;
+        this.workflowRunRequestPending = false;
+        buttons.forEach(button => { button.disabled = false; });
+      }
     }
   }
 
@@ -2863,15 +2941,25 @@ ${markdown}`;
   async cancelWorkflowReplay() {
     const runId = this.workflowRun?.runId;
     if (!runId || this.workflowRunRequestPending || ['FAILED', 'COMPLETED', 'CANCELLED'].includes(this.workflowRun?.status)) return;
+    const operation = ++this._workflowReplayOperation;
+    const updateRevision = this._workflowReplayUpdateRevision;
+    this._workflowReplayPendingOperation = operation;
     this.workflowRunRequestPending = true;
     try {
       const response = await chrome.runtime.sendMessage({ type: 'WORKFLOW_CANCEL_RUN', runId });
       if (!response || response.error) throw new Error('cancel failed');
-      this._renderWorkflowRun(response.status && typeof response.status === 'object' ? response.status : response);
+      const status = response.status && typeof response.status === 'object' ? response.status : response;
+      if (!this._canApplyWorkflowResponse(status, operation, updateRevision)) return;
+      this._workflowReplayActiveRunId = status.runId || runId;
+      this._renderWorkflowRun(status);
     } catch (_error) {
+      if (operation !== this._workflowReplayOperation || updateRevision !== this._workflowReplayUpdateRevision) return;
       this._showNotification(this._t('workflowRunFailed'), 'error');
     } finally {
-      this.workflowRunRequestPending = false;
+      if (this._workflowReplayPendingOperation === operation) {
+        this._workflowReplayPendingOperation = null;
+        this.workflowRunRequestPending = false;
+      }
     }
   }
 
@@ -3675,7 +3763,10 @@ document.addEventListener('DOMContentLoaded', () => { sidePanelManager = new Sid
 window.addEventListener('unload', () => { if (sidePanelManager) sidePanelManager.cleanup(); });
 
 chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === 'WORKFLOW_RUN_CHANGED' && sidePanelManager && message.status) {
+  if (message.type === 'WORKFLOW_RUN_CHANGED' && sidePanelManager && message.status?.runId
+      && message.status.runId === sidePanelManager._workflowReplayActiveRunId
+      && !sidePanelManager._wouldRegressTerminalWorkflow(message.status)) {
+    sidePanelManager._workflowReplayUpdateRevision += 1;
     sidePanelManager._renderWorkflowRun(message.status);
   } else if (message.type === 'START_AI_ANALYSIS' && sidePanelManager) {
     sidePanelManager.session = message.session;

@@ -26,7 +26,7 @@ assert.deepEqual(Array.from(sample.workflow.allowedOrigins), ['https://example.c
 assert.deepEqual(Array.from(sample.workflow.steps, step => step.action), ['click', 'input', 'click']);
 assert.equal(sample.workflow.steps[2].risk, 'high');
 assert.equal(sample.workflow.steps[0].preconditions[0].url, 'https://example.com/profile?tab=main');
-assert.equal(sample.workflow.steps[1].input.value, '{variable:full-name}');
+assert.deepEqual(JSON.parse(JSON.stringify(sample.workflow.steps[1].input.value)), { variable: 'full-name' });
 assert.deepEqual(JSON.parse(JSON.stringify(sample.workflow.variables)), [
   { name: 'full-name', required: true, secret: false },
 ]);
@@ -85,7 +85,7 @@ const directMappings = api.convertSession({
   ],
 });
 assert.equal(directMappings.workflow.steps[0].action, 'select');
-assert.equal(directMappings.workflow.steps[0].input.value, '{variable:language}');
+assert.deepEqual(JSON.parse(JSON.stringify(directMappings.workflow.steps[0].input.value)), { variable: 'language' });
 assert.equal(JSON.stringify(directMappings).includes('Chinese'), false);
 assert.deepEqual(JSON.parse(JSON.stringify(directMappings.workflow.steps[1].input)), {
   url: 'https://example.com/from-recorded-url',
@@ -104,8 +104,8 @@ const duplicates = api.convertSession({
 }, { workflowId: '  My Stable Workflow!  ' });
 assert.equal(duplicates.workflow.workflowId, 'my-stable-workflow');
 assert.deepEqual(Array.from(duplicates.workflow.variables, variable => variable.name), ['email-address', 'email-address-2']);
-assert.deepEqual(Array.from(duplicates.workflow.steps, step => step.input.value),
-  ['{variable:email-address}', '{variable:email-address-2}']);
+assert.deepEqual(JSON.parse(JSON.stringify(Array.from(duplicates.workflow.steps, step => step.input.value))),
+  [{ variable: 'email-address' }, { variable: 'email-address-2' }]);
 
 const adversarialNames = api.convertSession({
   sessionId: 'id-must-not-be-title',
@@ -120,8 +120,8 @@ const adversarialNames = api.convertSession({
 assert.equal(adversarialNames.workflow.title, 'Explicit workflow title');
 assert.deepEqual(Array.from(adversarialNames.workflow.variables, variable => variable.name),
   ['email', 'email-2', 'email-3']);
-assert.deepEqual(Array.from(adversarialNames.workflow.steps, step => step.input.value),
-  ['{variable:email}', '{variable:email-2}', '{variable:email-3}']);
+assert.deepEqual(JSON.parse(JSON.stringify(Array.from(adversarialNames.workflow.steps, step => step.input.value))),
+  [{ variable: 'email' }, { variable: 'email-2' }, { variable: 'email-3' }]);
 assert.equal(JSON.stringify(adversarialNames).includes('nested-secret'), false);
 
 const pageTitle = api.convertSession({

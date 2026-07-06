@@ -2,10 +2,15 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { loadBrowserScript } = require('./workflow-test-helpers');
 
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'sidepanel', 'sidepanel.html'), 'utf8');
 const source = fs.readFileSync(path.join(root, 'sidepanel', 'sidepanel.js'), 'utf8');
+const workflowSchema = loadBrowserScript('workflow/schema.js', 'SmartPagesWorkflowSchema');
+const workflowConverter = loadBrowserScript('workflow/converter.js', 'SmartPagesWorkflowConverter', {
+  SmartPagesWorkflowSchema: workflowSchema,
+});
 
 assert.match(html, /id="btn-run-workflow"/);
 assert.match(html, /id="workflow-run-panel"[^>]+role="region"[^>]+aria-live="polite"/);
@@ -21,7 +26,7 @@ function element(id) {
     removeAttribute(name) { delete this.attributes[name]; },
     appendChild(child) { this.children.push(child); return child; },
     replaceChildren(...children) { this.children = children; },
-    addEventListener() {}, removeEventListener() {}, focus() { this.focused = true; },
+    addEventListener() {}, removeEventListener() {}, focus() { this.focused = true; sandbox.document.activeElement = this; },
     querySelectorAll() { return this.children.flatMap(child => child.tagName === 'INPUT' ? [child] : child.querySelectorAll?.('input') || []); }
   };
 }
@@ -50,7 +55,7 @@ const sandbox = {
     storage: { sync: { get: async () => ({}) } }
   },
   document: {
-    documentElement: { lang: '' }, body: { appendChild() {} }, head: { appendChild() {} },
+    documentElement: { lang: '' }, body: { appendChild() {} }, head: { appendChild() {} }, activeElement: null,
     addEventListener() {}, querySelector() { return null; }, getElementById(id) { return elements[id] || null; },
     createElement(tagName) { const el = element(''); el.tagName = tagName.toUpperCase(); return el; }
   },
@@ -74,6 +79,10 @@ function manager() {
   value._getExportBaseName = () => 'Replay';
   value._showNotification = (message, type) => { value.notice = { message, type }; };
   value.workflowRun = null;
+  value._workflowReplayOperation = 0;
+  value._workflowReplayUpdateRevision = 0;
+  value._workflowReplayPendingOperation = null;
+  value._workflowReplayActiveRunId = null;
   return value;
 }
 
@@ -125,6 +134,34 @@ function manager() {
   assert.equal(inputFields[1].value, '');
 
   sent.length = 0;
+  const converted = workflowConverter.convertSession({
+    sessionId: 'real-input-session',
+    pageTitle: 'Sign in',
+    pageUrl: 'https://secure.example/login',
+    steps: [
+      { type: 'input', selector: '#email', elementName: 'Email address', value: 'ignored@example.com' },
+      { type: 'input', selector: '#password', elementName: 'Password', elementType: 'password', value: 'ignored-secret' },
+    ],
+  }).workflow;
+  const convertedRun = manager();
+  convertedRun._workflowReplayWorkflow = converted;
+  convertedRun._workflowReplayVariables = converted.variables;
+  convertedRun._renderWorkflowRun({
+    status: 'WAITING_INPUT', runId: 'converted-run', currentStepId: 'step-2', pendingStep: { id: 'step-2' }
+  });
+  const convertedInputs = elements['workflow-run-inputs'].children.flatMap(label => label.children || []);
+  assert.deepEqual(convertedInputs.map(input => input.name), ['password']);
+  assert.equal(convertedInputs[0].type, 'password');
+  convertedInputs[0].value = 'supplied-secret';
+  responder = async () => ({ status: 'RUNNING', runId: 'converted-run', currentStepId: null });
+  await convertedRun.approveWorkflowStep();
+  assert.deepEqual(JSON.parse(JSON.stringify(sent[0])), {
+    type: 'WORKFLOW_RESUME_RUN', runId: 'converted-run', expectedStepId: 'step-2', approved: true,
+    variables: { password: 'supplied-secret' }
+  });
+  assert.equal(convertedInputs[0].value, '');
+
+  sent.length = 0;
   value.workflowRun = { status: 'WAITING_CONFIRMATION', runId: 'run-x', currentStepId: 'step-x', pendingStep: { id: 'step-x' } };
   responder = async message => ({ ...value.workflowRun, status: message.approved ? 'RUNNING' : 'CANCELLED' });
   const approve = value.approveWorkflowStep();
@@ -156,7 +193,11 @@ function manager() {
   live._showDescriptionSelector = () => { live.analysisShown = true; };
   sandbox.setSidePanelManager(live);
   const listener = runtimeListeners.at(-1);
+  live.workflowRun = { status: 'RUNNING', runId: 'notify', currentStepId: 'n1' };
+  live._workflowReplayActiveRunId = 'notify';
   listener({ type: 'WORKFLOW_RUN_CHANGED', status: { status: 'RUNNING', runId: 'notify', currentStepId: 'n1' } });
+  assert.equal(live.workflowRun.runId, 'notify');
+  listener({ type: 'WORKFLOW_RUN_CHANGED', status: { status: 'FAILED', runId: 'old-run', currentStepId: null } });
   assert.equal(live.workflowRun.runId, 'notify');
   listener({ type: 'START_AI_ANALYSIS', session: { id: 'legacy' }, config: { ai: true } });
   assert.equal(live.session.id, 'legacy');
@@ -169,4 +210,63 @@ function manager() {
   assert.equal(elements['btn-run-workflow'].disabled, false);
   assert.equal(failed.notice.message, 'Test run failed. Please try again.');
   assert.doesNotMatch(failed.notice.message, /SECRET|backend/);
+  assert.equal(failed.workflowRun.status, 'FAILED');
+  assert.equal(failed._workflowReplayWorkflow, null);
+  assert.equal(failed._workflowReplayVariables.length, 0);
+  assert.equal(failed._workflowReplayOrigin, '');
+  assert.equal(elements['workflow-run-panel'].hidden, false);
+
+  let resolveStart;
+  responder = () => new Promise(resolve => { resolveStart = resolve; });
+  const staleStart = manager();
+  const starting = staleStart.startWorkflowReplay();
+  await new Promise(resolve => setImmediate(resolve));
+  staleStart._workflowReplayOperation += 1;
+  staleStart._workflowReplayActiveRunId = 'new-start';
+  staleStart._renderWorkflowRun({ status: 'RUNNING', runId: 'new-start', currentStepId: 'new-step' });
+  resolveStart({ status: 'RUNNING', runId: 'stale-start', currentStepId: 's1' });
+  await starting;
+  assert.equal(staleStart.workflowRun?.runId, 'new-start');
+
+  let resolveResume;
+  responder = () => new Promise(resolve => { resolveResume = resolve; });
+  const staleResume = manager();
+  staleResume.workflowRun = { status: 'WAITING_CONFIRMATION', runId: 'resume-run', currentStepId: 'confirm' };
+  const resuming = staleResume.approveWorkflowStep();
+  staleResume._workflowReplayOperation += 1;
+  staleResume._renderWorkflowRun({ status: 'RUNNING', runId: 'new-resume', currentStepId: 'next' });
+  resolveResume({ status: 'COMPLETED', runId: 'resume-run', currentStepId: null });
+  await resuming;
+  assert.equal(staleResume.workflowRun.runId, 'new-resume');
+
+  const focusManager = manager();
+  focusManager._workflowReplayVariables = [{ name: 'email' }];
+  const waiting = { status: 'WAITING_INPUT', runId: 'focus-run', currentStepId: 'input-step', pendingStep: { id: 'input-step', variableNames: ['email'] } };
+  focusManager._renderWorkflowRun(waiting);
+  const focusedInput = elements['workflow-run-inputs'].children[0].children[0];
+  assert.equal(sandbox.document.activeElement, focusedInput);
+  focusedInput.value = 'keep me';
+  focusManager._renderWorkflowRun({ ...waiting, logs: [{ event: 'still waiting' }] });
+  assert.equal(elements['workflow-run-inputs'].children[0].children[0], focusedInput);
+  assert.equal(focusedInput.value, 'keep me');
+  assert.equal(sandbox.document.activeElement, focusedInput);
+
+  let resolveLateResume;
+  responder = () => new Promise(resolve => { resolveLateResume = resolve; });
+  const notificationRace = manager();
+  notificationRace.workflowRun = { status: 'WAITING_CONFIRMATION', runId: 'same-run', currentStepId: 'confirm' };
+  notificationRace._workflowReplayActiveRunId = 'same-run';
+  sandbox.setSidePanelManager(notificationRace);
+  const lateResume = notificationRace.approveWorkflowStep();
+  listener({ type: 'WORKFLOW_RUN_CHANGED', status: { status: 'COMPLETED', runId: 'same-run', currentStepId: null } });
+  assert.equal(notificationRace.workflowRun.status, 'COMPLETED');
+  resolveLateResume({ status: 'FAILED', runId: 'same-run', currentStepId: null });
+  await lateResume;
+  assert.equal(notificationRace.workflowRun.status, 'COMPLETED');
+  listener({ type: 'WORKFLOW_RUN_CHANGED', status: { status: 'RUNNING', runId: 'same-run', currentStepId: 'later' } });
+  assert.equal(notificationRace.workflowRun.status, 'COMPLETED');
+  listener({ type: 'WORKFLOW_RUN_CHANGED', status: { status: 'FAILED', runId: 'same-run', currentStepId: null } });
+  assert.equal(notificationRace.workflowRun.status, 'COMPLETED');
+  listener({ type: 'WORKFLOW_RUN_CHANGED', status: { status: 'CANCELLED', runId: 'same-run', currentStepId: null } });
+  assert.equal(notificationRace.workflowRun.status, 'COMPLETED');
 })().catch(error => { console.error(error); process.exit(1); });

@@ -97,7 +97,7 @@
           while (variableNames.has(name)) name = `${baseName}-${suffix++}`;
           variableNames.add(name);
           variables.push({ name, required: true, secret: SECRET.test(`${label} ${recorded.elementType || ''}`) });
-          step.input = { value: `{variable:${name}}` };
+          step.input = { value: { variable: name } };
         }
       }
       return step;

@@ -184,16 +184,20 @@
       await new Promise(resolve => global.setTimeout(resolve, Math.min(Math.max(Number.isFinite(ms) ? ms : 0, 0), 10000)));
     }
     if (step.action === 'navigate') {
-      const url = input.url;
+      const navigationUrl = resolveValue(input.url, context.variables);
+      if (!navigationUrl.ok) return navigationUrl;
+      const url = navigationUrl.value;
       if (typeof url !== 'string' || !originAllowed(url, context.allowedOrigins)) {
         return fail('ORIGIN_NOT_ALLOWED', 'Navigation origin is not allowed.');
       }
       global.location.assign(url);
-      const navigationPostcondition = step.postcondition ?? step.postconditions;
       return {
         ok: true,
         code: 'NAVIGATION_STARTED',
-        postconditionPending: Boolean(navigationPostcondition && Object.keys(navigationPostcondition).length),
+        // Navigation always replaces this document. Completion and any
+        // postcondition must therefore be verified by the background worker
+        // after the destination document reports loading complete.
+        postconditionPending: true,
       };
     }
     const condition = step.action === 'assert' ? (step.condition ?? step.conditions) : null;
@@ -211,6 +215,14 @@
       global.chrome.runtime.onMessage.removeListener(global.smartPagesWorkflowReplayListener);
     }
     global.smartPagesWorkflowReplayListener = function (message, _sender, sendResponse) {
+      if (message?.type === 'WORKFLOW_CHECK_CONDITION') {
+        const allowed = originAllowed(global.location.href, message.allowedOrigins);
+        sendResponse(allowed && checkCondition(message.condition)
+          ? { ok: true, code: 'CONDITION_MET' }
+          : fail(allowed ? 'POSTCONDITION_FAILED' : 'ORIGIN_NOT_ALLOWED',
+            allowed ? 'Step postcondition failed.' : 'Current origin is not allowed.'));
+        return false;
+      }
       if (message?.type !== 'WORKFLOW_EXECUTE_STEP') return false;
       Promise.resolve(executeStep(message.step, message.context || {
         variables: message.variables,

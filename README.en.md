@@ -338,3 +338,18 @@ SmartPages uses a **Dual License** model:
 - The copyright holder (Hongru Wang / 汪鸿儒) retains all commercial rights and may use this software commercially without restriction.
 - Unauthorized commercial use — including integration into commercial products, SaaS services, or enterprise deployments — is prohibited.
 - For commercial licensing inquiries, please contact the author via GitHub Issues.
+
+---
+
+## Executable Workflow Preview (Phase 1)
+
+SmartPages can export a recorded session as both a human-readable Markdown document and a machine-readable `.smartpages.json` workflow. The side panel provides a local **Test Run** for reviewing and replaying that workflow in the current browser tab.
+
+- Supported actions: `navigate`, `click`, `input`, `select`, `scroll`, `wait`, and `assert`.
+- Workflows are restricted to explicitly declared, exact HTTP/HTTPS origins. Wildcards and privileged URL schemes are rejected.
+- High-risk steps pause before page dispatch and require explicit confirmation.
+- Workflow JSON is untrusted input and must pass schema validation before execution.
+- Passwords, tokens, and other secrets are runtime inputs; recorded values are not exported into the workflow.
+- Phase 1 runs locally inside the extension. MCP Server and Native Messaging integration are an architectural direction and are **not included in Phase 1**.
+
+This preview is intended for controlled, same-site workflow replay. It does not provide production-ready MCP integration or autonomous cross-site browsing.

@@ -30,7 +30,7 @@ function loadBackground(sharedStore = {}) {
         sendMessage: async message => { messages.push({ destination: 'runtime', message }); }
       },
       tabs: {
-        onUpdated: { addListener() {} },
+        onUpdated: { addListener(listener) { sandbox.tabUpdatedListener = listener; } },
         onRemoved: { addListener(listener) { sandbox.tabRemovedListener = listener; } },
         get: async tabId => ({ id: tabId, url: 'https://example.com/page', windowId: 1 }),
         sendMessage: async (tabId, message) => {
@@ -109,8 +109,8 @@ async function route(listener, message) {
     const pending = await rejected.start(workflow([{ id: 'danger', action: 'click', risk: 'high', target: '#pay' }]), {}, 1);
     assert.equal((await rejected.resume({ approved: false, runId: pending.runId, expectedStepId: 'danger' })).status, 'CANCELLED');
     const cancelled = new Manager();
-    await cancelled.start(workflow([{ id: 'danger', action: 'click', risk: 'high', target: '#pay' }]), {}, 1);
-    assert.equal((await cancelled.cancel()).status, 'CANCELLED');
+    const cancellable = await cancelled.start(workflow([{ id: 'danger', action: 'click', risk: 'high', target: '#pay' }]), {}, 1);
+    assert.equal((await cancelled.cancel(cancellable.runId)).status, 'CANCELLED');
   }
 
   {
@@ -180,7 +180,7 @@ async function route(listener, message) {
     const manager = new Manager();
     const starting = manager.start(workflow(), {}, 1);
     await new Promise(resolve => setImmediate(resolve));
-    await manager.cancel();
+    await manager.cancel(manager.getStatus().runId);
     resolveStep({ ok: true, code: 'STEP_COMPLETED' });
     await starting;
     assert.equal(manager.getStatus().status, 'CANCELLED');
@@ -203,6 +203,46 @@ async function route(listener, message) {
     await manager.handleTabComplete(1, { url: 'https://example.com/next' });
     assert.equal(manager.getStatus().status, 'COMPLETED');
     assert.equal(calls, 1);
+  }
+
+  // Navigation without an explicit postcondition waits for the new document,
+  // validates its destination URL, and dispatches the following step once.
+  {
+    const { manager, sandbox, messages } = loadBackground();
+    sandbox.chrome.tabs.sendMessage = async (tabId, message) => {
+      messages.push({ destination: 'tab', tabId, message });
+      return message.step.action === 'navigate'
+        ? { ok: true, code: 'NAVIGATION_STARTED', postconditionPending: true }
+        : { ok: true, code: 'STEP_COMPLETED' };
+    };
+    const status = await manager.start(workflow([
+      { id: 'nav-implicit', action: 'navigate', risk: 'low', input: { url: 'https://example.com/next' } },
+      { id: 'click-after-nav', action: 'click', risk: 'low', target: '#continue' }
+    ]), {}, 1);
+    assert.equal(status.status, 'RUNNING');
+    assert.deepEqual(messages.filter(item => item.destination === 'tab').map(item => item.message.step.id), ['nav-implicit']);
+    await sandbox.tabUpdatedListener(1, { status: 'loading' }, { url: 'https://example.com/next' });
+    assert.deepEqual(messages.filter(item => item.destination === 'tab').map(item => item.message.step.id), ['nav-implicit']);
+    await sandbox.tabUpdatedListener(1, { status: 'complete' }, { url: 'https://example.com/next' });
+    assert.equal(manager.getStatus().status, 'COMPLETED');
+    assert.deepEqual(messages.filter(item => item.destination === 'tab').map(item => item.message.step.id), ['nav-implicit', 'click-after-nav']);
+  }
+
+  // A completed navigation at the wrong URL fails without dispatching the next step.
+  {
+    const { manager, sandbox, messages } = loadBackground();
+    sandbox.chrome.tabs.sendMessage = async (tabId, message) => {
+      messages.push({ destination: 'tab', tabId, message });
+      return { ok: true, code: 'NAVIGATION_STARTED', postconditionPending: true };
+    };
+    await manager.start(workflow([
+      { id: 'nav-wrong', action: 'navigate', risk: 'low', input: { url: 'https://example.com/next' } },
+      { id: 'must-not-click', action: 'click', risk: 'low', target: '#continue' }
+    ]), {}, 1);
+    await sandbox.tabUpdatedListener(1, { status: 'complete' }, { url: 'https://example.com/unexpected' });
+    assert.equal(manager.getStatus().status, 'FAILED');
+    assert.equal(manager.getStatus().logs.at(-1).result, 'POSTCONDITION_FAILED');
+    assert.deepEqual(messages.filter(item => item.destination === 'tab').map(item => item.message.step.id), ['nav-wrong']);
   }
 
   {
@@ -257,7 +297,7 @@ async function route(listener, message) {
     const manager = new Manager();
     const starting = manager.start(workflow(), {}, 1);
     while (!releaseNotify) await new Promise(resolve => setImmediate(resolve));
-    await manager.cancel();
+    await manager.cancel(manager.getStatus().runId);
     releaseNotify();
     await starting;
     assert.equal(manager.getStatus().status, 'CANCELLED');
@@ -303,7 +343,7 @@ async function route(listener, message) {
     const { Manager } = loadBackground();
     const manager = new Manager();
     const runA = await manager.start(workflow([{ id: 'a', action: 'click', risk: 'high', target: '#a' }]), {}, 1);
-    await manager.cancel();
+    await manager.cancel(runA.runId);
     const runB = await manager.start(workflow([{ id: 'b', action: 'click', risk: 'high', target: '#b' }]), {}, 1);
     await assert.rejects(() => manager.resume({ approved: true, runId: runA.runId, expectedStepId: 'a' }), /STALE_APPROVAL/);
     assert.equal(manager.getStatus().runId, runB.runId);
@@ -331,7 +371,7 @@ async function route(listener, message) {
     sandbox.chrome.scripting.executeScript = async () => await new Promise((_resolve, reject) => { rejectInjection = reject; });
     const completing = manager.handleTabComplete(1, { url: 'https://example.com/next' });
     while (!rejectInjection) await new Promise(resolve => setImmediate(resolve));
-    await manager.cancel();
+    await manager.cancel(manager.getStatus().runId);
     rejectInjection(new Error('late blocked'));
     await completing;
     assert.equal(manager.getStatus().status, 'CANCELLED');
@@ -351,9 +391,33 @@ async function route(listener, message) {
     const manager = new Manager();
     await manager.start(workflow(), {}, 1);
     const logs = manager.getStatus().logs.length;
-    await assert.rejects(() => manager.cancel(), /INVALID_RUN_STATE/);
+    await assert.rejects(() => manager.cancel(manager.getStatus().runId), /INVALID_RUN_STATE/);
     assert.equal(manager.getStatus().status, 'COMPLETED');
     assert.equal(manager.getStatus().logs.length, logs);
+  }
+
+  // A delayed cancellation for an older run cannot cancel the current run.
+  {
+    const { Manager, sandbox } = loadBackground();
+    const runIds = ['run-a', 'run-b'];
+    sandbox.crypto.randomUUID = () => runIds.shift();
+    const manager = new Manager();
+    const runA = await manager.start(workflow(), {}, 1);
+    const runB = await manager.start(
+      workflow([{ id: 'danger-b', action: 'click', risk: 'high', target: '#pay' }]),
+      {},
+      1
+    );
+    const logs = manager.getStatus().logs.length;
+
+    await assert.rejects(
+      () => manager.cancel(runA.runId),
+      error => error?.code === 'STALE_RUN'
+    );
+    assert.equal(manager.getStatus().runId, runB.runId);
+    assert.equal(manager.getStatus().status, 'WAITING_CONFIRMATION');
+    assert.equal(manager.getStatus().logs.length, logs);
+    assert.equal((await manager.cancel(runB.runId)).status, 'CANCELLED');
   }
 
   {
@@ -361,10 +425,27 @@ async function route(listener, message) {
     const listener = listeners[0];
     assert.equal((await route(listener, { type: 'WORKFLOW_START_RUN', workflow: workflow(), variables: {}, tabId: 2 })).status, 'COMPLETED');
     assert.equal((await route(listener, { type: 'WORKFLOW_GET_RUN_STATUS' })).status, 'COMPLETED');
-    assert.equal((await route(listener, { type: 'WORKFLOW_CANCEL_RUN' })).code, 'INVALID_RUN_STATE');
+    assert.equal((await route(listener, { type: 'WORKFLOW_CANCEL_RUN' })).code, 'INVALID_PARAMETERS');
     const missing = await route(listener, { type: 'WORKFLOW_START_RUN' });
     assert.match(missing.error, /Missing workflow/);
     assert.equal(missing.code, 'INVALID_PARAMETERS');
+  }
+
+  {
+    const { listeners, manager } = loadBackground();
+    const listener = listeners[0];
+    const active = await route(listener, {
+      type: 'WORKFLOW_START_RUN',
+      workflow: workflow([{ id: 'route-cancel', action: 'click', risk: 'high', target: '#pay' }]),
+      variables: {},
+      tabId: 2
+    });
+    const logs = manager.getStatus().logs.length;
+    const missingRunId = await route(listener, { type: 'WORKFLOW_CANCEL_RUN' });
+    assert.equal(missingRunId.code, 'INVALID_PARAMETERS');
+    assert.equal(manager.getStatus().runId, active.runId);
+    assert.equal(manager.getStatus().status, 'WAITING_CONFIRMATION');
+    assert.equal(manager.getStatus().logs.length, logs);
   }
 
   {

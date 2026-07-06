@@ -116,6 +116,24 @@ const plain = value => JSON.parse(JSON.stringify(value));
   assert.equal(input.value, 'Ada');
   assert.deepEqual(input.events, ['input', 'change']);
 
+  const converterSource = fs.readFileSync(path.join(__dirname, '..', 'workflow/converter.js'), 'utf8');
+  vm.runInNewContext(converterSource, env.sandbox, { filename: 'workflow/converter.js' });
+  const convertedInputStep = env.sandbox.SmartPagesWorkflowConverter.convertSession({
+    pageUrl: 'https://example.com/start',
+    steps: [{ type: 'input', selector: '#name', elementName: 'Display name', value: 'recorded-secret' }],
+  }).workflow.steps[0];
+  input.value = '';
+  assert.equal((await env.api.executeStep(convertedInputStep, {
+    variables: { 'display-name': 'Grace' },
+    allowedOrigins: ['https://example.com'],
+  })).ok, true);
+  assert.equal(input.value, 'Grace');
+  assert.notEqual(input.value, '{variable:display-name}');
+  assert.equal((await env.api.executeStep(convertedInputStep, {
+    variables: {},
+    allowedOrigins: ['https://example.com'],
+  })).code, 'MISSING_VARIABLE');
+
   const select = new FakeElement({ tagName: 'SELECT', options: ['cn', 'us'] });
   env.selectors.set('#country', select);
   assert.equal((await env.api.executeStep({ action: 'select', target: { selector: '#country' }, input: { value: 'cn' } }, context)).ok, true);
@@ -140,8 +158,13 @@ const plain = value => JSON.parse(JSON.stringify(value));
 
   assert.equal((await env.api.executeStep({ action: 'navigate', input: { url: 'https://evil.example/x' } }, context)).code, 'ORIGIN_NOT_ALLOWED');
   assert.equal(env.assigned.length, 0);
-  assert.deepEqual(plain(await env.api.executeStep({ action: 'navigate', input: { url: 'https://example.com/next' } }, context)), { ok: true, code: 'NAVIGATION_STARTED', postconditionPending: false });
+  assert.deepEqual(plain(await env.api.executeStep({ action: 'navigate', input: { url: 'https://example.com/next' } }, context)), { ok: true, code: 'NAVIGATION_STARTED', postconditionPending: true });
   assert.deepEqual(env.assigned, ['https://example.com/next']);
+  assert.deepEqual(plain(await env.api.executeStep({ action: 'navigate', input: { url: { variable: 'destination' } } }, {
+    ...context,
+    variables: { destination: 'https://example.com/from-variable' },
+  })), { ok: true, code: 'NAVIGATION_STARTED', postconditionPending: true });
+  assert.equal(env.assigned.at(-1), 'https://example.com/from-variable');
   assert.deepEqual(plain(await env.api.executeStep({ action: 'navigate', input: { url: 'https://example.com/final' }, postcondition: { type: 'url', value: 'https://example.com/final' } }, context)), { ok: true, code: 'NAVIGATION_STARTED', postconditionPending: true });
 
   assert.equal((await env.api.executeStep({ action: 'scroll', input: { x: 'bad', y: 12 } }, context)).ok, true);

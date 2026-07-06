@@ -985,7 +985,7 @@ class WorkflowRunManager {
         await this._notify();
         return this.getStatus();
       }
-      if (result.code === 'NAVIGATION_STARTED' && result.postconditionPending) {
+      if (result.code === 'NAVIGATION_STARTED') {
         this.run.navigationPending = true;
         await this._notify();
         return this.getStatus();
@@ -1018,8 +1018,14 @@ class WorkflowRunManager {
     return await this._advance();
   }
 
-  async cancel() {
+  async cancel(runId) {
     await this.ensureHydrated();
+    if (typeof runId !== 'string' || !runId.trim()) {
+      throw this._error('INVALID_PARAMETERS', 'runId is required to cancel a workflow run.');
+    }
+    if (this.run && runId !== this.run.runId) {
+      throw this._error('STALE_RUN', 'Cancellation does not match the current workflow run.');
+    }
     return await this._cancelUnlocked();
   }
 
@@ -1050,23 +1056,16 @@ class WorkflowRunManager {
       return;
     }
     if (!this._matches(claim) || this.run.status !== WorkflowRunStatus.RUNNING) return;
+    if (!globalThis.SmartPagesWorkflowSchema.isOriginAllowed(tab?.url, this.run.workflow.allowedOrigins)) {
+      await this._fail(step, 'ORIGIN_NOT_ALLOWED');
+      return;
+    }
     const condition = step?.postcondition ?? step?.postconditions;
-    const urlMatches = condition?.type === 'url' && (condition.value || condition.url)
-      ? tab?.url === (condition.value || condition.url)
-      : condition?.type === 'url' && (condition.origin !== undefined || condition.path !== undefined)
-        ? (() => {
-          try {
-            const parsed = new URL(tab?.url);
-            return (condition.origin === undefined || parsed.origin === condition.origin) &&
-              (condition.path === undefined || parsed.pathname === condition.path);
-          } catch (_error) { return false; }
-        })()
-        : false;
-    if (!urlMatches) {
-      this.run.status = WorkflowRunStatus.FAILED;
-      this.run.endedAt = new Date().toISOString();
-      this._log(step, 'POSTCONDITION_FAILED');
-      await this._notify();
+    const conditionResult = condition
+      ? await this._checkNavigationPostcondition(tabId, tab?.url, condition)
+      : this._navigationDestinationMatches(step, tab?.url);
+    if (!conditionResult) {
+      await this._fail(step, 'POSTCONDITION_FAILED');
       return;
     }
     this._log(step, 'STEP_COMPLETED');
@@ -1075,6 +1074,46 @@ class WorkflowRunManager {
     this.run.nextStepIndex += 1;
     await this._advance();
     });
+  }
+
+  _resolveWorkflowValue(value) {
+    if (value && typeof value === 'object' && !Array.isArray(value) && Object.hasOwn(value, 'variable')) {
+      return this.run.variables?.[value.variable];
+    }
+    return value;
+  }
+
+  _navigationDestinationMatches(step, currentUrl) {
+    const expectedUrl = this._resolveWorkflowValue(step?.input?.url);
+    return typeof expectedUrl === 'string' && currentUrl === expectedUrl;
+  }
+
+  async _checkNavigationPostcondition(tabId, currentUrl, condition) {
+    const conditions = Array.isArray(condition) ? condition : [condition];
+    const urlConditions = conditions.filter(item => item?.type === 'url');
+    const domConditions = conditions.filter(item => item?.type !== 'url');
+    const urlMatches = urlConditions.every(item => {
+      const expected = this._resolveWorkflowValue(item.value ?? item.url);
+      if (expected !== undefined) return currentUrl === expected;
+      try {
+        const parsed = new URL(currentUrl);
+        return (item.origin === undefined || parsed.origin === item.origin) &&
+          (item.path === undefined || parsed.pathname === item.path) &&
+          (item.origin !== undefined || item.path !== undefined);
+      } catch (_error) { return false; }
+    });
+    if (!urlMatches) return false;
+    if (domConditions.length === 0) return urlConditions.length > 0;
+    try {
+      const result = await chrome.tabs.sendMessage(tabId, {
+        type: 'WORKFLOW_CHECK_CONDITION',
+        condition: domConditions.length === 1 ? domConditions[0] : domConditions,
+        allowedOrigins: [...this.run.workflow.allowedOrigins]
+      });
+      return result?.ok === true;
+    } catch (_error) {
+      return false;
+    }
   }
 
   async handleTabRemoved(tabId) {
@@ -1242,7 +1281,10 @@ async function handleWorkflowMessage(message) {
       await workflowRunManager.ensureHydrated();
       return workflowRunManager.getStatus();
     case 'WORKFLOW_CANCEL_RUN':
-      return await workflowRunManager.cancel();
+      if (typeof message.runId !== 'string' || !message.runId.trim()) {
+        return { error: 'Missing or invalid runId parameter', code: 'INVALID_PARAMETERS' };
+      }
+      return await workflowRunManager.cancel(message.runId);
     default:
       return { error: 'Unknown workflow message type: ' + message.type };
   }
