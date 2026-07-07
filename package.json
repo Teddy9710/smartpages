@@ -7,7 +7,7 @@
     "build": "vite build && node scripts/remove-build-artifact.js",
     "preview": "vite preview",
     "test": "node tests/run-tests.js",
-    "test:mcp": "node tests/mcp-protocol.test.js && node tests/mcp-token-store.test.js && node tests/mcp-workflow-store.test.js",
+    "test:mcp": "node tests/mcp-protocol.test.js && node tests/mcp-token-store.test.js && node tests/mcp-workflow-store.test.js && node tests/mcp-bridge-server.test.js",
     "mcp:serve": "node packages/smartpages-mcp/src/index.js",
     "verify": "npm test && npm run lint -- --quiet && npm run typecheck && npm run build",
     "video:preview": "remotion preview video/index.jsx",
