@@ -1,0 +1,15 @@
+{
+  "name": "smartpages-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local MCP bridge for SmartPages executable workflows",
+  "main": "src/index.js",
+  "bin": {
+    "smartpages-mcp": "src/index.js"
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.0",
+    "ws": "^8.18.0"
+  }
+}
