@@ -13,6 +13,7 @@
 // ============================================================================
 
 const MIN_API_KEY_LENGTH = 10;
+const AGENT_BRIDGE_CONFIG_KEY = 'smartpagesAgentBridge';
 
 const ApiProviders = {
   openai: {
@@ -136,6 +137,7 @@ class SettingsManager {
     this._bindEvents();
     this._initDocumentManagement();
     this._populateForm();
+    await this.loadAgentBridgeConfig();
   }
 
   // ========================================================================
@@ -145,6 +147,7 @@ class SettingsManager {
   _bindEvents() {
     this._bindButton('btn-save', () => this.saveConfig());
     this._bindButton('btn-test', () => this.testConnection());
+    this._bindButton('btn-agent-bridge-test', () => this.testAgentBridgeConnection());
     this._bindButton('btn-toggle-key', () => this._toggleApiKeyVisibility());
 
     const apiProviderSelect = document.getElementById('api-provider');
@@ -407,6 +410,60 @@ class SettingsManager {
     return chrome.permissions.request({ origins: [originPattern] });
   }
 
+  async loadAgentBridgeConfig() {
+    const result = await storagePromise('local', 'get', [AGENT_BRIDGE_CONFIG_KEY]);
+    const config = result?.[AGENT_BRIDGE_CONFIG_KEY] || {};
+    const enabled = document.getElementById('agent-bridge-enabled');
+    const host = document.getElementById('agent-bridge-host');
+    const port = document.getElementById('agent-bridge-port');
+    const token = document.getElementById('agent-bridge-token');
+    if (enabled) enabled.checked = config.enabled === true;
+    if (host) host.value = config.host || '127.0.0.1';
+    if (port) port.value = config.port || '';
+    if (token) token.value = config.token || '';
+    await this.refreshAgentBridgeStatus();
+  }
+
+  collectAgentBridgeConfig() {
+    return {
+      enabled: document.getElementById('agent-bridge-enabled')?.checked === true,
+      host: document.getElementById('agent-bridge-host')?.value.trim() || '127.0.0.1',
+      port: Number(document.getElementById('agent-bridge-port')?.value || 0),
+      token: document.getElementById('agent-bridge-token')?.value.trim() || ''
+    };
+  }
+
+  async saveAgentBridgeConfig() {
+    const config = this.collectAgentBridgeConfig();
+    const isEn = (this.config.appLanguage || DEFAULT_APP_LANGUAGE) === 'en-US';
+    if (config.enabled && (!config.port || !config.token)) {
+      this._showTestResult(isEn ? 'Bridge port and token are required.' : '启用 Bridge 时必须填写端口和 token。', 'error');
+      return false;
+    }
+    await storagePromise('local', 'set', { [AGENT_BRIDGE_CONFIG_KEY]: config });
+    return true;
+  }
+
+  async testAgentBridgeConnection() {
+    const saved = await this.saveAgentBridgeConfig();
+    if (!saved) return;
+    const result = await chrome.runtime.sendMessage({ type: 'AGENT_BRIDGE_RECONNECT' });
+    await this.refreshAgentBridgeStatus(result);
+  }
+
+  async refreshAgentBridgeStatus(existingStatus = null) {
+    const status = existingStatus || await chrome.runtime.sendMessage({ type: 'AGENT_BRIDGE_GET_STATUS' }).catch(() => null);
+    const target = document.getElementById('agent-bridge-status');
+    if (!target) return;
+    if (status?.connected) {
+      target.textContent = (this.config.appLanguage || DEFAULT_APP_LANGUAGE) === 'en-US' ? 'Connected' : '已连接';
+      target.className = 'help-text status-success';
+    } else {
+      target.textContent = status?.lastError || ((this.config.appLanguage || DEFAULT_APP_LANGUAGE) === 'en-US' ? 'Not connected' : '未连接');
+      target.className = 'help-text status-warning';
+    }
+  }
+
   async saveConfig() {
     const apiKeyInput = document.getElementById('api-key');
     const appLanguageSelect = document.getElementById('app-language');
@@ -495,6 +552,8 @@ class SettingsManager {
         documentExamples: this.config.documentExamples
       });
       await storagePromise('local', 'remove', 'apiKey');
+      const bridgeSaved = await this.saveAgentBridgeConfig();
+      if (!bridgeSaved) return;
       if (apiKeyInput) { this.#apiKeyMemory = this.config.apiKey; apiKeyInput.value = maskApiKey(this.config.apiKey); }
       this._showTestResult(isEn ? '✅ Settings saved' : '✅ 配置已保存', 'success');
       setTimeout(() => this._hideTestResult(), 3000);

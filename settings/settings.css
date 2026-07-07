@@ -1117,6 +1117,26 @@ body {
   max-width: 760px;
 }
 
+.agent-bridge-panel {
+  max-width: 760px;
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.agent-bridge-panel h3 {
+  margin: 0 0 8px;
+  color: #1f2937;
+}
+
+.status-success {
+  color: #047857;
+}
+
+.status-warning {
+  color: #b45309;
+}
+
 @media (min-width: 980px) {
   .section:first-child {
     display: grid;
