@@ -357,3 +357,25 @@ SmartPages 可以把一次录制同时导出为供人阅读的 Markdown 文档�
 - Phase 1 完全在扩展本地运行。MCP Server 与 Native Messaging 只是后续架构方向，**不包含在 Phase 1 中**。
 
 当前预览面向受控的同站点流程回放，不代表已经具备生产级 MCP 集成或跨站点自主操作能力。
+ 
+---
+
+## 本地 Agent Bridge（实验性 Phase 2A）
+
+SmartPages 可以把导出的 `.smartpages.json` workflow 暴露给本机 Agent 调用。轻量版只在本机运行：Agent 通过 MCP stdio 调用 `smartpages-mcp`，`smartpages-mcp` 再通过 `127.0.0.1` WebSocket 连接 SmartPages 扩展，实际页面操作仍由扩展完成。
+
+使用方式：
+
+1. 在侧边栏导出 `.smartpages.json` workflow。
+2. 将文件放入 `%LOCALAPPDATA%\SmartPages\workflows\`。
+3. 启动本地 MCP Bridge：
+
+   ```bash
+   npm run mcp:serve
+   ```
+
+4. 复制终端显示的 host、port 和 token。
+5. 打开 SmartPages 设置页，启用“本地 Agent Bridge”，填入 port 和 token，点击“测试 Agent Bridge”。
+6. 在 Agent 的 MCP 配置中使用 `smartpages-mcp`，即可调用 `list_workflows`、`start_run`、`get_run_status` 和 `cancel_run`。
+
+第一版只支持本机调用。SmartPages 不提供任意 JavaScript 执行、任意文件读取或绕过扩展权限的工具；高风险动作仍由扩展在操作发生前要求用户确认。

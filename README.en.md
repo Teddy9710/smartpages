@@ -353,3 +353,25 @@ SmartPages can export a recorded session as both a human-readable Markdown docum
 - Phase 1 runs locally inside the extension. MCP Server and Native Messaging integration are an architectural direction and are **not included in Phase 1**.
 
 This preview is intended for controlled, same-site workflow replay. It does not provide production-ready MCP integration or autonomous cross-site browsing.
+
+---
+
+## Local Agent Bridge (Experimental Phase 2A)
+
+SmartPages can expose exported `.smartpages.json` workflows to a local agent through MCP. The lightweight bridge runs only on the user's machine: the agent calls `smartpages-mcp` over MCP stdio, and `smartpages-mcp` connects to the SmartPages extension over a `127.0.0.1` WebSocket. The extension still performs the actual browser operations.
+
+Usage:
+
+1. Export a `.smartpages.json` workflow from the side panel.
+2. Put the file in `%LOCALAPPDATA%\SmartPages\workflows\`.
+3. Start the local MCP bridge:
+
+   ```bash
+   npm run mcp:serve
+   ```
+
+4. Copy the host, port, and token printed in the terminal.
+5. Open SmartPages settings, enable “Local Agent Bridge”, enter the port and token, then click “Test Agent Bridge”.
+6. Configure your agent to use `smartpages-mcp`, then call `list_workflows`, `start_run`, `get_run_status`, and `cancel_run`.
+
+The first version only supports local calls. SmartPages does not expose arbitrary JavaScript execution, arbitrary file reads, or tools that bypass browser extension permissions; high-risk actions still require confirmation inside the extension before dispatch.
