@@ -54,8 +54,10 @@ function loadBackground(sharedStore = {}) {
   };
   sandbox.globalThis = sandbox;
   const schema = fs.readFileSync(path.join(__dirname, '..', 'workflow', 'schema.js'), 'utf8');
+  const agentBridge = fs.readFileSync(path.join(__dirname, '..', 'background', 'agent-bridge-client.js'), 'utf8');
   sandbox.importScripts = (...scripts) => {
     if (scripts.includes('../workflow/schema.js')) vm.runInNewContext(schema, sandbox);
+    if (scripts.includes('agent-bridge-client.js')) vm.runInNewContext(agentBridge, sandbox);
   };
   const source = fs.readFileSync(path.join(__dirname, '..', 'background', 'background.js'), 'utf8');
   vm.runInNewContext(source, sandbox);

@@ -11,7 +11,7 @@
  */
 
 // Import common utilities (importScripts for service worker)
-importScripts('../utils/common.js', '../workflow/schema.js');
+importScripts('../utils/common.js', '../workflow/schema.js', 'agent-bridge-client.js');
 
 // ============================================================================
 // RECORDING STATE MANAGEMENT
@@ -1178,6 +1178,51 @@ globalThis.WorkflowRunManager = WorkflowRunManager;
 const workflowRunManager = new WorkflowRunManager();
 globalThis.workflowRunManager = workflowRunManager;
 
+const AGENT_BRIDGE_CONFIG_KEY = 'smartpagesAgentBridge';
+
+async function getAgentBridgeConfig() {
+  const result = await storagePromise('local', 'get', [AGENT_BRIDGE_CONFIG_KEY]);
+  return result?.[AGENT_BRIDGE_CONFIG_KEY] || {};
+}
+
+async function getActiveWorkflowTabId() {
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = tabs && tabs[0];
+  if (!tab?.id) {
+    const error = new Error('No active browser tab is available.');
+    error.code = 'NO_ACTIVE_TAB';
+    throw error;
+  }
+  return tab.id;
+}
+
+const agentBridgeRunner = {
+  async startRun(payload) {
+    const tabId = await getActiveWorkflowTabId();
+    return await workflowRunManager.start(payload.workflow, payload.variables || {}, tabId);
+  },
+  async getRunStatus(payload) {
+    await workflowRunManager.ensureHydrated();
+    const status = workflowRunManager.getStatus();
+    if (!status || (payload?.runId && status.runId !== payload.runId)) {
+      const error = new Error('Workflow run was not found.');
+      error.code = 'RUN_NOT_FOUND';
+      throw error;
+    }
+    return status;
+  },
+  async cancelRun(payload) {
+    return await workflowRunManager.cancel(payload.runId);
+  }
+};
+
+const agentBridgeClient = globalThis.SmartPagesAgentBridge.createAgentBridgeClient({
+  getConfig: getAgentBridgeConfig,
+  runner: agentBridgeRunner
+});
+globalThis.agentBridgeClient = agentBridgeClient;
+agentBridgeClient.connect().catch(error => console.warn('[SmartPages AgentBridge] connect failed:', error));
+
 /**
  * Global recording manager instance
  * @type {RecordingManager}
@@ -1218,6 +1263,11 @@ const WORKFLOW_MESSAGE_TYPES = [
   'WORKFLOW_START_RUN', 'WORKFLOW_RESUME_RUN', 'WORKFLOW_GET_RUN_STATUS', 'WORKFLOW_CANCEL_RUN'
 ];
 
+const AGENT_BRIDGE_MESSAGE_TYPES = [
+  'AGENT_BRIDGE_GET_STATUS',
+  'AGENT_BRIDGE_RECONNECT'
+];
+
 /**
  * Main message handler (singleton pattern to prevent duplicate listeners)
  * @param {Object} message - Message object
@@ -1237,6 +1287,8 @@ function messageHandler(message, sender, sendResponse) {
         return await handleDocumentMessage(message);
       } else if (WORKFLOW_MESSAGE_TYPES.includes(message.type)) {
         return await handleWorkflowMessage(message);
+      } else if (AGENT_BRIDGE_MESSAGE_TYPES.includes(message.type)) {
+        return await handleAgentBridgeMessage(message);
       } else {
         console.warn('[Scribe:Background] Unknown message type:', message.type);
         return { error: 'Unknown message type: ' + message.type };
@@ -1262,6 +1314,17 @@ function messageHandler(message, sender, sendResponse) {
   });
 
   return true; // Keep message channel open
+}
+
+async function handleAgentBridgeMessage(message) {
+  switch (message.type) {
+    case 'AGENT_BRIDGE_GET_STATUS':
+      return agentBridgeClient.getStatus();
+    case 'AGENT_BRIDGE_RECONNECT':
+      return await agentBridgeClient.connect();
+    default:
+      return { error: 'Unknown agent bridge message type: ' + message.type, code: 'INVALID_PARAMETERS' };
+  }
 }
 
 async function handleWorkflowMessage(message) {

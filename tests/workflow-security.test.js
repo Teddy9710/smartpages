@@ -73,8 +73,10 @@ function loadBackground(store = {}) {
   };
   sandbox.globalThis = sandbox;
   const schemaSource = fs.readFileSync(path.join(__dirname, '..', 'workflow', 'schema.js'), 'utf8');
+  const agentBridgeSource = fs.readFileSync(path.join(__dirname, '..', 'background', 'agent-bridge-client.js'), 'utf8');
   sandbox.importScripts = (...scripts) => {
     if (scripts.includes('../workflow/schema.js')) vm.runInNewContext(schemaSource, sandbox);
+    if (scripts.includes('agent-bridge-client.js')) vm.runInNewContext(agentBridgeSource, sandbox);
   };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'background', 'background.js'), 'utf8'), sandbox);
   return { Manager: sandbox.WorkflowRunManager, messages, store };
