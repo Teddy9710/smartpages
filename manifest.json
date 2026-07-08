@@ -39,6 +39,6 @@
     "128": "icons/icon128.png"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' ws://127.0.0.1:* ws://localhost:*;"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https: ws://127.0.0.1:* ws://localhost:*;"
   }
 }
