@@ -5,9 +5,14 @@ const vm = require('node:vm');
 
 function loadRecordingManager() {
   const source = fs.readFileSync(path.join(__dirname, '..', 'background', 'background.js'), 'utf8');
+  const schema = fs.readFileSync(path.join(__dirname, '..', 'workflow', 'schema.js'), 'utf8');
+  const agentBridge = fs.readFileSync(path.join(__dirname, '..', 'background', 'agent-bridge-client.js'), 'utf8');
   const sandbox = {
     console,
-    importScripts: () => {},
+    importScripts: (...scripts) => {
+      if (scripts.includes('../workflow/schema.js')) vm.runInNewContext(schema, sandbox);
+      if (scripts.includes('agent-bridge-client.js')) vm.runInNewContext(agentBridge, sandbox);
+    },
     generateSessionId: () => 'session-test',
     isRestrictedUrl: () => false,
     storagePromise: () => Promise.resolve({}),

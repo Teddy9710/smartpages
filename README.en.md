@@ -156,4 +156,43 @@ SmartPages uses a dual-license model:
 | Personal, educational, and non-commercial use | [GPL v3](LICENSE) | Free to use, modify, and distribute; derivative works must remain open source |
 | Commercial use | Commercial license | A separate license is required before integration into commercial products, SaaS services, or enterprise deployments |
 
-The copyright holder retains all commercial rights. For commercial licensing, contact the author through [GitHub Issues](https://github.com/Teddy9710/smartpages/issues).
+- The copyright holder (Hongru Wang / 汪鸿儒) retains all commercial rights and may use this software commercially without restriction.
+- Unauthorized commercial use — including integration into commercial products, SaaS services, or enterprise deployments — is prohibited.
+- For commercial licensing inquiries, please contact the author via GitHub Issues.
+
+---
+
+## Executable Workflow Preview (Phase 1)
+
+SmartPages can export a recorded session as both a human-readable Markdown document and a machine-readable `.smartpages.json` workflow. The side panel provides a local **Test Run** for reviewing and replaying that workflow in the current browser tab.
+
+- Supported actions: `navigate`, `click`, `input`, `select`, `scroll`, `wait`, and `assert`.
+- Workflows are restricted to explicitly declared, exact HTTP/HTTPS origins. Wildcards and privileged URL schemes are rejected.
+- High-risk steps pause before page dispatch and require explicit confirmation.
+- Workflow JSON is untrusted input and must pass schema validation before execution.
+- Passwords, tokens, and other secrets are runtime inputs; recorded values are not exported into the workflow.
+- Phase 1 runs locally inside the extension. MCP Server and Native Messaging integration are an architectural direction and are **not included in Phase 1**.
+
+This preview is intended for controlled, same-site workflow replay. It does not provide production-ready MCP integration or autonomous cross-site browsing.
+
+---
+
+## Local Agent Bridge (Experimental Phase 2A)
+
+SmartPages can expose exported `.smartpages.json` workflows to a local agent through MCP. The lightweight bridge runs only on the user's machine: the agent calls `smartpages-mcp` over MCP stdio, and `smartpages-mcp` connects to the SmartPages extension over a `127.0.0.1` WebSocket. The extension still performs the actual browser operations.
+
+Usage:
+
+1. Export a `.smartpages.json` workflow from the side panel.
+2. Put the file in `%LOCALAPPDATA%\SmartPages\workflows\`.
+3. Start the local MCP bridge:
+
+   ```bash
+   npm run mcp:serve
+   ```
+
+4. Copy the host, port, and token printed in the terminal.
+5. Open SmartPages settings, enable “Local Agent Bridge”, enter the port and token, then click “Test Agent Bridge”.
+6. Configure your agent to use `smartpages-mcp`, then call `list_workflows`, `start_run`, `get_run_status`, and `cancel_run`.
+
+The first version only supports local calls. SmartPages does not expose arbitrary JavaScript execution, arbitrary file reads, or tools that bypass browser extension permissions; high-risk actions still require confirmation inside the extension before dispatch.

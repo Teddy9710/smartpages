@@ -120,6 +120,12 @@
         <button id="btn-download" class="btn-tool" title="下载文件">
           <span class="icon icon-download" aria-hidden="true"></span> 下载
         </button>
+        <button id="btn-export-workflow" class="btn-tool" title="导出可执行工作流" aria-label="导出可执行工作流">
+          <span class="icon" aria-hidden="true">JSON</span> 工作流
+        </button>
+        <button id="btn-run-workflow" class="btn-tool" title="测试运行工作流" aria-label="测试运行工作流">
+          <span class="icon" aria-hidden="true">▶</span> 测试运行
+        </button>
         <button id="btn-export-html" class="btn-tool" title="导出HTML文件">
           <span class="icon icon-html" aria-hidden="true">HTML</span> HTML
         </button>
@@ -152,6 +158,16 @@
           <span class="icon icon-clean" aria-hidden="true"></span> 清理缓存
         </button>
       </div>
+      <section id="workflow-run-panel" class="workflow-run-panel hidden" role="region" aria-live="polite" aria-labelledby="workflow-run-status" tabindex="-1">
+        <div class="workflow-run-heading"><strong id="workflow-run-status">测试运行</strong><span id="workflow-run-step" class="workflow-run-step"></span></div>
+        <div id="workflow-run-summary" class="workflow-run-summary"></div>
+        <div id="workflow-run-inputs" class="workflow-run-inputs"></div>
+        <div id="workflow-run-actions" class="workflow-run-actions">
+          <button id="btn-workflow-approve" class="btn btn-primary hidden" type="button">批准</button>
+          <button id="btn-workflow-reject" class="btn btn-secondary hidden" type="button">拒绝</button>
+          <button id="btn-workflow-cancel" class="btn btn-secondary hidden" type="button">取消</button>
+        </div>
+      </section>
       <div class="editor-content">
         <div id="preview-pane" class="pane active">
           <div id="markdown-preview" class="markdown-preview" contenteditable="true" spellcheck="true" aria-label="直接编辑文档预览"></div>
@@ -245,6 +261,8 @@
   <script src="../utils/documentUpload.js"></script>
   <script src="../utils/documentApi.js"></script>
   <script src="../utils/docUIUtils.js"></script>
+  <script src="../workflow/schema.js"></script>
+  <script src="../workflow/converter.js"></script>
   <script src="sidepanel.js"></script>
 </body>
 </html>

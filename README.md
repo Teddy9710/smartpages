@@ -156,4 +156,43 @@ SmartPages 采用双许可证模式：
 | 个人、学习、非商业用途 | [GPL v3](LICENSE) | 可免费使用、修改和分发；衍生作品需继续开源 |
 | 商业用途 | 商业许可证 | 集成到商业产品、SaaS 或企业部署前需另行获得授权 |
 
-版权所有者保留全部商业权利。商业授权请通过 [GitHub Issues](https://github.com/Teddy9710/smartpages/issues) 联系作者。
+- 版权所有者（汪鸿儒）保留所有商业权利，可不受限制地商业使用。
+- 未经授权，不得将本软件用于任何商业目的，包括但不限于商业产品集成、SaaS 服务、企业部署。
+- 商业授权咨询请通过 GitHub Issues 联系作者。
+
+---
+
+## 可执行工作流预览（Phase 1）
+
+SmartPages 可以把一次录制同时导出为供人阅读的 Markdown 文档和供机器读取的 `.smartpages.json` 工作流。侧边栏提供本地 **Test Run**，用于在当前浏览器标签页中审核和回放该流程。
+
+- 支持的动作：`navigate`、`click`、`input`、`select`、`scroll`、`wait` 和 `assert`。
+- 工作流只能访问明确声明的、完全匹配的 HTTP/HTTPS Origin；不接受通配符或浏览器特权协议。
+- 高风险步骤会在向页面发送操作前暂停，并要求用户明确确认。
+- 工作流 JSON 属于不可信输入，执行前必须通过 Schema 校验。
+- 密码、Token 等敏感信息应在运行时提供；录制到的输入值不会写入导出的工作流。
+- Phase 1 完全在扩展本地运行。MCP Server 与 Native Messaging 只是后续架构方向，**不包含在 Phase 1 中**。
+
+当前预览面向受控的同站点流程回放，不代表已经具备生产级 MCP 集成或跨站点自主操作能力。
+ 
+---
+
+## 本地 Agent Bridge（实验性 Phase 2A）
+
+SmartPages 可以把导出的 `.smartpages.json` workflow 暴露给本机 Agent 调用。轻量版只在本机运行：Agent 通过 MCP stdio 调用 `smartpages-mcp`，`smartpages-mcp` 再通过 `127.0.0.1` WebSocket 连接 SmartPages 扩展，实际页面操作仍由扩展完成。
+
+使用方式：
+
+1. 在侧边栏导出 `.smartpages.json` workflow。
+2. 将文件放入 `%LOCALAPPDATA%\SmartPages\workflows\`。
+3. 启动本地 MCP Bridge：
+
+   ```bash
+   npm run mcp:serve
+   ```
+
+4. 复制终端显示的 host、port 和 token。
+5. 打开 SmartPages 设置页，启用“本地 Agent Bridge”，填入 port 和 token，点击“测试 Agent Bridge”。
+6. 在 Agent 的 MCP 配置中使用 `smartpages-mcp`，即可调用 `list_workflows`、`start_run`、`get_run_status` 和 `cancel_run`。
+
+第一版只支持本机调用。SmartPages 不提供任意 JavaScript 执行、任意文件读取或绕过扩展权限的工具；高风险动作仍由扩展在操作发生前要求用户确认。

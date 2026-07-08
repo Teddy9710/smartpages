@@ -2041,3 +2041,13 @@ html,
 body {
   width: 100%;
 }
+
+.workflow-run-panel { margin: 0 12px 10px; padding: 10px 12px; border: 1px solid var(--border-color, #dbe3ee); border-radius: 8px; background: var(--panel-bg, #fff); font-size: 12px; line-height: 1.45; }
+.workflow-run-heading, .workflow-run-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.workflow-run-step { color: var(--text-secondary, #64748b); }
+.workflow-run-summary { margin-top: 6px; white-space: pre-line; word-break: break-word; }
+.workflow-run-inputs { display: grid; gap: 6px; margin-top: 8px; }
+.workflow-run-inputs label { display: grid; gap: 3px; }
+.workflow-run-inputs input { min-width: 0; padding: 6px 8px; }
+.workflow-run-actions { margin-top: 8px; }
+.workflow-run-actions .btn { min-height: 30px; padding: 5px 10px; }

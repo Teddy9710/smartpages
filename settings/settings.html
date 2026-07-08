@@ -203,6 +203,37 @@
         </div>
 
         <div id="test-result" class="test-result hidden"></div>
+
+        <div class="agent-bridge-panel">
+          <h3>本地 Agent Bridge</h3>
+          <p class="help-text">连接本机 smartpages-mcp，让 Agent 调用 SmartPages 执行已导出的 workflow。</p>
+
+          <div class="form-group-switch">
+            <label for="agent-bridge-enabled">启用本地 Agent Bridge</label>
+            <input type="checkbox" id="agent-bridge-enabled">
+          </div>
+
+          <div class="form-group">
+            <label for="agent-bridge-host">Host</label>
+            <input id="agent-bridge-host" class="input" type="text" value="127.0.0.1">
+          </div>
+
+          <div class="form-group">
+            <label for="agent-bridge-port">Port</label>
+            <input id="agent-bridge-port" class="input" type="number" placeholder="smartpages-mcp 启动后显示">
+          </div>
+
+          <div class="form-group">
+            <label for="agent-bridge-token">Token</label>
+            <input id="agent-bridge-token" class="input" type="password" placeholder="粘贴 smartpages-mcp 显示的 token">
+          </div>
+
+          <div class="button-group">
+            <button id="btn-agent-bridge-test" class="btn btn-secondary" type="button">测试 Agent Bridge</button>
+          </div>
+
+          <p id="agent-bridge-status" class="help-text status-warning">未连接</p>
+        </div>
       </section>
 
       <!-- 参考文档管理部分 -->
