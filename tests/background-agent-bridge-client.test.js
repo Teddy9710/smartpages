@@ -72,3 +72,40 @@ test('bridge client reports unknown request errors', async () => {
   assert.equal(socket.sent[1].ok, false);
   assert.equal(socket.sent[1].error.code, 'INVALID_PARAMETERS');
 });
+
+test('bridge client ignores a stale socket close after reconnecting', async () => {
+  FakeWebSocket.instances = [];
+  const client = createAgentBridgeClient({
+    WebSocketImpl: FakeWebSocket,
+    extensionId: 'ext',
+    getConfig: async () => ({ enabled: true, host: '127.0.0.1', port: 1234, token: 'secret' }),
+    runner: {}
+  });
+
+  await client.connect();
+  const firstSocket = FakeWebSocket.instances[0];
+  await client.connect();
+  const secondSocket = FakeWebSocket.instances[1];
+  secondSocket.open();
+  firstSocket.close();
+
+  assert.deepEqual(client.getStatus(), { connected: true, lastError: null });
+});
+
+test('bridge client reconnects after its active socket closes', async () => {
+  FakeWebSocket.instances = [];
+  const client = createAgentBridgeClient({
+    WebSocketImpl: FakeWebSocket,
+    extensionId: 'ext',
+    getConfig: async () => ({ enabled: true, host: '127.0.0.1', port: 1234, token: 'secret' }),
+    runner: {}
+  });
+
+  await client.connect();
+  const socket = FakeWebSocket.instances[0];
+  socket.open();
+  socket.close();
+  await new Promise(resolve => setTimeout(resolve, 1100));
+
+  assert.equal(FakeWebSocket.instances.length, 2);
+});

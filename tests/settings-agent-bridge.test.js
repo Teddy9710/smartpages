@@ -16,4 +16,5 @@ test('settings script persists smartpagesAgentBridge config', () => {
   assert.match(js, /smartpagesAgentBridge/);
   assert.match(js, /AGENT_BRIDGE_RECONNECT/);
   assert.match(js, /AGENT_BRIDGE_GET_STATUS/);
+  assert.match(js, /http:\/\/localhost\/\*/);
 });

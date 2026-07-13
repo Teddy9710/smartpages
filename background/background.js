@@ -1185,12 +1185,28 @@ async function getAgentBridgeConfig() {
   return result?.[AGENT_BRIDGE_CONFIG_KEY] || {};
 }
 
-async function getActiveWorkflowTabId() {
-  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-  const tab = tabs && tabs[0];
+function getInitialWorkflowUrlPreconditions(workflow) {
+  const preconditions = workflow?.steps?.[0]?.preconditions;
+  if (!Array.isArray(preconditions)) return [];
+  return preconditions
+    .filter(condition => condition?.type === 'url' && typeof condition.url === 'string')
+    .map(condition => condition.url);
+}
+
+async function getWorkflowTabId(workflow) {
+  const allowedOrigins = workflow?.allowedOrigins;
+  const requiredUrls = getInitialWorkflowUrlPreconditions(workflow);
+  const activeTabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const allTabs = await chrome.tabs.query({});
+  const candidates = [...(activeTabs || []), ...(allTabs || [])];
+  const tab = candidates.find(candidate =>
+    Number.isInteger(candidate?.id) &&
+    globalThis.SmartPagesWorkflowSchema.isOriginAllowed(candidate.url, allowedOrigins) &&
+    (requiredUrls.length === 0 || requiredUrls.includes(candidate.url))
+  );
   if (!tab?.id) {
-    const error = new Error('No active browser tab is available.');
-    error.code = 'NO_ACTIVE_TAB';
+    const error = new Error('No open browser tab matches the workflow allowed origins.');
+    error.code = 'ORIGIN_NOT_ALLOWED';
     throw error;
   }
   return tab.id;
@@ -1198,8 +1214,9 @@ async function getActiveWorkflowTabId() {
 
 const agentBridgeRunner = {
   async startRun(payload) {
-    const tabId = await getActiveWorkflowTabId();
-    return await workflowRunManager.start(payload.workflow, payload.variables || {}, tabId);
+    const workflow = payload?.workflow;
+    const tabId = await getWorkflowTabId(workflow);
+    return await workflowRunManager.start(workflow, payload.variables || {}, tabId);
   },
   async getRunStatus(payload) {
     await workflowRunManager.ensureHydrated();
