@@ -14,6 +14,7 @@
 
 const MIN_API_KEY_LENGTH = 10;
 const AGENT_BRIDGE_CONFIG_KEY = 'smartpagesAgentBridge';
+const AGENT_BRIDGE_WORKFLOW_ORIGINS = ['http://localhost/*'];
 
 const ApiProviders = {
   openai: {
@@ -445,6 +446,16 @@ class SettingsManager {
   }
 
   async testAgentBridgeConnection() {
+    const isEn = (this.config.appLanguage || DEFAULT_APP_LANGUAGE) === 'en-US';
+    // Request this while handling the button click: Chrome requires a user gesture.
+    const granted = await chrome.permissions.request({ origins: AGENT_BRIDGE_WORKFLOW_ORIGINS });
+    if (!granted) {
+      this._showTestResult(
+        isEn ? 'Allow access to localhost:3000 to run workflows there.' : '请允许访问 localhost:3000，工作流才能在该页面运行。',
+        'error'
+      );
+      return;
+    }
     const saved = await this.saveAgentBridgeConfig();
     if (!saved) return;
     const result = await chrome.runtime.sendMessage({ type: 'AGENT_BRIDGE_RECONNECT' });
@@ -535,8 +546,8 @@ class SettingsManager {
     };
 
     try {
-      await storagePromise('session', 'set', { apiKey: this.config.apiKey });
       await storagePromise('local', 'set', {
+        apiKey: this.config.apiKey,
         baseUrl: this.config.baseUrl,
         modelName: this.config.modelName,
         apiFormat: this.config.apiFormat,
@@ -551,7 +562,6 @@ class SettingsManager {
         styleGuide: this.config.styleGuide,
         documentExamples: this.config.documentExamples
       });
-      await storagePromise('local', 'remove', 'apiKey');
       const bridgeSaved = await this.saveAgentBridgeConfig();
       if (!bridgeSaved) return;
       if (apiKeyInput) { this.#apiKeyMemory = this.config.apiKey; apiKeyInput.value = maskApiKey(this.config.apiKey); }

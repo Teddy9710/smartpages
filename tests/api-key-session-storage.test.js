@@ -9,13 +9,7 @@ global.chrome = {
     local: {
       get(data, callback) {
         calls.push({ area: 'local', method: 'get', data });
-        callback({ apiKey: 'legacy-local-key', baseUrl: 'https://example.test/v1' });
-      }
-    },
-    session: {
-      get(data, callback) {
-        calls.push({ area: 'session', method: 'get', data });
-        callback({ apiKey: 'session-key' });
+        callback({ apiKey: 'persistent-key', baseUrl: 'https://example.test/v1' });
       }
     }
   }
@@ -27,20 +21,15 @@ const { loadConfig } = require(commonPath);
 
 (async () => {
   const config = await loadConfig();
-  assert.equal(config.apiKey, 'session-key');
+  assert.equal(config.apiKey, 'persistent-key');
   assert.equal(config.baseUrl, 'https://example.test/v1');
-  assert.equal(calls.some(call => call.area === 'session' && call.method === 'get'), true);
+  assert.equal(calls.some(call => call.area === 'local' && call.method === 'get'), true);
 
   const settingsSource = fs.readFileSync(path.join(__dirname, '..', 'settings', 'settings.js'), 'utf8');
-  assert.match(settingsSource, /storagePromise\(['"]session['"],\s*['"]set['"],\s*\{\s*apiKey:/);
-  assert.match(settingsSource, /storagePromise\(['"]local['"],\s*['"]remove['"],\s*['"]apiKey['"]\)/);
-  const localSet = settingsSource.match(/storagePromise\(['"]local['"],\s*['"]set['"],\s*\{([\s\S]*?)\}\);/)?.[1] || '';
-  assert.doesNotMatch(localSet, /apiKey\s*:/);
-
-  for (const relativePath of ['quick-api-test.html', 'diagnostic-tool.js', 'test-extension.js']) {
-    const source = fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8');
-    assert.doesNotMatch(source, /storage\.local\.get\(\s*\[['"]apiKey['"]/);
-  }
+  const saveConfigSource = settingsSource.slice(settingsSource.indexOf('async saveConfig()'));
+  assert.match(saveConfigSource, /storagePromise\(['"]local['"],\s*['"]set['"],\s*\{\s*apiKey:/);
+  const localSet = saveConfigSource.match(/storagePromise\(['"]local['"],\s*['"]set['"],\s*\{([\s\S]*?)\}\);/)?.[1] || '';
+  assert.match(localSet, /apiKey\s*:/);
 })().catch(error => {
   console.error(error);
   process.exit(1);

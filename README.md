@@ -195,4 +195,19 @@ SmartPages 可以把导出的 `.smartpages.json` workflow 暴露给本机 Agent 
 5. 打开 SmartPages 设置页，启用“本地 Agent Bridge”，填入 port 和 token，点击“测试 Agent Bridge”。
 6. 在 Agent 的 MCP 配置中使用 `smartpages-mcp`，即可调用 `list_workflows`、`start_run`、`get_run_status` 和 `cancel_run`。
 
+### 首次接入检查清单
+
+1. 在 `chrome://extensions` 开启开发者模式，并加载项目的 `dist/` 目录，而不是源码根目录。代码变更后运行 `npm run build`，再在扩展管理页点击“重新加载”。
+2. 在设置页保存模型 API Key。保存后的 Key 会保留在扩展本地配置中，重载扩展后无需重新输入。
+3. 启用本地 Agent Bridge 后，使用 `127.0.0.1`、bridge 端口和 `bridge-token.json` 中的 token 配置扩展；点击“测试 Agent Bridge”以建立连接。
+4. 当扩展请求网页访问权限时，允许工作流目标站点。例如本地演示页需允许 `http://localhost/*`。
+5. 在**安装了 SmartPages 扩展的桌面 Chrome**中打开工作流首步要求的页面。Agent 只能通过该扩展回放操作；其他浏览器实例或内置浏览器标签不会被 bridge 执行。
+
+### Agent 回放与排障
+
+- `start_run` 会先校验 workflow schema、允许的 Origin、运行时变量和首步前置条件；任一检查失败时不会执行页面操作。
+- 工作流会优先匹配首步 URL 前置条件对应的已打开标签，避免在同一站点的错误页面执行。
+- Bridge 断开后，扩展会自动尝试重连；也可在设置页点击“测试 Agent Bridge”立即重新连接。
+- API Key、bridge token 和密码等敏感值不要写入 `.smartpages.json` 或提交到仓库。
+
 第一版只支持本机调用。SmartPages 不提供任意 JavaScript 执行、任意文件读取或绕过扩展权限的工具；高风险动作仍由扩展在操作发生前要求用户确认。
