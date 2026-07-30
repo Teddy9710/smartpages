@@ -1,0 +1,42 @@
+<h2>SmartPages Agent 执行架构：三种路径</h2>
+<p class="subtitle">目标：本地 Agent 能依据 SmartPages 的结构化流程，在浏览器中可靠执行并对危险动作逐步确认。</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mock-nav">Agent → MCP Server → Native Messaging → SmartPages Extension → Web Page</div>
+      <div class="placeholder">Agent 调工具；扩展持有浏览器页面控制权</div>
+    </div>
+    <div class="card-body">
+      <h3>A. MCP + Native Messaging 桥接（推荐）</h3>
+      <p>边界清晰、适配多种本地 Agent，复用现有扩展的录制数据与 content script。安装步骤略多，需要本机桥接程序。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mock-nav">Agent → Local WebSocket → SmartPages Extension → Web Page</div>
+      <div class="placeholder">扩展主动连接 localhost 服务</div>
+    </div>
+    <div class="card-body">
+      <h3>B. MCP + localhost WebSocket</h3>
+      <p>开发与调试直观，但会引入端口暴露、来源校验、重连和浏览器商店安全审查问题。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mock-nav">Agent / Playwright → Browser</div>
+      <div class="placeholder">SmartPages 只导出流程，不直接执行</div>
+    </div>
+    <div class="card-body">
+      <h3>C. SmartPages 生成 Playwright 脚本</h3>
+      <p>最容易做出原型，但 Agent 绕过插件执行，难以复用用户当前浏览器会话，也偏离“SmartPages 作为可调用插件”的定位。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>推荐结论</h3>
+  <p>选择 A。MCP Server 对 Agent 暴露稳定工具；Native Host 只做安全传输；扩展负责标签页、元素定位、动作执行、确认界面与执行日志。JSON 流程是人类文档与机器执行之间的契约。</p>
+</div>

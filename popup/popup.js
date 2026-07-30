@@ -21,6 +21,8 @@ const ButtonIds = {
   OPEN_EDITOR: 'btn-open-editor',
   NEW_RECORDING: 'btn-new-recording',
   SETTINGS: 'btn-settings'
+  ,START_GIF: 'btn-start-gif'
+  ,STOP_GIF: 'btn-stop-gif'
 };
 
 /** @constant {Object} StateIds - Mapping of state view IDs */
@@ -58,6 +60,8 @@ class PopupManager {
 
     /** @type {boolean} */
     this.isResumingRecording = false;
+    this.isStartingGif = false;
+    this.isStoppingGif = false;
 
     this.init();
   }
@@ -71,6 +75,7 @@ class PopupManager {
     this._bindButtonEvents();
     this._bindMessageListener();
     await this._refreshState();
+    await this._refreshGifState();
   }
 
   // ========================================================================
@@ -91,6 +96,8 @@ class PopupManager {
       [ButtonIds.OPEN_EDITOR]: () => this.openEditor(),
       [ButtonIds.NEW_RECORDING]: () => this.newRecording(),
       [ButtonIds.SETTINGS]: () => this.openSettings()
+      ,[ButtonIds.START_GIF]: () => this.startGifRecording()
+      ,[ButtonIds.STOP_GIF]: () => this.stopGifRecording()
     };
 
     for (const [id, handler] of Object.entries(buttonActions)) {
@@ -114,6 +121,9 @@ class PopupManager {
       console.log('[Scribe:Popup] Received message:', message);
       if (message.type === 'RECORDING_STATE_CHANGED') {
         this._updateState(message.state?.state, message.state);
+      }
+      if (message.type === 'GIF_RECORDING_STATE_CHANGED') {
+        this._updateGifState(message.state);
       }
     };
 
@@ -147,6 +157,60 @@ class PopupManager {
     } catch (error) {
       console.error('[Scribe:Popup] Failed to get state:', error);
       this._updateState('idle');
+    }
+  }
+
+  async _refreshGifState() {
+    try {
+      this._updateGifState(await sendMessage({ type: 'GET_GIF_RECORDING_STATE' }));
+    } catch (error) {
+      console.warn('[Scribe:Popup] Failed to get GIF recording state:', error);
+      this._updateGifState({ state: 'idle' });
+    }
+  }
+
+  _updateGifState(recording = {}) {
+    const isRecording = recording?.state === 'recording';
+    const isExporting = recording?.state === 'exporting';
+    const status = document.getElementById('gif-status');
+    const start = document.getElementById(ButtonIds.START_GIF);
+    const stop = document.getElementById(ButtonIds.STOP_GIF);
+    if (status) status.textContent = isRecording
+      ? `正在录制 · ${recording.elapsedSeconds || 0} 秒`
+      : isExporting ? '正在生成 GIF，请稍候…' : '未录制 · 最长 30 秒';
+    if (start) start.disabled = isRecording || isExporting || this.isStartingGif;
+    if (stop) stop.disabled = !isRecording || this.isStoppingGif;
+  }
+
+  async startGifRecording() {
+    if (this.isStartingGif) return;
+    this.isStartingGif = true;
+    this._updateGifState({ state: 'recording', elapsedSeconds: 0 });
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const response = await sendMessage({ type: 'START_GIF_RECORDING', tabId: tab?.id });
+      if (response?.error) throw new Error(response.error);
+      this._updateGifState(response);
+    } catch (error) {
+      alert(`启动 GIF 录制失败：${error.message || error}`);
+      await this._refreshGifState();
+    } finally {
+      this.isStartingGif = false;
+    }
+  }
+
+  async stopGifRecording() {
+    if (this.isStoppingGif) return;
+    this.isStoppingGif = true;
+    this._updateGifState({ state: 'exporting' });
+    try {
+      const response = await sendMessage({ type: 'STOP_GIF_RECORDING' });
+      if (response?.error) throw new Error(response.error);
+    } catch (error) {
+      alert(`生成 GIF 失败：${error.message || error}`);
+    } finally {
+      this.isStoppingGif = false;
+      await this._refreshGifState();
     }
   }
 

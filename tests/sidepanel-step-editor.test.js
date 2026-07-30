@@ -33,6 +33,10 @@ function loadSidePanelManager() {
       addEventListener: () => {},
       innerWidth: 1280,
       innerHeight: 800
+    },
+    Node: {
+      TEXT_NODE: 3,
+      ELEMENT_NODE: 1
     }
   };
   sandbox.globalThis = sandbox;
@@ -96,6 +100,24 @@ const SidePanelManager = loadSidePanelManager();
   assert.match(manager.session.steps[0].action, /Enter API key/);
   assert.equal(manager.session.steps[0].screenshot, 'data:image/png;base64,BBBB');
   assert.equal(manager.session.steps[0].mergedCount, 2);
+}
+
+{
+  const manager = Object.create(SidePanelManager.prototype);
+  const screenshot = 'data:image/png;base64,AAAA';
+  manager.session = { steps: [{ screenshot }] };
+  const image = {
+    nodeType: 1,
+    tagName: 'IMG',
+    dataset: {},
+    getAttribute: name => ({ alt: '步骤1截图', src: screenshot })[name] || ''
+  };
+
+  assert.equal(
+    manager._nodeToMarkdown(image),
+    `![步骤1截图](${screenshot})`,
+    'switching to edit must preserve a session screenshot as an inline image'
+  );
 }
 
 {

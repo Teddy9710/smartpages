@@ -2342,10 +2342,10 @@ ${bodyHtml}
       const alt = node.getAttribute('alt') || '';
       const src = node.getAttribute('src') || '';
       if (/^data:image\//i.test(src)) {
-        if (node.dataset?.imageEdited === 'true' || !this._isKnownSessionScreenshot(src)) {
-          return `![${alt.replace(/\]/g, '\\]')}](${src})`;
-        }
-        return this._getScreenshotMarkerFromAlt(alt) || '[截图]';
+        // The editor must retain inline screenshots. Replacing a session image with
+        // a marker here makes switching from preview to edit appear to lose it.
+        // _prepareContentForModel still replaces images with markers for AI requests.
+        return `![${alt.replace(/\]/g, '\\]')}](${src})`;
       }
       return src ? `![${alt}](${src})` : '';
     }

@@ -11,7 +11,13 @@
  */
 
 // Import common utilities (importScripts for service worker)
-importScripts('../utils/common.js', '../workflow/schema.js', 'agent-bridge-client.js');
+importScripts(
+  '../utils/common.js',
+  '../workflow/schema.js',
+  'agent-bridge-client.js',
+  // The GIF recorder owns its own state and never writes to RecordingManager.
+  '../gif-recording/gif-recording-manager.js'
+);
 
 // ============================================================================
 // RECORDING STATE MANAGEMENT
@@ -1293,12 +1299,20 @@ const AGENT_BRIDGE_MESSAGE_TYPES = [
  * @returns {boolean} True to keep message channel open for async response
  */
 function messageHandler(message, sender, sendResponse) {
+  // These messages are addressed to the hidden GIF encoder page. Let that
+  // document be the sole responder; otherwise this generic router can win the
+  // response race before the encoder has started/stopped its media stream.
+  if (message?.target === 'gif-recorder-offscreen' || message?.target === 'gif-recorder-ui') {
+    return false;
+  }
   // Handle async response
   (async () => {
     try {
       console.log('[Scribe:Background] Received:', message.type);
 
-      if (RECORDING_MESSAGE_TYPES.includes(message.type)) {
+      if (globalThis.GIF_RECORDING_MESSAGE_TYPES?.includes(message.type)) {
+        return await globalThis.gifRecordingManager.handleMessage(message, sender);
+      } else if (RECORDING_MESSAGE_TYPES.includes(message.type)) {
         return await handleRecordingMessage(message, sender);
       } else if (DOCUMENT_MESSAGE_TYPES.includes(message.type)) {
         return await handleDocumentMessage(message);

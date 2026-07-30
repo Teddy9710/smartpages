@@ -174,7 +174,7 @@ SmartPages 可以把一次录制同时导出为供人阅读的 Markdown 文档�
 - Phase 1 完全在扩展本地运行。MCP Server 与 Native Messaging 只是后续架构方向，**不包含在 Phase 1 中**。
 
 当前预览面向受控的同站点流程回放，不代表已经具备生产级 MCP 集成或跨站点自主操作能力。
- 
+
 ---
 
 ## 本地 Agent Bridge（实验性 Phase 2A）

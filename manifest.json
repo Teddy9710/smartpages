@@ -11,6 +11,8 @@
     "scripting",
     "sidePanel",
     "activeTab"
+    ,"tabCapture"
+    ,"offscreen"
   ],
   "optional_host_permissions": [
     "http://*/*",

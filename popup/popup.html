@@ -21,6 +21,21 @@
       <span id="status-text">未录制</span>
     </div>
 
+    <section class="gif-recorder" aria-labelledby="gif-recorder-title">
+      <div class="gif-recorder-heading">
+        <div>
+          <h2 id="gif-recorder-title">网页录屏 GIF</h2>
+          <p id="gif-status">未录制 · 最长 30 秒</p>
+        </div>
+        <span class="gif-badge">独立模式</span>
+      </div>
+      <div class="gif-actions">
+        <button id="btn-start-gif" class="btn btn-gif" type="button">开始录屏 GIF</button>
+        <button id="btn-stop-gif" class="btn btn-gif-stop" type="button" disabled>停止并下载 GIF</button>
+      </div>
+      <p class="gif-hint">录制当前网页的真实动态画面；不会写入操作步骤或触发文档生成。</p>
+    </section>
+
     <div id="main-content">
       <!-- 未录制状态 -->
       <div id="idle-state" class="state active">

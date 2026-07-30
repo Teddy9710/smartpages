@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>SmartPages Agent 架构方案</title>
+<style>body{font-family:system-ui,"Microsoft YaHei",sans-serif;background:#f5f7fb;color:#172033;margin:0;padding:34px}main{max-width:1100px;margin:auto}h1{margin:0 0 8px}.sub{color:#5c667a;margin-bottom:26px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.card{background:white;border:1px solid #dfe4ee;border-radius:16px;padding:20px;box-shadow:0 6px 18px #1d2b4a12}.card.recommended{border:2px solid #356df3}.badge{display:inline-block;background:#e8efff;color:#2454cc;border-radius:20px;padding:4px 10px;font-size:13px}.flow{background:#101a31;color:#dce7ff;border-radius:10px;padding:15px;margin:16px 0;min-height:86px;display:flex;align-items:center;line-height:1.7}.pros{color:#18794e}.cons{color:#b54708}.decision{margin-top:22px;background:#eaf7ef;border-left:5px solid #2d9a5f;padding:16px 20px;border-radius:10px}@media(max-width:850px){.grid{grid-template-columns:1fr}}</style></head>
+<body><main><h1>SmartPages Agent 执行架构</h1><p class="sub">本地 Agent 调用 SmartPages，依据结构化流程操作用户当前浏览器。</p>
+<section class="grid">
+<article class="card recommended"><span class="badge">推荐 A</span><h2>MCP + Native Messaging</h2><div class="flow">Agent → MCP Server → Native Host → SmartPages 扩展 → 网页</div><p class="pros">✓ 边界清晰；可适配多种 Agent；扩展掌握真实标签页和登录态。</p><p class="cons">△ 初次安装需要注册本地桥接程序。</p></article>
+<article class="card"><span class="badge">方案 B</span><h2>MCP + WebSocket</h2><div class="flow">Agent → localhost 服务 ⇄ SmartPages 扩展 → 网页</div><p class="pros">✓ 原型开发和调试直观。</p><p class="cons">△ 需要处理端口暴露、来源认证、重连及商店审核风险。</p></article>
+<article class="card"><span class="badge">方案 C</span><h2>导出 Playwright</h2><div class="flow">SmartPages → 流程脚本 → Agent / Playwright → 浏览器</div><p class="pros">✓ 最快得到可执行原型。</p><p class="cons">△ Agent 绕过插件，难复用用户当前浏览器会话，偏离产品定位。</p></article>
+</section>
+<div class="decision"><strong>建议：</strong>选择 A。MCP Server 暴露 Agent 工具；Native Host 只负责可信传输；扩展负责元素定位、动作执行、逐步确认和日志。JSON 流程作为稳定契约。</div>
+</main></body></html>

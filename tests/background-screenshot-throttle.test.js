@@ -227,7 +227,7 @@ const { RecordingManager, sandbox } = loadRecordingManager();
     console.warn = originalWarnForBlockedInjection;
   }
   assert.deepEqual(JSON.parse(JSON.stringify(injectionTargets)), [
-    { tabId: 9 }
+    { tabId: 9, allFrames: true }
   ]);
 
   const fullyBlockedManager = new RecordingManager();

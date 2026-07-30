@@ -23,6 +23,7 @@ const copyTargets = [
   { src: 'background/*', dest: 'background', rename: { stripBase: 1 } },
   { src: 'content/*', dest: 'content', rename: { stripBase: 1 } },
   { src: 'utils/*', dest: 'utils', rename: { stripBase: 1 } },
+  { src: 'gif-recording/*', dest: 'gif-recording', rename: { stripBase: 1 } },
 ].filter(target => existsSync(resolve(projectRoot, target.src.replace(/\/\*$/, ''))));
 
 /**

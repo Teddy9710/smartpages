@@ -14,14 +14,24 @@
         <h1>设置</h1>
         <p>模型、提示词与文档资源管理</p>
       </div>
+      <div class="header-status"><span></span>本地配置</div>
     </header>
 
-    <div class="content">
+    <div class="settings-layout">
+      <nav class="settings-nav" aria-label="设置导航">
+        <a class="settings-nav-link is-active" href="#api-settings"><span>01</span>AI 配置</a>
+        <a class="settings-nav-link" href="#documents-settings"><span>02</span>参考文档</a>
+        <a class="settings-nav-link" href="#smart-settings"><span>03</span>智能功能</a>
+        <a class="settings-nav-link" href="#about-settings"><span>04</span>关于</a>
+      </nav>
+
+      <main class="content">
       <!-- API配置部分 -->
-      <section class="section">
+      <section class="section" id="api-settings">
         <h2>API配置</h2>
         <p class="section-desc">配置您的大模型API凭证以使用AI功能</p>
 
+        <div class="form-grid form-grid--two">
         <div class="form-group">
           <label for="app-language">界面语言</label>
           <select id="app-language" class="input">
@@ -48,7 +58,9 @@
           </select>
           <p class="help-text">选择服务商会自动填入 Base URL 和推荐模型；仍可手动修改。</p>
         </div>
+        </div>
 
+        <div class="form-grid form-grid--two">
         <div class="form-group">
           <label for="api-key">API Key</label>
           <input
@@ -82,7 +94,9 @@
           >
           <p class="help-text">默认使用 gpt-3.5-turbo</p>
         </div>
+        </div>
 
+        <div class="form-grid form-grid--two">
         <div class="form-group">
           <label for="max-tokens">最大输出 Token</label>
           <input
@@ -119,6 +133,7 @@
             <option value="text">纯文本 (.txt)</option>
           </select>
           <p class="help-text">默认使用 Markdown。选择 HTML 时会参考风格文档的版式层级并生成可下载的 HTML 文档。</p>
+        </div>
         </div>
 
         <div class="form-group">
@@ -237,7 +252,7 @@
       </section>
 
       <!-- 参考文档管理部分 -->
-      <section class="section">
+      <section class="section" id="documents-settings">
         <h2>参考文档管理</h2>
           <p class="section-desc">上传风格指南或示例文档，然后一键应用到上方对应配置。支持 TXT、MD、HTML 格式。</p>
 
@@ -275,7 +290,7 @@
       </section>
 
       <!-- 智能功能开关 -->
-      <section class="section">
+      <section class="section" id="smart-settings">
         <h2>智能功能</h2>
         <div class="form-group-switch">
           <label class="switch-label">
@@ -290,7 +305,7 @@
       </section>
 
       <!-- 关于 -->
-      <section class="section">
+      <section class="section" id="about-settings">
         <h2>关于</h2>
         <div class="about">
           <p><strong>SmartPages</strong></p>
@@ -299,6 +314,7 @@
           <p><strong>新增功能:</strong> 文档上传与管理</p>
         </div>
       </section>
+      </main>
     </div>
   </div>
 
