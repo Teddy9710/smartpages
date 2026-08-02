@@ -120,6 +120,13 @@
         <button id="btn-download" class="btn-tool" title="下载文件">
           <span class="icon icon-download" aria-hidden="true"></span> 下载
         </button>
+        <button id="btn-cloud-save" class="btn-tool btn-tool-primary" title="保存到云端">
+          <span class="icon" aria-hidden="true">☁</span> 保存云端
+        </button>
+        <button id="btn-cloud-documents" class="btn-tool" title="打开云端文档">
+          <span class="icon" aria-hidden="true">☰</span> 云端文档
+        </button>
+        <span id="cloud-save-status" class="cloud-save-status" aria-live="polite">未保存</span>
         <button id="btn-export-workflow" class="btn-tool" title="导出可执行工作流" aria-label="导出可执行工作流">
           <span class="icon" aria-hidden="true">JSON</span> 工作流
         </button>
@@ -229,6 +236,44 @@
       </div>
     </div>
 
+    <div id="cloud-documents-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="cloud-documents-title">
+      <div class="modal-backdrop"></div>
+      <div class="modal-panel cloud-documents-panel">
+        <div class="modal-header">
+          <h2 id="cloud-documents-title">云端文档</h2>
+          <button id="btn-close-cloud-documents" class="btn-icon icon-close" title="关闭" aria-label="关闭"></button>
+        </div>
+        <div class="modal-body">
+          <div id="cloud-config-required" class="cloud-auth-view hidden">
+            <p>请先在设置页配置 Supabase Project URL 和 anon key。</p>
+            <button id="btn-open-cloud-settings" class="btn btn-primary" type="button">打开设置</button>
+          </div>
+          <form id="cloud-auth-form" class="cloud-auth-view hidden">
+            <p>登录后可以在不同设备打开已保存的文档。</p>
+            <label for="cloud-email">邮箱</label>
+            <input id="cloud-email" class="input" type="email" autocomplete="email" required>
+            <label for="cloud-password">密码</label>
+            <input id="cloud-password" class="input" type="password" autocomplete="current-password" minlength="6" required>
+            <div class="cloud-auth-actions">
+              <button id="btn-cloud-sign-in" class="btn btn-primary" type="submit">登录</button>
+              <button id="btn-cloud-sign-up" class="btn btn-secondary" type="button">注册</button>
+            </div>
+          </form>
+          <div id="cloud-library" class="hidden">
+            <div class="cloud-library-header">
+              <span id="cloud-user-email"></span>
+              <div>
+                <button id="btn-refresh-cloud-documents" class="btn btn-small btn-secondary" type="button">刷新</button>
+                <button id="btn-cloud-sign-out" class="btn btn-small btn-secondary" type="button">退出</button>
+              </div>
+            </div>
+            <div id="cloud-documents-list" class="cloud-documents-list"></div>
+          </div>
+          <p id="cloud-dialog-status" class="cloud-dialog-status hidden" aria-live="polite"></p>
+        </div>
+      </div>
+    </div>
+
     <div id="empty-state" class="state-view active">
       <div class="empty-content">
         <div class="empty-icon" aria-hidden="true"></div>
@@ -261,6 +306,7 @@
   <script src="../utils/documentUpload.js"></script>
   <script src="../utils/documentApi.js"></script>
   <script src="../utils/docUIUtils.js"></script>
+  <script src="../utils/cloudDocumentApi.js"></script>
   <script src="../workflow/schema.js"></script>
   <script src="../workflow/converter.js"></script>
   <script src="sidepanel.js"></script>

@@ -251,6 +251,29 @@
         </div>
       </section>
 
+      <aside class="section" id="cloud-settings">
+        <h2>云端文档（Supabase）</h2>
+        <p class="section-desc">使用 Supabase 免费版保存生成的文档和截图。anon key 可以用于客户端，但请勿填写 service_role key。</p>
+        <div class="form-group">
+          <label for="supabase-url">Project URL</label>
+          <input type="url" id="supabase-url" class="input" placeholder="https://your-project.supabase.co">
+          <p class="help-text">Supabase 控制台 → Project Settings → API</p>
+        </div>
+        <div class="form-group">
+          <label for="supabase-anon-key">Anon / Publishable Key</label>
+          <input type="password" id="supabase-anon-key" class="input" autocomplete="off">
+          <p class="help-text">只使用 anon 或 publishable key；权限由 Row Level Security 控制。</p>
+        </div>
+        <div class="form-group">
+          <label for="supabase-bucket">Storage Bucket</label>
+          <input type="text" id="supabase-bucket" class="input" value="smartpages-assets" readonly>
+        </div>
+        <div class="form-actions">
+          <button id="btn-save-cloud-settings" class="btn btn-primary" type="button">保存云端配置</button>
+        </div>
+        <p id="cloud-settings-result" class="test-result hidden" aria-live="polite"></p>
+      </aside>
+
       <!-- 参考文档管理部分 -->
       <section class="section" id="documents-settings">
         <h2>参考文档管理</h2>
@@ -322,6 +345,7 @@
   <script src="../utils/documentUpload.js"></script>
   <script src="../utils/documentApi.js"></script>
   <script src="../utils/docUIUtils.js"></script>
+  <script src="../utils/cloudDocumentApi.js"></script>
   <script src="settings.js"></script>
 </body>
 </html>

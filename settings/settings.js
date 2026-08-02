@@ -122,6 +122,7 @@ class SettingsManager {
       documentExamples: {}
     };
     this.api = new DocumentApi();
+    this.cloudDocuments = new SupabaseCloudDocumentProvider();
     this.docUI = new DocUIHelper({
       api: this.api,
       source: '',
@@ -138,6 +139,7 @@ class SettingsManager {
     this._bindEvents();
     this._initDocumentManagement();
     this._populateForm();
+    await this._populateCloudConfig();
     await this.loadAgentBridgeConfig();
   }
 
@@ -150,6 +152,7 @@ class SettingsManager {
     this._bindButton('btn-test', () => this.testConnection());
     this._bindButton('btn-agent-bridge-test', () => this.testAgentBridgeConnection());
     this._bindButton('btn-toggle-key', () => this._toggleApiKeyVisibility());
+    this._bindButton('btn-save-cloud-settings', () => this.saveCloudConfig());
 
     const apiProviderSelect = document.getElementById('api-provider');
     if (apiProviderSelect) {
@@ -409,6 +412,44 @@ class SettingsManager {
     const permission = { origins: [originPattern] };
     if (await chrome.permissions.contains(permission)) return true;
     return chrome.permissions.request({ origins: [originPattern] });
+  }
+
+  async _populateCloudConfig() {
+    const config = await this.cloudDocuments.getConfig().catch(() => ({}));
+    const url = document.getElementById('supabase-url');
+    const anonKey = document.getElementById('supabase-anon-key');
+    const bucket = document.getElementById('supabase-bucket');
+    if (url) url.value = config.url || '';
+    if (anonKey) anonKey.value = config.anonKey || '';
+    if (bucket) bucket.value = config.bucket || 'smartpages-assets';
+  }
+
+  async saveCloudConfig() {
+    const result = document.getElementById('cloud-settings-result');
+    const config = {
+      url: document.getElementById('supabase-url')?.value?.trim() || '',
+      anonKey: document.getElementById('supabase-anon-key')?.value?.trim() || '',
+      bucket: document.getElementById('supabase-bucket')?.value?.trim() || 'smartpages-assets'
+    };
+    const showResult = (message, type) => {
+      if (!result) return;
+      result.textContent = message;
+      result.className = `test-result ${type}`;
+      result.classList.remove('hidden');
+    };
+    try {
+      const granted = await this._requestApiHostPermission(config.url);
+      if (!granted) {
+        showResult('需要允许扩展访问 Supabase 项目域名。', 'error');
+        return;
+      }
+      const savedConfig = await this.cloudDocuments.saveConfig(config);
+      const urlInput = document.getElementById('supabase-url');
+      if (urlInput) urlInput.value = savedConfig.url;
+      showResult('云端配置已保存。请在侧边栏登录并保存文档。', 'success');
+    } catch (error) {
+      showResult(`保存失败：${error.message}`, 'error');
+    }
   }
 
   async loadAgentBridgeConfig() {

@@ -499,6 +499,11 @@ ${bodyHtml}
     this.isGenerating = false;
     this.isOptimizing = false;
     this.documentApi = new DocumentApi();
+    this.cloudDocuments = new SupabaseCloudDocumentProvider();
+    this.localDrafts = new LocalDocumentDraftStore();
+    this.cloudDocumentState = { id: null, revision: 0, dirty: true };
+    this.isCloudAuthenticating = false;
+    this._saveDraftDebounced = debounce(() => this._saveLocalDraft(), 500);
     this.docUI = new DocUIHelper({
       api: this.documentApi,
       source: 'sidepanel',
@@ -535,6 +540,7 @@ ${bodyHtml}
     await this._applyLanguage();
     this._bindEvents();
     await this._checkForPendingSession();
+    if (this.currentState === StateViews.EMPTY) await this._restoreLocalDraft();
   }
 
   // ========================================================================
@@ -550,6 +556,13 @@ ${bodyHtml}
     this._bindButton('btn-edit', () => this.switchToEdit());
     this._bindButton('btn-copy', () => this.copyDocument());
     this._bindButton('btn-download', () => this.downloadDocument());
+    this._bindButton('btn-cloud-save', () => this.saveCurrentDocumentToCloud());
+    this._bindButton('btn-cloud-documents', () => this.openCloudDocumentsDialog());
+    this._bindButton('btn-close-cloud-documents', () => this.closeCloudDocumentsDialog());
+    this._bindButton('btn-open-cloud-settings', () => chrome.runtime.openOptionsPage());
+    this._bindButton('btn-cloud-sign-up', () => this.signUpForCloud());
+    this._bindButton('btn-refresh-cloud-documents', () => this.loadCloudDocuments());
+    this._bindButton('btn-cloud-sign-out', () => this.signOutFromCloud());
     this._bindButton('btn-export-workflow', () => this.exportExecutableWorkflow());
     this._bindButton('btn-run-workflow', () => this.startWorkflowReplay());
     this._bindButton('btn-workflow-approve', () => this.approveWorkflowStep());
@@ -579,6 +592,12 @@ ${bodyHtml}
     this._bindEditorEvents();
     this._bindImageCropEvents();
     this._bindDocumentUploadEvents('sidepanel');
+    const cloudAuthForm = document.getElementById('cloud-auth-form');
+    if (cloudAuthForm) {
+      const handleCloudSignIn = event => { event.preventDefault(); this.signInToCloud(); };
+      cloudAuthForm.addEventListener('submit', handleCloudSignIn);
+      this.cleanupFunctions.push(() => cloudAuthForm.removeEventListener('submit', handleCloudSignIn));
+    }
   }
 
   _bindButton(buttonId, handler) {
@@ -613,6 +632,8 @@ ${bodyHtml}
 
     if (editor) {
       const handleEditorInput = debounce(() => {
+        this._markCloudDocumentDirty();
+        this._saveDraftDebounced();
         if (document.getElementById('preview-pane')?.classList.contains('active')) {
           this._updatePreview(editor.value);
         }
@@ -622,7 +643,11 @@ ${bodyHtml}
     }
 
     if (preview) {
-      const handlePreviewInput = debounce(() => this._syncPreviewToEditor(), 120);
+      const handlePreviewInput = debounce(() => {
+        this._syncPreviewToEditor();
+        this._markCloudDocumentDirty();
+        this._saveDraftDebounced();
+      }, 120);
       const handlePreviewClick = (event) => {
         const image = event.target?.closest?.('img[data-image-editable="true"]');
         if (!image || !preview.contains(image)) return;
@@ -1100,6 +1125,30 @@ ${bodyHtml}
       closeCrop.title = text.cropClose;
       closeCrop.setAttribute('aria-label', text.cropClose);
     }
+    const cloudText = isEn ? {
+      save: 'Save Cloud', library: 'Cloud Docs', unsaved: 'Unsaved', title: 'Cloud Documents',
+      config: 'Configure the Supabase Project URL and anon key in Settings first.', settings: 'Open Settings',
+      authHelp: 'Sign in to open saved documents on other devices.', email: 'Email', password: 'Password',
+      signIn: 'Sign In', signUp: 'Sign Up', refresh: 'Refresh', signOut: 'Sign Out'
+    } : {
+      save: '保存云端', library: '云端文档', unsaved: '未保存', title: '云端文档',
+      config: '请先在设置页配置 Supabase Project URL 和 anon key。', settings: '打开设置',
+      authHelp: '登录后可以在不同设备打开已保存的文档。', email: '邮箱', password: '密码',
+      signIn: '登录', signUp: '注册', refresh: '刷新', signOut: '退出'
+    };
+    setButton('#btn-cloud-save', cloudText.save);
+    setButton('#btn-cloud-documents', cloudText.library);
+    set('#cloud-documents-title', cloudText.title);
+    set('#cloud-config-required p', cloudText.config);
+    setButton('#btn-open-cloud-settings', cloudText.settings);
+    set('#cloud-auth-form p', cloudText.authHelp);
+    set('label[for="cloud-email"]', cloudText.email);
+    set('label[for="cloud-password"]', cloudText.password);
+    setButton('#btn-cloud-sign-in', cloudText.signIn);
+    setButton('#btn-cloud-sign-up', cloudText.signUp);
+    setButton('#btn-refresh-cloud-documents', cloudText.refresh);
+    setButton('#btn-cloud-sign-out', cloudText.signOut);
+    this._setCloudSaveStatus(cloudText.unsaved);
   }
 
   // ========================================================================
@@ -1410,6 +1459,7 @@ ${bodyHtml}
       const outputFormat = this._getOutputFormat(config);
       const markdown = this._normalizeGeneratedContent(extractModelResponseText(data, getApiFormat(config)), outputFormat);
       if (!markdown) throw new ExtensionError('AI没有返回可用的文档内容', 'EMPTY_RESPONSE');
+      this.cloudDocumentState = { id: null, revision: 0, dirty: true };
       this.showEditor();
       this._setEditorContent(this._injectScreenshots(markdown, outputFormat));
       this._resetOptimizationState();
@@ -1867,7 +1917,12 @@ ${bodyHtml}
 
   _setEditorContent(content) {
     const editor = document.getElementById('markdown-editor');
-    if (editor) { editor.value = content; this._updatePreview(content); }
+    if (editor) {
+      editor.value = content;
+      this._updatePreview(content);
+      this._markCloudDocumentDirty();
+      this._saveDraftDebounced();
+    }
   }
 
   _updatePreview(content) { this._renderDocument(content); }
@@ -2701,6 +2756,269 @@ ${markdown}`;
     if (cancelButton) cancelButton.disabled = disabled;
     if (closeButton) closeButton.disabled = disabled;
     if (instruction) instruction.disabled = disabled;
+  }
+
+  // ========================================================================
+  // LOCAL DRAFTS AND CLOUD DOCUMENTS
+  // ========================================================================
+
+  async _saveLocalDraft() {
+    const content = document.getElementById('markdown-editor')?.value || '';
+    if (!content.trim()) return;
+    try {
+      await this.localDrafts.save({
+        id: this.cloudDocumentState.id,
+        revision: this.cloudDocumentState.revision,
+        title: this._extractDocumentTitle(content),
+        format: this._getOutputFormat(),
+        content
+      });
+    } catch (error) {
+      console.warn('[SmartPages:Draft] Failed to save local draft:', error);
+    }
+  }
+
+  async _restoreLocalDraft() {
+    try {
+      const draft = await this.localDrafts.load();
+      if (!draft?.content?.trim()) return;
+      let restoredContent = draft.content;
+      if (draft.id && /\/storage\/v1\/object\/sign\//.test(restoredContent)) {
+        restoredContent = await this.cloudDocuments.refreshAssetUrls(restoredContent).catch(() => restoredContent);
+      }
+      this.showEditor();
+      this.config = { ...(this.config || {}), outputFormat: draft.format || 'markdown' };
+      this._setEditorContent(restoredContent);
+      this.cloudDocumentState = {
+        id: draft.id || null,
+        revision: Number(draft.revision) || 0,
+        dirty: true
+      };
+      this._setCloudSaveStatus(this.language === 'en-US' ? 'Local draft' : '本地草稿', '');
+    } catch (error) {
+      console.warn('[SmartPages:Draft] Failed to restore local draft:', error);
+    }
+  }
+
+  _markCloudDocumentDirty() {
+    this.cloudDocumentState.dirty = true;
+    this._setCloudSaveStatus(this.language === 'en-US' ? 'Unsaved' : '未保存', '');
+  }
+
+  _setCloudSaveStatus(message, type = '') {
+    const status = document.getElementById('cloud-save-status');
+    if (!status) return;
+    status.textContent = message;
+    status.className = `cloud-save-status${type ? ` ${type}` : ''}`;
+  }
+
+  _setCloudDialogStatus(message = '', type = '') {
+    const status = document.getElementById('cloud-dialog-status');
+    if (!status) return;
+    status.textContent = message;
+    status.className = `cloud-dialog-status${type ? ` ${type}` : ''}${message ? '' : ' hidden'}`;
+  }
+
+  async openCloudDocumentsDialog() {
+    const modal = document.getElementById('cloud-documents-modal');
+    modal?.classList.remove('hidden');
+    this._setCloudDialogStatus();
+    const configured = await this.cloudDocuments.isConfigured().catch(() => false);
+    document.getElementById('cloud-config-required')?.classList.toggle('hidden', configured);
+    if (!configured) {
+      document.getElementById('cloud-auth-form')?.classList.add('hidden');
+      document.getElementById('cloud-library')?.classList.add('hidden');
+      return;
+    }
+    try {
+      const session = await this.cloudDocuments.getSession();
+      this._showCloudSession(session);
+      if (session) await this.loadCloudDocuments();
+    } catch (error) {
+      this._showCloudSession(null);
+      this._setCloudDialogStatus(error.message, 'error');
+    }
+  }
+
+  closeCloudDocumentsDialog() {
+    document.getElementById('cloud-documents-modal')?.classList.add('hidden');
+  }
+
+  _showCloudSession(session) {
+    const signedIn = Boolean(session?.accessToken);
+    document.getElementById('cloud-auth-form')?.classList.toggle('hidden', signedIn);
+    document.getElementById('cloud-library')?.classList.toggle('hidden', !signedIn);
+    const email = document.getElementById('cloud-user-email');
+    if (email) email.textContent = session?.user?.email || '';
+  }
+
+  _getCloudCredentials() {
+    return {
+      email: document.getElementById('cloud-email')?.value?.trim() || '',
+      password: document.getElementById('cloud-password')?.value || ''
+    };
+  }
+
+  _setCloudAuthBusy(busy) {
+    this.isCloudAuthenticating = busy;
+    const signIn = document.getElementById('btn-cloud-sign-in');
+    const signUp = document.getElementById('btn-cloud-sign-up');
+    const email = document.getElementById('cloud-email');
+    const password = document.getElementById('cloud-password');
+    if (signIn) signIn.disabled = busy;
+    if (signUp) signUp.disabled = busy;
+    if (email) email.disabled = busy;
+    if (password) password.disabled = busy;
+  }
+
+  _formatCloudAuthError(error) {
+    const code = error?.code && error.code !== 'REQUEST_FAILED' ? ` (${error.code})` : '';
+    return `${error?.message || 'Cloud authentication failed'}${code}`;
+  }
+
+  async signInToCloud() {
+    if (this.isCloudAuthenticating) return;
+    const credentials = this._getCloudCredentials();
+    if (!credentials.email || !credentials.password) return;
+    this._setCloudAuthBusy(true);
+    this._setCloudDialogStatus(this.language === 'en-US' ? 'Signing in...' : '正在登录...');
+    try {
+      const session = await this.cloudDocuments.signIn(credentials.email, credentials.password);
+      this._showCloudSession(session);
+      this._setCloudDialogStatus();
+      await this.loadCloudDocuments();
+    } catch (error) {
+      this._setCloudDialogStatus(this._formatCloudAuthError(error), 'error');
+    } finally {
+      this._setCloudAuthBusy(false);
+    }
+  }
+
+  async signUpForCloud() {
+    if (this.isCloudAuthenticating) return;
+    const credentials = this._getCloudCredentials();
+    if (!credentials.email || credentials.password.length < 6) {
+      this._setCloudDialogStatus(this.language === 'en-US' ? 'Enter an email and a password of at least 6 characters.' : '请输入邮箱和至少 6 位密码。', 'error');
+      return;
+    }
+    this._setCloudAuthBusy(true);
+    this._setCloudDialogStatus(this.language === 'en-US' ? 'Creating account...' : '正在创建账号...');
+    try {
+      const result = await this.cloudDocuments.signUp(credentials.email, credentials.password);
+      if (result.pendingConfirmation) {
+        this._setCloudDialogStatus(this.language === 'en-US' ? 'Check your inbox to confirm your email, then sign in.' : '请查收确认邮件，完成验证后再登录。', 'success');
+        return;
+      }
+      this._showCloudSession(result);
+      this._setCloudDialogStatus();
+      await this.loadCloudDocuments();
+    } catch (error) {
+      this._setCloudDialogStatus(this._formatCloudAuthError(error), 'error');
+    } finally {
+      this._setCloudAuthBusy(false);
+    }
+  }
+
+  async signOutFromCloud() {
+    await this.cloudDocuments.signOut();
+    this._showCloudSession(null);
+    this._setCloudDialogStatus(this.language === 'en-US' ? 'Signed out.' : '已退出登录。', 'success');
+  }
+
+  async saveCurrentDocumentToCloud() {
+    this._ensureEditorContentFresh();
+    const content = document.getElementById('markdown-editor')?.value || '';
+    if (!content.trim()) {
+      this._showError(this._t('contentRequired'));
+      return;
+    }
+    if (!await this.cloudDocuments.isConfigured().catch(() => false)) {
+      await this.openCloudDocumentsDialog();
+      return;
+    }
+    const session = await this.cloudDocuments.getSession().catch(() => null);
+    if (!session) {
+      await this.openCloudDocumentsDialog();
+      return;
+    }
+
+    const button = document.getElementById('btn-cloud-save');
+    if (button) button.disabled = true;
+    this._setCloudSaveStatus(this.language === 'en-US' ? 'Saving...' : '保存中...', 'saving');
+    try {
+      const saved = await this.cloudDocuments.saveDocument({
+        id: this.cloudDocumentState.id,
+        revision: this.cloudDocumentState.revision,
+        title: this._extractDocumentTitle(content),
+        format: this._getOutputFormat(),
+        content
+      });
+      this._setEditorContent(saved.content || content);
+      this.cloudDocumentState = { id: saved.id, revision: saved.revision, dirty: false };
+      await this._saveLocalDraft();
+      this._setCloudSaveStatus(this.language === 'en-US' ? 'Saved' : '已保存', 'saved');
+      this._showNotification(this.language === 'en-US' ? 'Saved to Supabase.' : '文档已保存到 Supabase。', 'success');
+    } catch (error) {
+      this._setCloudSaveStatus(this.language === 'en-US' ? 'Save failed' : '保存失败', 'error');
+      this._showError(error.message);
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
+  async loadCloudDocuments() {
+    const list = document.getElementById('cloud-documents-list');
+    if (!list) return;
+    list.textContent = this.language === 'en-US' ? 'Loading...' : '正在加载...';
+    try {
+      const documents = await this.cloudDocuments.listDocuments();
+      list.textContent = '';
+      if (!documents.length) {
+        list.textContent = this.language === 'en-US' ? 'No cloud documents yet.' : '还没有云端文档。';
+        return;
+      }
+      documents.forEach(cloudDocument => list.appendChild(this._createCloudDocumentItem(cloudDocument)));
+    } catch (error) {
+      list.textContent = '';
+      this._setCloudDialogStatus(error.message, 'error');
+    }
+  }
+
+  _createCloudDocumentItem(cloudDocument) {
+    const item = document.createElement('div');
+    item.className = 'cloud-document-item';
+    const title = document.createElement('div');
+    title.className = 'cloud-document-title';
+    title.textContent = cloudDocument.title || 'SmartPages document';
+    const meta = document.createElement('div');
+    meta.className = 'cloud-document-meta';
+    meta.textContent = `${cloudDocument.format || 'markdown'} · ${new Date(cloudDocument.updated_at).toLocaleString()}`;
+    const actions = document.createElement('div');
+    actions.className = 'cloud-document-actions';
+    const openButton = document.createElement('button');
+    openButton.type = 'button';
+    openButton.className = 'btn btn-small btn-primary';
+    openButton.textContent = this.language === 'en-US' ? 'Open' : '打开';
+    openButton.addEventListener('click', () => this.openCloudDocument(cloudDocument.id));
+    actions.appendChild(openButton);
+    item.append(title, meta, actions);
+    return item;
+  }
+
+  async openCloudDocument(id) {
+    this._setCloudDialogStatus(this.language === 'en-US' ? 'Opening document...' : '正在打开文档...');
+    try {
+      const cloudDocument = await this.cloudDocuments.getDocument(id);
+      this.config = { ...(this.config || {}), outputFormat: cloudDocument.format || 'markdown' };
+      this.showEditor();
+      this._setEditorContent(cloudDocument.content || '');
+      this.cloudDocumentState = { id: cloudDocument.id, revision: cloudDocument.revision, dirty: false };
+      await this._saveLocalDraft();
+      this._setCloudSaveStatus(this.language === 'en-US' ? 'Saved' : '已保存', 'saved');
+      this.closeCloudDocumentsDialog();
+    } catch (error) {
+      this._setCloudDialogStatus(error.message, 'error');
+    }
   }
 
   downloadDocument() {
@@ -3653,6 +3971,11 @@ ${bodyHtml}
 
   newDocument() {
     this.session = null;
+    this.cloudDocumentState = { id: null, revision: 0, dirty: true };
+    this.localDrafts.clear().catch(error => console.warn('[SmartPages:Draft] Failed to clear draft:', error));
+    const editor = document.getElementById('markdown-editor');
+    if (editor) editor.value = '';
+    this._setCloudSaveStatus(this.language === 'en-US' ? 'Unsaved' : '未保存');
     this._resetOptimizationState();
     this._showEmptyState();
   }

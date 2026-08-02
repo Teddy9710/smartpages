@@ -692,6 +692,42 @@ body {
    AI OPTIMIZE MODAL
    ============================================================================ */
 
+.cloud-save-status {
+  align-self: center;
+  color: var(--text-secondary, #64748b);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.cloud-save-status.saving { color: #2563eb; }
+.cloud-save-status.saved { color: #15803d; }
+.cloud-save-status.error { color: #dc2626; }
+.cloud-documents-panel { max-width: 560px; }
+.cloud-auth-view { display: grid; gap: 10px; }
+.cloud-auth-actions,
+.cloud-library-header,
+.cloud-document-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cloud-library-header { margin-bottom: 14px; }
+.cloud-documents-list { display: grid; gap: 10px; max-height: 420px; overflow: auto; }
+.cloud-document-item {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+}
+.cloud-document-title { font-weight: 600; overflow-wrap: anywhere; }
+.cloud-document-meta { color: var(--text-secondary, #64748b); font-size: 12px; }
+.cloud-dialog-status { margin: 12px 0 0; }
+.cloud-dialog-status.error { color: #dc2626; }
+.cloud-dialog-status.success { color: #15803d; }
+
 .modal {
   position: fixed;
   inset: 0;
