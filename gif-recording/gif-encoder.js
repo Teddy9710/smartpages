@@ -84,7 +84,10 @@
         write(prefix);
         if (nextCode < 4096) {
           dictionary.set(key, nextCode++);
-          if (nextCode === (1 << codeSize) && codeSize < 12) codeSize += 1;
+          // A GIF decoder adds dictionary entries one emitted code behind the
+          // encoder. Switch widths only after crossing the boundary; changing
+          // at equality makes complex frames unreadable from code 512 onward.
+          if (nextCode > (1 << codeSize) && codeSize < 12) codeSize += 1;
         } else {
           write(clearCode);
           reset();
