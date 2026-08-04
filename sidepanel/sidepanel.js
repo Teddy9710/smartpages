@@ -501,6 +501,8 @@ ${bodyHtml}
     this.documentApi = new DocumentApi();
     this.cloudDocuments = new SupabaseCloudDocumentProvider();
     this.localDrafts = new LocalDocumentDraftStore();
+    this.localDocuments = new LocalDirectoryDocumentStore();
+    this.localDocumentState = { fileName: null, dirty: true };
     this.cloudDocumentState = { id: null, revision: 0, dirty: true };
     this.isCloudAuthenticating = false;
     this._saveDraftDebounced = debounce(() => this._saveLocalDraft(), 500);
@@ -556,6 +558,11 @@ ${bodyHtml}
     this._bindButton('btn-edit', () => this.switchToEdit());
     this._bindButton('btn-copy', () => this.copyDocument());
     this._bindButton('btn-download', () => this.downloadDocument());
+    this._bindButton('btn-local-save', () => this.saveCurrentDocumentLocally());
+    this._bindButton('btn-local-documents', () => this.openLocalDocumentsDialog());
+    this._bindButton('btn-close-local-documents', () => this.closeLocalDocumentsDialog());
+    this._bindButton('btn-choose-local-folder', () => this.chooseLocalDocumentsFolder());
+    this._bindButton('btn-refresh-local-documents', () => this.loadLocalDocuments());
     this._bindButton('btn-cloud-save', () => this.saveCurrentDocumentToCloud());
     this._bindButton('btn-cloud-documents', () => this.openCloudDocumentsDialog());
     this._bindButton('btn-close-cloud-documents', () => this.closeCloudDocumentsDialog());
@@ -632,6 +639,7 @@ ${bodyHtml}
 
     if (editor) {
       const handleEditorInput = debounce(() => {
+        this._markLocalDocumentDirty();
         this._markCloudDocumentDirty();
         this._saveDraftDebounced();
         if (document.getElementById('preview-pane')?.classList.contains('active')) {
@@ -645,6 +653,7 @@ ${bodyHtml}
     if (preview) {
       const handlePreviewInput = debounce(() => {
         this._syncPreviewToEditor();
+        this._markLocalDocumentDirty();
         this._markCloudDocumentDirty();
         this._saveDraftDebounced();
       }, 120);
@@ -1149,6 +1158,23 @@ ${bodyHtml}
     setButton('#btn-refresh-cloud-documents', cloudText.refresh);
     setButton('#btn-cloud-sign-out', cloudText.signOut);
     this._setCloudSaveStatus(cloudText.unsaved);
+    const localText = isEn ? {
+      save: 'Save Local', library: 'Local History', unsaved: 'Not saved locally', title: 'Local Document History',
+      choose: 'Choose Folder', refresh: 'Refresh', noFolder: 'No folder selected',
+      help: 'SmartPages only lists .md, .html, and .txt documents created by it.'
+    } : {
+      save: '保存本地', library: '本地历史', unsaved: '未保存本地', title: '本地文档历史',
+      choose: '选择文件夹', refresh: '刷新', noFolder: '尚未选择文件夹',
+      help: 'SmartPages 只显示由它创建的 .md、.html 和 .txt 文档。'
+    };
+    setButton('#btn-local-save', localText.save);
+    setButton('#btn-local-documents', localText.library);
+    set('#local-documents-title', localText.title);
+    setButton('#btn-choose-local-folder', localText.choose);
+    setButton('#btn-refresh-local-documents', localText.refresh);
+    set('#local-folder-name', localText.noFolder);
+    set('.local-folder-help', localText.help);
+    this._setLocalSaveStatus(localText.unsaved);
   }
 
   // ========================================================================
@@ -1459,10 +1485,14 @@ ${bodyHtml}
       const outputFormat = this._getOutputFormat(config);
       const markdown = this._normalizeGeneratedContent(extractModelResponseText(data, getApiFormat(config)), outputFormat);
       if (!markdown) throw new ExtensionError('AI没有返回可用的文档内容', 'EMPTY_RESPONSE');
+      this.localDocumentState = { fileName: null, dirty: true };
       this.cloudDocumentState = { id: null, revision: 0, dirty: true };
       this.showEditor();
       this._setEditorContent(this._injectScreenshots(markdown, outputFormat));
       this._resetOptimizationState();
+      if (await this.localDocuments.hasPermission().catch(() => false)) {
+        await this.saveCurrentDocumentLocally();
+      }
     } catch (error) {
       console.error('[Scribe:SidePanel] Generation failed:', error);
       this.showErrorState(this._formatUserFacingError(error, this._t('generationFailed')));
@@ -1920,6 +1950,7 @@ ${bodyHtml}
     if (editor) {
       editor.value = content;
       this._updatePreview(content);
+      this._markLocalDocumentDirty();
       this._markCloudDocumentDirty();
       this._saveDraftDebounced();
     }
@@ -2800,6 +2831,165 @@ ${markdown}`;
     }
   }
 
+  _markLocalDocumentDirty() {
+    if (!this.localDocumentState) return;
+    this.localDocumentState.dirty = true;
+    this._setLocalSaveStatus(this.language === 'en-US' ? 'Not saved locally' : '未保存本地');
+  }
+
+  _setLocalSaveStatus(message, type = '') {
+    const status = document.getElementById('local-save-status');
+    if (!status) return;
+    status.textContent = message;
+    status.className = `cloud-save-status${type ? ` ${type}` : ''}`;
+  }
+
+  _setLocalDialogStatus(message = '', type = '') {
+    const status = document.getElementById('local-dialog-status');
+    if (!status) return;
+    status.textContent = message;
+    status.className = `cloud-dialog-status${type ? ` ${type}` : ''}${message ? '' : ' hidden'}`;
+  }
+
+  async openLocalDocumentsDialog() {
+    document.getElementById('local-documents-modal')?.classList.remove('hidden');
+    this._setLocalDialogStatus();
+    if (!this.localDocuments.isSupported()) {
+      this._setLocalDialogStatus(this.language === 'en-US' ? 'Local folder access is not supported in this browser.' : '当前浏览器不支持本地文件夹访问。', 'error');
+      return;
+    }
+    const granted = await this.localDocuments.hasPermission().catch(() => false);
+    if (granted) await this.loadLocalDocuments();
+    else {
+      const folderName = document.getElementById('local-folder-name');
+      if (folderName) folderName.textContent = this.language === 'en-US' ? 'Choose or re-authorize a folder' : '请选择或重新授权文件夹';
+    }
+  }
+
+  closeLocalDocumentsDialog() {
+    document.getElementById('local-documents-modal')?.classList.add('hidden');
+  }
+
+  async chooseLocalDocumentsFolder() {
+    this._setLocalDialogStatus(this.language === 'en-US' ? 'Waiting for folder selection...' : '请选择文档保存文件夹...');
+    try {
+      const handle = await this.localDocuments.chooseDirectory();
+      const folderName = document.getElementById('local-folder-name');
+      if (folderName) folderName.textContent = handle.name;
+      this._setLocalDialogStatus();
+      await this.loadLocalDocuments();
+    } catch (error) {
+      if (error?.name !== 'AbortError') this._setLocalDialogStatus(error.message, 'error');
+      else this._setLocalDialogStatus();
+    }
+  }
+
+  async saveCurrentDocumentLocally() {
+    this._ensureEditorContentFresh();
+    const content = document.getElementById('markdown-editor')?.value || '';
+    if (!content.trim()) {
+      this._showError(this._t('contentRequired'));
+      return;
+    }
+    if (!await this.localDocuments.hasPermission().catch(() => false)) {
+      await this.openLocalDocumentsDialog();
+      return;
+    }
+    const button = document.getElementById('btn-local-save');
+    if (button) button.disabled = true;
+    this._setLocalSaveStatus(this.language === 'en-US' ? 'Saving...' : '保存中...', 'saving');
+    try {
+      const saved = await this.localDocuments.saveDocument({
+        fileName: this.localDocumentState.fileName,
+        title: this._extractDocumentTitle(content),
+        format: this._getOutputFormat(),
+        content
+      });
+      this.localDocumentState = { fileName: saved.fileName, dirty: false };
+      this._setLocalSaveStatus(this.language === 'en-US' ? 'Saved locally' : '已保存本地', 'saved');
+      this._showNotification(this.language === 'en-US' ? `Saved in ${await this.localDocuments.getDirectoryName()}.` : `文档已保存到“${await this.localDocuments.getDirectoryName()}”文件夹。`, 'success');
+    } catch (error) {
+      this._setLocalSaveStatus(this.language === 'en-US' ? 'Local save failed' : '本地保存失败', 'error');
+      this._showError(error.message);
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
+  async loadLocalDocuments() {
+    const list = document.getElementById('local-documents-list');
+    if (!list) return;
+    list.textContent = this.language === 'en-US' ? 'Loading...' : '正在加载...';
+    try {
+      const documents = await this.localDocuments.listDocuments();
+      const folderName = document.getElementById('local-folder-name');
+      if (folderName) folderName.textContent = await this.localDocuments.getDirectoryName();
+      list.textContent = '';
+      if (!documents.length) {
+        list.textContent = this.language === 'en-US' ? 'No local documents yet.' : '这个文件夹里还没有 SmartPages 文档。';
+        return;
+      }
+      documents.forEach(localDocument => list.appendChild(this._createLocalDocumentItem(localDocument)));
+    } catch (error) {
+      list.textContent = '';
+      this._setLocalDialogStatus(error.message, 'error');
+    }
+  }
+
+  _createLocalDocumentItem(localDocument) {
+    const item = document.createElement('div');
+    item.className = 'cloud-document-item';
+    const title = document.createElement('div');
+    title.className = 'cloud-document-title';
+    title.textContent = localDocument.title || 'SmartPages document';
+    const meta = document.createElement('div');
+    meta.className = 'cloud-document-meta';
+    meta.textContent = `${localDocument.format} · ${new Date(localDocument.updatedAt).toLocaleString()}`;
+    const actions = document.createElement('div');
+    actions.className = 'cloud-document-actions';
+    const openButton = document.createElement('button');
+    openButton.type = 'button';
+    openButton.className = 'btn btn-small btn-primary';
+    openButton.textContent = this.language === 'en-US' ? 'Open' : '打开';
+    openButton.addEventListener('click', () => this.openLocalDocument(localDocument.fileName));
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'btn btn-small btn-secondary';
+    deleteButton.textContent = this.language === 'en-US' ? 'Delete' : '删除';
+    deleteButton.addEventListener('click', () => this.deleteLocalDocument(localDocument.fileName));
+    actions.append(openButton, deleteButton);
+    item.append(title, meta, actions);
+    return item;
+  }
+
+  async openLocalDocument(fileName) {
+    this._setLocalDialogStatus(this.language === 'en-US' ? 'Opening document...' : '正在打开文档...');
+    try {
+      const localDocument = await this.localDocuments.getDocument(fileName);
+      this.config = { ...(this.config || {}), outputFormat: localDocument.format };
+      this.cloudDocumentState = { id: null, revision: 0, dirty: true };
+      this.showEditor();
+      this._setEditorContent(localDocument.content || '');
+      this.localDocumentState = { fileName: localDocument.fileName, dirty: false };
+      await this._saveLocalDraft();
+      this._setLocalSaveStatus(this.language === 'en-US' ? 'Saved locally' : '已保存本地', 'saved');
+      this.closeLocalDocumentsDialog();
+    } catch (error) {
+      this._setLocalDialogStatus(error.message, 'error');
+    }
+  }
+
+  async deleteLocalDocument(fileName) {
+    if (!confirm(this.language === 'en-US' ? 'Delete this local document?' : '确定删除这个本地文档吗？')) return;
+    try {
+      await this.localDocuments.deleteDocument(fileName);
+      if (this.localDocumentState.fileName === fileName) this.localDocumentState = { fileName: null, dirty: true };
+      await this.loadLocalDocuments();
+    } catch (error) {
+      this._setLocalDialogStatus(error.message, 'error');
+    }
+  }
+
   _markCloudDocumentDirty() {
     this.cloudDocumentState.dirty = true;
     this._setCloudSaveStatus(this.language === 'en-US' ? 'Unsaved' : '未保存', '');
@@ -3010,6 +3200,7 @@ ${markdown}`;
     try {
       const cloudDocument = await this.cloudDocuments.getDocument(id);
       this.config = { ...(this.config || {}), outputFormat: cloudDocument.format || 'markdown' };
+      this.localDocumentState = { fileName: null, dirty: true };
       this.showEditor();
       this._setEditorContent(cloudDocument.content || '');
       this.cloudDocumentState = { id: cloudDocument.id, revision: cloudDocument.revision, dirty: false };
@@ -3971,10 +4162,12 @@ ${bodyHtml}
 
   newDocument() {
     this.session = null;
+    this.localDocumentState = { fileName: null, dirty: true };
     this.cloudDocumentState = { id: null, revision: 0, dirty: true };
     this.localDrafts.clear().catch(error => console.warn('[SmartPages:Draft] Failed to clear draft:', error));
     const editor = document.getElementById('markdown-editor');
     if (editor) editor.value = '';
+    this._setLocalSaveStatus(this.language === 'en-US' ? 'Not saved locally' : '未保存本地');
     this._setCloudSaveStatus(this.language === 'en-US' ? 'Unsaved' : '未保存');
     this._resetOptimizationState();
     this._showEmptyState();

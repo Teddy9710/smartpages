@@ -1180,7 +1180,7 @@
   // Log initialization
   const logInit = () => {
     console.log('[Scribe:Content] Content script loaded', {
-      version: '1.2.0',
+      version: '1.3.0',
       isListening
     });
   };

@@ -4,6 +4,7 @@ const {
   CLOUD_CONFIG_KEY,
   CLOUD_SESSION_KEY,
   LocalDocumentDraftStore,
+  LocalDirectoryDocumentStore,
   SupabaseCloudDocumentProvider
 } = require('../utils/cloudDocumentApi.js');
 
@@ -37,6 +38,10 @@ function jsonResponse(data, status = 200) {
   });
   await draftStore.clear();
   assert.equal(await draftStore.load(), null);
+
+  const directoryStore = new LocalDirectoryDocumentStore();
+  assert.equal(directoryStore._safeFileName('Release:\nnotes?. '), 'Release--notes-');
+  assert.equal(directoryStore._safeFileName('\u0000'), '-');
 
   const requests = [];
   let uuidIndex = 0;

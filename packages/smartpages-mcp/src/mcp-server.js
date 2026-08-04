@@ -87,7 +87,7 @@ async function startMcpServer({ workflowDir, bridge }) {
   const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js');
   const { z } = require('zod');
 
-  const server = new McpServer({ name: 'smartpages-mcp', version: '0.1.0' });
+  const server = new McpServer({ name: 'smartpages-mcp', version: '1.3.0' });
   const handlers = createToolHandlers({ workflowDir, bridge });
 
   server.tool('list_workflows', 'List available SmartPages executable workflows.', {}, async () =>

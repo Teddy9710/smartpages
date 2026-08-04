@@ -5,6 +5,24 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.3.0] - 2026-08-04
+
+### Added
+- 新增可执行工作流的导出、校验与浏览器内回放能力。
+- 新增本地 SmartPages MCP/Agent Bridge，支持工作流发现、变量校验和远程启动执行。
+- 新增 Supabase 云文档存储及相关上传、查询能力。
+- 新增 Agent Bridge 设置项、令牌持久化和连接状态管理。
+
+### Changed
+- 扩展 CSP 允许连接本地 Agent Bridge WebSocket 服务。
+- 完善 SmartPages Agent Bridge 与首次配置使用文档。
+
+### Fixed
+- 修复嵌入式 frame 内交互无法被正确录制的问题。
+- 修复工作流回放的输入续跑、取消状态、错误码和运行生命周期问题。
+- 修复 Agent Bridge 重连和工作流转发稳定性问题。
+- 修复 GIF LZW 编码码宽切换错误。
+
 ## [1.0.1] - 2025-01-27
 
 ### Fixed

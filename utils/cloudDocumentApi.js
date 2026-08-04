@@ -10,6 +10,9 @@
   const CLOUD_CONFIG_KEY = 'cloudStorageConfig';
   const CLOUD_SESSION_KEY = 'cloudStorageSession';
   const LOCAL_DRAFT_KEY = 'generatedDocumentDraft';
+  const LOCAL_DIRECTORY_DB = 'smartpages-local-documents';
+  const LOCAL_DIRECTORY_STORE = 'settings';
+  const LOCAL_DIRECTORY_HANDLE_KEY = 'directoryHandle';
   const DEFAULT_BUCKET = 'smartpages-assets';
 
   class CloudDocumentError extends Error {
@@ -78,6 +81,140 @@
 
     async clear() {
       await this.storage.remove(this.key);
+    }
+  }
+
+  class LocalDirectoryDocumentStore {
+    constructor(options = {}) {
+      this.globalScope = options.globalScope || globalScope;
+      this.indexedDB = options.indexedDB || this.globalScope.indexedDB;
+      this.randomUUID = options.randomUUID || (() => this.globalScope.crypto.randomUUID());
+      this.directoryHandle = null;
+    }
+
+    isSupported() {
+      return typeof this.globalScope.showDirectoryPicker === 'function' && Boolean(this.indexedDB);
+    }
+
+    async chooseDirectory() {
+      if (!this.isSupported()) throw new CloudDocumentError('This browser does not support local folder access', 'LOCAL_FOLDER_UNSUPPORTED');
+      const handle = await this.globalScope.showDirectoryPicker({ id: 'smartpages-documents', mode: 'readwrite' });
+      this.directoryHandle = handle;
+      await this._saveHandle(handle);
+      return handle;
+    }
+
+    async getDirectoryName() {
+      const handle = await this._getDirectory(false);
+      return handle?.name || '';
+    }
+
+    async hasPermission() {
+      const handle = await this._loadHandle();
+      if (!handle) return false;
+      return (await handle.queryPermission({ mode: 'readwrite' })) === 'granted';
+    }
+
+    async requestPermission() {
+      const handle = await this._loadHandle();
+      if (!handle) return false;
+      if ((await handle.queryPermission({ mode: 'readwrite' })) === 'granted') return true;
+      return (await handle.requestPermission({ mode: 'readwrite' })) === 'granted';
+    }
+
+    async saveDocument(input = {}) {
+      const directory = await this._getDirectory(true);
+      const format = ['markdown', 'html', 'text'].includes(input.format) ? input.format : 'markdown';
+      const extension = { markdown: 'md', html: 'html', text: 'txt' }[format];
+      const fileName = input.fileName || `${this._safeFileName(input.title || 'SmartPages document')}--${this.randomUUID()}.${extension}`;
+      const fileHandle = await directory.getFileHandle(fileName, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(String(input.content || ''));
+      await writable.close();
+      const file = await fileHandle.getFile();
+      return this._fileInfo(fileName, file);
+    }
+
+    async listDocuments() {
+      const directory = await this._getDirectory(true);
+      const documents = [];
+      for await (const [fileName, handle] of directory.entries()) {
+        if (handle.kind !== 'file' || !/--[0-9a-f-]+\.(md|html|txt)$/i.test(fileName)) continue;
+        const file = await handle.getFile();
+        documents.push(this._fileInfo(fileName, file));
+      }
+      return documents.sort((a, b) => b.updatedAt - a.updatedAt);
+    }
+
+    async getDocument(fileName) {
+      const directory = await this._getDirectory(true);
+      const handle = await directory.getFileHandle(String(fileName || ''));
+      const file = await handle.getFile();
+      return { ...this._fileInfo(fileName, file), content: await file.text() };
+    }
+
+    async deleteDocument(fileName) {
+      const directory = await this._getDirectory(true);
+      await directory.removeEntry(String(fileName || ''));
+      return true;
+    }
+
+    _fileInfo(fileName, file) {
+      const extension = String(fileName).split('.').pop().toLowerCase();
+      const format = extension === 'html' ? 'html' : extension === 'txt' ? 'text' : 'markdown';
+      const title = String(fileName).replace(/--[0-9a-f-]+\.(md|html|txt)$/i, '');
+      return { fileName, title, format, size: file.size, updatedAt: file.lastModified };
+    }
+
+    _safeFileName(value) {
+      const invalidCharacters = '<>:"/\\|?*';
+      const safe = Array.from(String(value || ''), character => (
+        character.charCodeAt(0) <= 31 || invalidCharacters.includes(character) ? '-' : character
+      )).join('').replace(/[. ]+$/g, '').trim();
+      return (safe || 'SmartPages document').slice(0, 80);
+    }
+
+    async _getDirectory(requirePermission) {
+      const handle = await this._loadHandle();
+      if (!handle) throw new CloudDocumentError('Choose a local document folder first', 'LOCAL_FOLDER_REQUIRED');
+      const permission = await handle.queryPermission({ mode: 'readwrite' });
+      if (permission !== 'granted') {
+        if (!requirePermission) return null;
+        throw new CloudDocumentError('Open Local History and grant folder access again', 'LOCAL_FOLDER_PERMISSION_REQUIRED');
+      }
+      return handle;
+    }
+
+    async _loadHandle() {
+      if (this.directoryHandle) return this.directoryHandle;
+      if (!this.indexedDB) return null;
+      this.directoryHandle = await new Promise((resolve, reject) => {
+        const request = this.indexedDB.open(LOCAL_DIRECTORY_DB, 1);
+        request.onupgradeneeded = () => request.result.createObjectStore(LOCAL_DIRECTORY_STORE);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const db = request.result;
+          const get = db.transaction(LOCAL_DIRECTORY_STORE).objectStore(LOCAL_DIRECTORY_STORE).get(LOCAL_DIRECTORY_HANDLE_KEY);
+          get.onerror = () => { db.close(); reject(get.error); };
+          get.onsuccess = () => { db.close(); resolve(get.result || null); };
+        };
+      });
+      return this.directoryHandle;
+    }
+
+    async _saveHandle(handle) {
+      await new Promise((resolve, reject) => {
+        const request = this.indexedDB.open(LOCAL_DIRECTORY_DB, 1);
+        request.onupgradeneeded = () => request.result.createObjectStore(LOCAL_DIRECTORY_STORE);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const db = request.result;
+          const transaction = db.transaction(LOCAL_DIRECTORY_STORE, 'readwrite');
+          transaction.objectStore(LOCAL_DIRECTORY_STORE).put(handle, LOCAL_DIRECTORY_HANDLE_KEY);
+          transaction.onerror = () => reject(transaction.error);
+          transaction.oncomplete = () => { db.close(); resolve(); };
+        };
+      });
     }
   }
 
@@ -428,6 +565,7 @@
     CloudDocumentError,
     ChromeLocalStore,
     LocalDocumentDraftStore,
+    LocalDirectoryDocumentStore,
     SupabaseCloudDocumentProvider
   };
 

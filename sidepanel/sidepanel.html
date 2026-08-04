@@ -120,6 +120,13 @@
         <button id="btn-download" class="btn-tool" title="下载文件">
           <span class="icon icon-download" aria-hidden="true"></span> 下载
         </button>
+        <button id="btn-local-save" class="btn-tool btn-tool-primary" title="保存到本地文件夹">
+          <span class="icon" aria-hidden="true">▣</span> 保存本地
+        </button>
+        <button id="btn-local-documents" class="btn-tool" title="打开本地历史">
+          <span class="icon" aria-hidden="true">☰</span> 本地历史
+        </button>
+        <span id="local-save-status" class="cloud-save-status" aria-live="polite">未保存本地</span>
         <button id="btn-cloud-save" class="btn-tool btn-tool-primary" title="保存到云端">
           <span class="icon" aria-hidden="true">☁</span> 保存云端
         </button>
@@ -232,6 +239,28 @@
           <button id="btn-reset-image-crop" class="btn btn-secondary">Reset</button>
           <button id="btn-cancel-image-crop" class="btn btn-secondary">Cancel</button>
           <button id="btn-apply-image-crop" class="btn btn-primary">Apply crop</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="local-documents-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="local-documents-title">
+      <div class="modal-backdrop"></div>
+      <div class="modal-panel cloud-documents-panel">
+        <div class="modal-header">
+          <h2 id="local-documents-title">本地文档历史</h2>
+          <button id="btn-close-local-documents" class="btn-icon icon-close" title="关闭" aria-label="关闭"></button>
+        </div>
+        <div class="modal-body">
+          <div class="cloud-library-header">
+            <span id="local-folder-name">尚未选择文件夹</span>
+            <div>
+              <button id="btn-choose-local-folder" class="btn btn-small btn-primary" type="button">选择文件夹</button>
+              <button id="btn-refresh-local-documents" class="btn btn-small btn-secondary" type="button">刷新</button>
+            </div>
+          </div>
+          <p class="local-folder-help">SmartPages 只显示由它创建的 .md、.html 和 .txt 文档。</p>
+          <div id="local-documents-list" class="cloud-documents-list"></div>
+          <p id="local-dialog-status" class="cloud-dialog-status hidden" aria-live="polite"></p>
         </div>
       </div>
     </div>

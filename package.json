@@ -1,6 +1,6 @@
 {
   "name": "smartpages",
-  "version": "1.0.0",
+  "version": "1.3.0",
   "description": "智能网页文档助手浏览器插件",
   "scripts": {
     "dev": "vite build --watch",
