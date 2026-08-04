@@ -30,7 +30,7 @@ The slow part of writing a user guide, test case, or bug report is rarely the wo
 
 | Automatic capture | AI-generated docs | Flexible delivery |
 | --- | --- | --- |
-| Record clicks, input, navigation, and step screenshots | Create guides, tutorials, test cases, and bug reports | Edit and refine, then export to Markdown, HTML, text, or PDF |
+| Record clicks, input, navigation, and step screenshots | Create guides, tutorials, test cases, and bug reports | Edit and refine, save locally or in the cloud, and export in multiple formats |
 
 - **Bring your preferred model:** use GPT, Gemini, Claude, DeepSeek, or a custom OpenAI-compatible API.
 - **Control the writing style:** configure prompts, style guides, and example documents for consistent output.
@@ -42,16 +42,9 @@ The slow part of writing a user guide, test case, or bug report is rarely the wo
 2. Complete the workflow normally while SmartPages captures steps and screenshots.
 3. Stop recording and choose a document type or custom goal in the side panel.
 4. Generate the document with your configured model.
-5. Edit or refine the result, then copy or export it.
+5. Edit or refine the result, then save it locally or in the cloud, copy it, or export it.
 
 ## Installation
-
-### Load the source directory
-
-1. Download or clone this repository.
-2. Open `chrome://extensions/` or `edge://extensions/`.
-3. Enable Developer mode.
-4. Choose **Load unpacked** and select the project root.
 
 ### Build and load `dist/`
 
@@ -62,7 +55,11 @@ npm install
 npm run build
 ```
 
-Return to the extensions page and load the project's `dist/` directory. After code changes, run `npm run build` again and refresh the extension.
+1. Open `chrome://extensions/` or `edge://extensions/`.
+2. Enable Developer mode.
+3. Choose **Load unpacked** and select the project's `dist/` directory.
+
+After changing the code, run `npm run build` again, then select **Reload** on the extensions page. Do not load the source root directly.
 
 ## Quick Start
 
@@ -71,7 +68,7 @@ Return to the extensions page and load the project's `dist/` directory. After co
 3. Open the page you want to document, start recording, and complete the workflow.
 4. Stop recording, choose a document goal in the side panel, and generate.
 5. Edit the preview directly or ask AI to refine it.
-6. Copy the content or export it as Markdown, HTML, plain text, Word, ZIP, an image, or PDF.
+6. Save it to a local folder or an optional Supabase cloud project, copy the content, or export it as Markdown, HTML, plain text, Word, ZIP, an image, or PDF.
 
 > The PDF action opens the browser print dialog. Choose **Save as PDF** to create a fixed-layout file.
 
@@ -82,6 +79,8 @@ Return to the extensions page and load the project's `dist/` directory. After co
 - Record clicks, input, and SPA route changes.
 - Keep a screenshot for each important step.
 - Re-inject the recorder when needed to reduce manual page refreshes.
+- Pause and resume action recording, including interactions inside embedded frames.
+- Record an independent webpage GIF of up to 30 seconds. GIF capture does not add workflow steps or trigger document generation.
 
 ### Generate documentation for the job
 
@@ -94,8 +93,15 @@ Return to the extensions page and load the project's `dist/` directory. After co
 
 - Edit the rendered preview directly or switch to Markdown source.
 - Refine with AI and revert to the previous version.
-- Copy, download, and export in multiple formats.
+- Copy, download, and export in multiple formats, with less-frequent actions grouped under the **More** menu.
 - Manage TXT, Markdown, HTML, and RTF document resources.
+
+### Save, sync, and manage documents
+
+- Save generated documents to a folder selected by the user and reopen them from local history.
+- Return to the document you were editing after opening a historical document, preserving the current context.
+- Optionally configure Supabase, sign in, and save documents and screenshots for access across devices.
+- Cloud sync, workflow export and test runs, and HTML export settings are grouped in the editor's **More** menu.
 
 ## Product Tour
 
@@ -106,8 +112,8 @@ Return to the extensions page and load the project's `dist/` directory. After co
 | Surface | Purpose |
 | --- | --- |
 | Popup | Start or stop recording, check status, and open the document assistant |
-| Side Panel | Generate, edit, refine, and export documents |
-| Settings | Configure models, prompts, style guides, examples, and output formats |
+| Side Panel | Generate, edit, refine, save, sync, and export documents, with local and cloud history |
+| Settings | Configure models, prompts, style guides, examples, output formats, Supabase, and Agent Bridge |
 
 ## Model Compatibility
 
@@ -122,6 +128,8 @@ Model names, base URLs, context limits, and pricing vary by provider. Refer to t
 
 - API keys are stored in Chrome Storage and are not committed to the repository.
 - Recorded data is sent only to the model API you configure when you generate a document.
+- Supabase cloud sync is disabled by default. Documents and related screenshots are uploaded only after the user configures a project, signs in, and explicitly saves them.
+- Local history uses only a folder the user explicitly authorizes through the browser's directory picker.
 - Extension pages use Manifest V3 CSP, and third-party scripts are bundled locally.
 - Dynamic HTML is sanitized before rendering and export to reduce XSS risk.
 - Generation prompts instruct the model to mask passwords, tokens, phone numbers, and identity numbers. You should still avoid recording sensitive information whenever possible.
@@ -143,6 +151,7 @@ More project documentation:
 - [Testing guide](TESTING.md)
 - [Troubleshooting](TROUBLESHOOTING.md)
 - [Code structure](CODE_STRUCTURE.md)
+- [Supabase cloud document setup](docs/cloud-storage-supabase.md)
 - [Example documents](docs/examples/README.md)
 
 Issues and pull requests are welcome. Please read the [Contributor License Agreement](CONTRIBUTING.en.md) before contributing.
@@ -194,5 +203,20 @@ Usage:
 4. Copy the host, port, and token printed in the terminal.
 5. Open SmartPages settings, enable “Local Agent Bridge”, enter the port and token, then click “Test Agent Bridge”.
 6. Configure your agent to use `smartpages-mcp`, then call `list_workflows`, `start_run`, `get_run_status`, and `cancel_run`.
+
+### First-time Setup Checklist
+
+1. Enable Developer mode at `chrome://extensions` and load the project's `dist/` directory, not the source root. After changing the code, run `npm run build`, then select **Reload** on the extensions page.
+2. Save the model API key on the Settings page. The saved key remains in the extension's local configuration, so you do not need to enter it again after reloading the extension.
+3. After enabling Local Agent Bridge, configure the extension with `127.0.0.1`, the bridge port, and the token from `bridge-token.json`. Select **Test Agent Bridge** to establish the connection.
+4. When the extension requests site access, allow the workflow's target site. For example, a local demo page requires access to `http://localhost/*`.
+5. Open the page required by the workflow's first step in the **desktop Chrome instance where SmartPages is installed**. The agent can replay actions only through that extension; other browser instances and embedded browser tabs are not controlled by the bridge.
+
+### Agent Replay and Troubleshooting
+
+- `start_run` validates the workflow schema, allowed origins, runtime variables, and first-step preconditions before performing any page action. If any check fails, the workflow does not run.
+- The workflow prefers an already-open tab that matches the first step's URL precondition, preventing execution on the wrong page within the same site.
+- If the bridge disconnects, the extension attempts to reconnect automatically. You can also select **Test Agent Bridge** on the Settings page to reconnect immediately.
+- Do not store API keys, bridge tokens, passwords, or other sensitive values in `.smartpages.json` files or commit them to the repository.
 
 The first version only supports local calls. SmartPages does not expose arbitrary JavaScript execution, arbitrary file reads, or tools that bypass browser extension permissions; high-risk actions still require confirmation inside the extension before dispatch.
