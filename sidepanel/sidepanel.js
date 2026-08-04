@@ -503,6 +503,7 @@ ${bodyHtml}
     this.localDrafts = new LocalDocumentDraftStore();
     this.localDocuments = new LocalDirectoryDocumentStore();
     this.localDocumentState = { fileName: null, dirty: true };
+    this.documentNavigationStack = [];
     this.cloudDocumentState = { id: null, revision: 0, dirty: true };
     this.isCloudAuthenticating = false;
     this._saveDraftDebounced = debounce(() => this._saveLocalDraft(), 500);
@@ -560,6 +561,7 @@ ${bodyHtml}
     this._bindButton('btn-download', () => this.downloadDocument());
     this._bindButton('btn-local-save', () => this.saveCurrentDocumentLocally());
     this._bindButton('btn-local-documents', () => this.openLocalDocumentsDialog());
+    this._bindButton('btn-document-back', () => this.returnToPreviousDocument());
     this._bindButton('btn-close-local-documents', () => this.closeLocalDocumentsDialog());
     this._bindButton('btn-choose-local-folder', () => this.chooseLocalDocumentsFolder());
     this._bindButton('btn-refresh-local-documents', () => this.loadLocalDocuments());
@@ -1169,6 +1171,7 @@ ${bodyHtml}
     };
     setButton('#btn-local-save', localText.save);
     setButton('#btn-local-documents', localText.library);
+    setButton('#btn-document-back', isEn ? 'Back to Previous' : '返回上一文档');
     set('#local-documents-title', localText.title);
     setButton('#btn-choose-local-folder', localText.choose);
     setButton('#btn-refresh-local-documents', localText.refresh);
@@ -2962,10 +2965,54 @@ ${markdown}`;
     return item;
   }
 
+  _pushCurrentDocumentForNavigation() {
+    const content = document.getElementById('markdown-editor')?.value || '';
+    if (!content.trim()) return;
+    this.documentNavigationStack.push({
+      content,
+      format: this._getOutputFormat(),
+      localDocumentState: { ...this.localDocumentState },
+      cloudDocumentState: { ...this.cloudDocumentState }
+    });
+    if (this.documentNavigationStack.length > 20) this.documentNavigationStack.shift();
+    this._updateDocumentBackButton();
+  }
+
+  _updateDocumentBackButton() {
+    document.getElementById('btn-document-back')?.classList.toggle('hidden', !this.documentNavigationStack.length);
+  }
+
+  async returnToPreviousDocument() {
+    const previous = this.documentNavigationStack.pop();
+    if (!previous) return;
+    this.config = { ...(this.config || {}), outputFormat: previous.format || 'markdown' };
+    this.showEditor();
+    this._setEditorContent(previous.content || '');
+    this.localDocumentState = { fileName: null, dirty: true, ...(previous.localDocumentState || {}) };
+    this.cloudDocumentState = { id: null, revision: 0, dirty: true, ...(previous.cloudDocumentState || {}) };
+    this._setLocalSaveStatus(
+      this.localDocumentState.fileName && !this.localDocumentState.dirty
+        ? (this.language === 'en-US' ? 'Saved locally' : '已保存本地')
+        : (this.language === 'en-US' ? 'Not saved locally' : '未保存本地'),
+      this.localDocumentState.fileName && !this.localDocumentState.dirty ? 'saved' : ''
+    );
+    this._setCloudSaveStatus(
+      this.cloudDocumentState.id && !this.cloudDocumentState.dirty
+        ? (this.language === 'en-US' ? 'Saved' : '已保存')
+        : (this.language === 'en-US' ? 'Unsaved' : '未保存'),
+      this.cloudDocumentState.id && !this.cloudDocumentState.dirty ? 'saved' : ''
+    );
+    await this._saveLocalDraft();
+    this.closeLocalDocumentsDialog();
+    this.closeCloudDocumentsDialog();
+    this._updateDocumentBackButton();
+  }
+
   async openLocalDocument(fileName) {
     this._setLocalDialogStatus(this.language === 'en-US' ? 'Opening document...' : '正在打开文档...');
     try {
       const localDocument = await this.localDocuments.getDocument(fileName);
+      this._pushCurrentDocumentForNavigation();
       this.config = { ...(this.config || {}), outputFormat: localDocument.format };
       this.cloudDocumentState = { id: null, revision: 0, dirty: true };
       this.showEditor();
@@ -3199,6 +3246,7 @@ ${markdown}`;
     this._setCloudDialogStatus(this.language === 'en-US' ? 'Opening document...' : '正在打开文档...');
     try {
       const cloudDocument = await this.cloudDocuments.getDocument(id);
+      this._pushCurrentDocumentForNavigation();
       this.config = { ...(this.config || {}), outputFormat: cloudDocument.format || 'markdown' };
       this.localDocumentState = { fileName: null, dirty: true };
       this.showEditor();
@@ -4162,6 +4210,8 @@ ${bodyHtml}
 
   newDocument() {
     this.session = null;
+    this.documentNavigationStack = [];
+    this._updateDocumentBackButton();
     this.localDocumentState = { fileName: null, dirty: true };
     this.cloudDocumentState = { id: null, revision: 0, dirty: true };
     this.localDrafts.clear().catch(error => console.warn('[SmartPages:Draft] Failed to clear draft:', error));
