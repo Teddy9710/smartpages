@@ -558,6 +558,7 @@ ${bodyHtml}
     this._bindButton('btn-preview', () => this.switchToPreview());
     this._bindButton('btn-edit', () => this.switchToEdit());
     this._bindButton('btn-copy', () => this.copyDocument());
+    this._bindButton('btn-more-tools', event => this.toggleToolbarMenu(event));
     this._bindButton('btn-download', () => this.downloadDocument());
     this._bindButton('btn-local-save', () => this.saveCurrentDocumentLocally());
     this._bindButton('btn-local-documents', () => this.openLocalDocumentsDialog());
@@ -597,6 +598,7 @@ ${bodyHtml}
     this._bindButton('btn-image-mode-number', () => this.setImageEditMode('number'));
     this._bindButton('btn-image-mode-blur', () => this.setImageEditMode('blur'));
     this._bindButton('btn-upload-html-css', () => this._openHtmlCssFilePicker());
+    this._bindToolbarMenuEvents();
     this._bindHtmlExportStyleEvents();
     this._bindEditorEvents();
     this._bindImageCropEvents();
@@ -1161,23 +1163,74 @@ ${bodyHtml}
     setButton('#btn-cloud-sign-out', cloudText.signOut);
     this._setCloudSaveStatus(cloudText.unsaved);
     const localText = isEn ? {
-      save: 'Save Local', library: 'Local History', unsaved: 'Not saved locally', title: 'Local Document History',
+      save: 'Save', library: 'History', unsaved: 'Not saved locally', title: 'Local Document History',
       choose: 'Choose Folder', refresh: 'Refresh', noFolder: 'No folder selected',
       help: 'SmartPages only lists .md, .html, and .txt documents created by it.'
     } : {
-      save: '保存本地', library: '本地历史', unsaved: '未保存本地', title: '本地文档历史',
+      save: '保存', library: '历史', unsaved: '未保存本地', title: '本地文档历史',
       choose: '选择文件夹', refresh: '刷新', noFolder: '尚未选择文件夹',
       help: 'SmartPages 只显示由它创建的 .md、.html 和 .txt 文档。'
     };
     setButton('#btn-local-save', localText.save);
     setButton('#btn-local-documents', localText.library);
-    setButton('#btn-document-back', isEn ? 'Back to Previous' : '返回上一文档');
+    setButton('#btn-document-back', isEn ? 'Back' : '返回');
     set('#local-documents-title', localText.title);
     setButton('#btn-choose-local-folder', localText.choose);
     setButton('#btn-refresh-local-documents', localText.refresh);
     set('#local-folder-name', localText.noFolder);
     set('.local-folder-help', localText.help);
     this._setLocalSaveStatus(localText.unsaved);
+    const moreText = isEn ? {
+      more: 'More', export: 'Export document', cloud: 'Cloud sync', workflow: 'Workflow', html: 'HTML export settings'
+    } : {
+      more: '更多', export: '导出文档', cloud: '云端同步', workflow: '工作流', html: 'HTML 导出设置'
+    };
+    setButton('#btn-more-tools', moreText.more);
+    set('#toolbar-export-title', moreText.export);
+    set('#toolbar-cloud-title', moreText.cloud);
+    set('#toolbar-workflow-title', moreText.workflow);
+    set('#toolbar-html-title', moreText.html);
+  }
+
+  _bindToolbarMenuEvents() {
+    const menu = document.getElementById('toolbar-more-menu');
+    const wrap = document.querySelector('.toolbar-more-wrap');
+    if (!menu || !wrap) return;
+
+    const handleDocumentClick = event => {
+      if (!wrap.contains(event.target)) this.closeToolbarMenu();
+    };
+    const handleDocumentKeydown = event => {
+      if (event.key === 'Escape') this.closeToolbarMenu(true);
+    };
+    const handleMenuClick = event => {
+      if (event.target.closest('button')) this.closeToolbarMenu();
+    };
+
+    document.addEventListener('click', handleDocumentClick);
+    document.addEventListener('keydown', handleDocumentKeydown);
+    menu.addEventListener('click', handleMenuClick);
+    this.cleanupFunctions.push(() => document.removeEventListener('click', handleDocumentClick));
+    this.cleanupFunctions.push(() => document.removeEventListener('keydown', handleDocumentKeydown));
+    this.cleanupFunctions.push(() => menu.removeEventListener('click', handleMenuClick));
+  }
+
+  toggleToolbarMenu(event) {
+    event?.stopPropagation();
+    const menu = document.getElementById('toolbar-more-menu');
+    const button = document.getElementById('btn-more-tools');
+    if (!menu || !button) return;
+    const willOpen = menu.classList.contains('hidden');
+    menu.classList.toggle('hidden', !willOpen);
+    button.setAttribute('aria-expanded', String(willOpen));
+  }
+
+  closeToolbarMenu(focusButton = false) {
+    const menu = document.getElementById('toolbar-more-menu');
+    const button = document.getElementById('btn-more-tools');
+    menu?.classList.add('hidden');
+    button?.setAttribute('aria-expanded', 'false');
+    if (focusButton) button?.focus();
   }
 
   // ========================================================================

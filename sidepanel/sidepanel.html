@@ -101,13 +101,15 @@
     <!-- 文档编辑器 -->
     <div id="document-editor-state" class="state-view hidden">
       <div class="editor-toolbar">
-        <button id="btn-preview" class="btn-tool active" title="预览模式">
-          <span class="icon icon-preview" aria-hidden="true"></span> 预览
-        </button>
-        <button id="btn-edit" class="btn-tool" title="编辑模式">
-          <span class="icon icon-edit" aria-hidden="true"></span> 编辑
-        </button>
-        <div class="toolbar-spacer"></div>
+        <div class="toolbar-view-switch" role="group" aria-label="文档查看模式">
+          <button id="btn-preview" class="btn-tool active" title="预览模式">
+            <span class="icon icon-preview" aria-hidden="true"></span> 预览
+          </button>
+          <button id="btn-edit" class="btn-tool" title="编辑模式">
+            <span class="icon icon-edit" aria-hidden="true"></span> 编辑
+          </button>
+        </div>
+        <div class="toolbar-divider" aria-hidden="true"></div>
         <button id="btn-ai-optimize" class="btn-tool btn-tool-primary" title="AI优化文档">
           <span class="icon icon-ai" aria-hidden="true">AI</span> 优化
         </button>
@@ -117,63 +119,91 @@
         <button id="btn-copy" class="btn-tool" title="复制Markdown">
           <span class="icon icon-copy" aria-hidden="true"></span> 复制
         </button>
-        <button id="btn-download" class="btn-tool" title="下载文件">
-          <span class="icon icon-download" aria-hidden="true"></span> 下载
-        </button>
         <button id="btn-local-save" class="btn-tool btn-tool-primary" title="保存到本地文件夹">
-          <span class="icon" aria-hidden="true">▣</span> 保存本地
+          <span class="icon" aria-hidden="true">▣</span> 保存
         </button>
         <button id="btn-local-documents" class="btn-tool" title="打开本地历史">
-          <span class="icon" aria-hidden="true">☰</span> 本地历史
+          <span class="icon" aria-hidden="true">☰</span> 历史
         </button>
         <button id="btn-document-back" class="btn-tool hidden" title="返回刚才查看的文档">
-          <span class="icon" aria-hidden="true">↩</span> 返回上一文档
+          <span class="icon" aria-hidden="true">↩</span> 返回
         </button>
-        <span id="local-save-status" class="cloud-save-status" aria-live="polite">未保存本地</span>
-        <button id="btn-cloud-save" class="btn-tool btn-tool-primary" title="保存到云端">
-          <span class="icon" aria-hidden="true">☁</span> 保存云端
-        </button>
-        <button id="btn-cloud-documents" class="btn-tool" title="打开云端文档">
-          <span class="icon" aria-hidden="true">☰</span> 云端文档
-        </button>
-        <span id="cloud-save-status" class="cloud-save-status" aria-live="polite">未保存</span>
-        <button id="btn-export-workflow" class="btn-tool" title="导出可执行工作流" aria-label="导出可执行工作流">
-          <span class="icon" aria-hidden="true">JSON</span> 工作流
-        </button>
-        <button id="btn-run-workflow" class="btn-tool" title="测试运行工作流" aria-label="测试运行工作流">
-          <span class="icon" aria-hidden="true">▶</span> 测试运行
-        </button>
-        <button id="btn-export-html" class="btn-tool" title="导出HTML文件">
-          <span class="icon icon-html" aria-hidden="true">HTML</span> HTML
-        </button>
-        <button id="btn-export-word" class="btn-tool" title="导出Word文件">
-          <span class="icon icon-word" aria-hidden="true">DOC</span> Word
-        </button>
-        <button id="btn-export-pdf" class="btn-tool" title="导出PDF文件">
-          <span class="icon icon-pdf" aria-hidden="true">PDF</span> PDF
-        </button>
-        <label class="toolbar-select" title="HTML图片导出方式">
-          <span id="export-image-mode-label">图片</span>
-          <select id="export-image-mode">
-            <option value="inline">内联</option>
-            <option value="linked">资源包</option>
-          </select>
-        </label>
-        <label class="toolbar-select" title="HTML样式来源">
-          <span id="export-style-mode-label">样式</span>
-          <select id="export-style-mode">
-            <option value="default">默认</option>
-            <option value="upload">上传CSS</option>
-            <option value="ai" disabled>AI生成</option>
-          </select>
-        </label>
-        <button id="btn-upload-html-css" class="btn-tool hidden" title="上传CSS样式">
-          <span class="icon icon-css" aria-hidden="true">CSS</span> CSS
-        </button>
-        <input type="file" id="html-css-file" accept=".css,text/css" style="display: none;">
-        <button id="btn-clear-cache" class="btn-tool" title="清理录制缓存">
-          <span class="icon icon-clean" aria-hidden="true"></span> 清理缓存
-        </button>
+        <span id="local-save-status" class="cloud-save-status toolbar-save-status" aria-live="polite">未保存本地</span>
+        <div class="toolbar-spacer"></div>
+        <div class="toolbar-more-wrap">
+          <button id="btn-more-tools" class="btn-tool" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="toolbar-more-menu">
+            <span class="icon toolbar-more-icon" aria-hidden="true">•••</span> 更多
+          </button>
+          <div id="toolbar-more-menu" class="toolbar-more-menu hidden" role="menu" aria-labelledby="btn-more-tools">
+            <section class="toolbar-menu-section" aria-labelledby="toolbar-export-title">
+              <h3 id="toolbar-export-title">导出文档</h3>
+              <div class="toolbar-menu-grid">
+                <button id="btn-download" class="btn-tool" title="下载当前格式文件">
+                  <span class="icon icon-download" aria-hidden="true"></span> 当前格式
+                </button>
+                <button id="btn-export-html" class="btn-tool" title="导出HTML文件">
+                  <span class="icon icon-html" aria-hidden="true">HTML</span> HTML
+                </button>
+                <button id="btn-export-word" class="btn-tool" title="导出Word文件">
+                  <span class="icon icon-word" aria-hidden="true">DOC</span> Word
+                </button>
+                <button id="btn-export-pdf" class="btn-tool" title="导出PDF文件">
+                  <span class="icon icon-pdf" aria-hidden="true">PDF</span> PDF
+                </button>
+              </div>
+            </section>
+            <section class="toolbar-menu-section" aria-labelledby="toolbar-cloud-title">
+              <h3 id="toolbar-cloud-title">云端同步</h3>
+              <div class="toolbar-menu-grid">
+                <button id="btn-cloud-save" class="btn-tool btn-tool-primary" title="保存到云端">
+                  <span class="icon" aria-hidden="true">☁</span> 保存云端
+                </button>
+                <button id="btn-cloud-documents" class="btn-tool" title="打开云端文档">
+                  <span class="icon" aria-hidden="true">☰</span> 云端文档
+                </button>
+              </div>
+              <span id="cloud-save-status" class="cloud-save-status toolbar-menu-status" aria-live="polite">未保存</span>
+            </section>
+            <section class="toolbar-menu-section" aria-labelledby="toolbar-workflow-title">
+              <h3 id="toolbar-workflow-title">工作流</h3>
+              <div class="toolbar-menu-grid">
+                <button id="btn-export-workflow" class="btn-tool" title="导出可执行工作流" aria-label="导出可执行工作流">
+                  <span class="icon" aria-hidden="true">JSON</span> 导出工作流
+                </button>
+                <button id="btn-run-workflow" class="btn-tool" title="测试运行工作流" aria-label="测试运行工作流">
+                  <span class="icon" aria-hidden="true">▶</span> 测试运行
+                </button>
+              </div>
+            </section>
+            <section class="toolbar-menu-section" aria-labelledby="toolbar-html-title">
+              <h3 id="toolbar-html-title">HTML 导出设置</h3>
+              <label class="toolbar-select" title="HTML图片导出方式">
+                <span id="export-image-mode-label">图片</span>
+                <select id="export-image-mode">
+                  <option value="inline">内联</option>
+                  <option value="linked">资源包</option>
+                </select>
+              </label>
+              <label class="toolbar-select" title="HTML样式来源">
+                <span id="export-style-mode-label">样式</span>
+                <select id="export-style-mode">
+                  <option value="default">默认</option>
+                  <option value="upload">上传CSS</option>
+                  <option value="ai" disabled>AI生成</option>
+                </select>
+              </label>
+              <button id="btn-upload-html-css" class="btn-tool hidden" title="上传CSS样式">
+                <span class="icon icon-css" aria-hidden="true">CSS</span> 选择 CSS 文件
+              </button>
+              <input type="file" id="html-css-file" accept=".css,text/css" style="display: none;">
+            </section>
+            <section class="toolbar-menu-section toolbar-menu-section-last">
+              <button id="btn-clear-cache" class="btn-tool toolbar-menu-danger" title="清理录制缓存">
+                <span class="icon icon-clean" aria-hidden="true"></span> 清理录制缓存
+              </button>
+            </section>
+          </div>
+        </div>
       </div>
       <section id="workflow-run-panel" class="workflow-run-panel hidden" role="region" aria-live="polite" aria-labelledby="workflow-run-status" tabindex="-1">
         <div class="workflow-run-heading"><strong id="workflow-run-status">测试运行</strong><span id="workflow-run-step" class="workflow-run-step"></span></div>

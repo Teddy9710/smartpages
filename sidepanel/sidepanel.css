@@ -2087,3 +2087,158 @@ body {
 .workflow-run-inputs input { min-width: 0; padding: 6px 8px; }
 .workflow-run-actions { margin-top: 8px; }
 .workflow-run-actions .btn { min-height: 30px; padding: 5px 10px; }
+
+/* Editor action hierarchy: keep frequent actions visible and move advanced tools into one menu. */
+.toolbar-view-switch {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 2px;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.toolbar-view-switch .btn-tool {
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 0;
+}
+
+.toolbar-divider {
+  align-self: stretch;
+  width: 1px;
+  min-height: 26px;
+  margin: 3px 2px;
+  background: #dbe3ee;
+}
+
+.toolbar-save-status {
+  max-width: 104px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toolbar-more-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.toolbar-more-icon {
+  position: relative;
+  top: -2px;
+  letter-spacing: 1px;
+  font-weight: 800;
+}
+
+.toolbar-more-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(620px, calc(100vh - 150px));
+  overflow-y: auto;
+  border: 1px solid #dbe3ee;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.18);
+}
+
+.toolbar-menu-section {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid #edf1f5;
+}
+
+.toolbar-menu-section-last {
+  border-bottom: 0;
+}
+
+.toolbar-menu-section h3 {
+  margin: 0;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.toolbar-menu-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.toolbar-more-menu .btn-tool {
+  width: 100%;
+  min-width: 0;
+  justify-content: flex-start;
+  padding: 8px 10px;
+  border-color: #e4e9f0;
+  background: #fff;
+  text-align: left;
+}
+
+.toolbar-more-menu .btn-tool:hover {
+  border-color: #bfdbfe;
+  background: #f8fbff;
+}
+
+.toolbar-more-menu .btn-tool-primary {
+  border-color: #99f6e4;
+  background: #f0fdfa;
+}
+
+.toolbar-more-menu .toolbar-select {
+  width: 100%;
+  min-height: 36px;
+  justify-content: space-between;
+  padding: 6px 10px;
+}
+
+.toolbar-more-menu .toolbar-select select {
+  max-width: 150px;
+}
+
+.toolbar-menu-status {
+  padding-left: 2px;
+}
+
+.toolbar-menu-danger {
+  color: #b42318;
+}
+
+@media (max-width: 720px) {
+  #document-editor-state .editor-toolbar {
+    gap: 5px;
+    padding: 8px;
+  }
+
+  #document-editor-state .editor-toolbar > .btn-tool,
+  #document-editor-state .toolbar-more-wrap > .btn-tool {
+    flex: 0 0 auto;
+    min-width: 0;
+    padding: 7px 8px;
+  }
+
+  .toolbar-divider,
+  .toolbar-save-status {
+    display: none;
+  }
+
+  #document-editor-state .toolbar-spacer {
+    display: block;
+  }
+}
+
+@media (max-width: 430px) {
+  #btn-copy {
+    display: none;
+  }
+
+  .toolbar-more-menu {
+    right: -2px;
+  }
+}
