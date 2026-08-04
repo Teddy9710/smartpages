@@ -507,6 +507,20 @@ function validateUrl(urlString, allowedProtocols = ['https:', 'http:']) {
   }
 }
 
+function isLocalOrPrivateUrl(urlString) {
+  try {
+    const { hostname } = new URL(urlString);
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return true;
+    const parts = hostname.split('.').map(Number);
+    if (parts[0] === 10) return true;
+    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+    if (parts[0] === 192 && parts[1] === 168) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 function normalizeBaseUrl(baseUrl, fallback = 'https://api.openai.com/v1') {
   return String(baseUrl || fallback).trim().replace(/\/+$/, '');
 }
@@ -527,9 +541,15 @@ function buildModelApiRequest(config = {}, prompt, options = {}) {
     throw new ExtensionError('API Key is required. Please configure it in settings.', 'API_KEY_MISSING');
   }
 
-  const urlValidation = validateUrl(baseUrl, ['https:']);
+  const urlValidation = validateUrl(baseUrl);
   if (!urlValidation.valid) {
-    throw new ExtensionError('API Base URL must use HTTPS to protect API keys in transit.', 'INSECURE_URL');
+    throw new ExtensionError('API Base URL is not a valid URL.', 'INSECURE_URL');
+  }
+  if (new URL(baseUrl).protocol !== 'https:' && !isLocalOrPrivateUrl(baseUrl)) {
+    throw new ExtensionError(
+      'Remote API endpoints must use HTTPS to prevent network-level interception of API keys.',
+      'INSECURE_URL'
+    );
   }
 
   if (apiFormat === 'anthropic') {
@@ -819,6 +839,7 @@ if (typeof module !== 'undefined' && module.exports) {
     loadConfig,
     fetchWithTimeout,
     validateUrl,
+    isLocalOrPrivateUrl,
     normalizeBaseUrl,
     getApiFormat,
     buildModelApiRequest,
