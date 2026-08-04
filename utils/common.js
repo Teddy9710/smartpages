@@ -527,6 +527,11 @@ function buildModelApiRequest(config = {}, prompt, options = {}) {
     throw new ExtensionError('API Key is required. Please configure it in settings.', 'API_KEY_MISSING');
   }
 
+  const urlValidation = validateUrl(baseUrl, ['https:']);
+  if (!urlValidation.valid) {
+    throw new ExtensionError('API Base URL must use HTTPS to protect API keys in transit.', 'INSECURE_URL');
+  }
+
   if (apiFormat === 'anthropic') {
     return {
       url: `${baseUrl}/messages`,
