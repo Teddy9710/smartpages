@@ -507,6 +507,20 @@ function validateUrl(urlString, allowedProtocols = ['https:', 'http:']) {
   }
 }
 
+function isLoopbackUrl(urlString) {
+  try {
+    const { hostname } = new URL(urlString);
+    if (hostname === 'localhost' || hostname === '[::1]') return true;
+    const parts = hostname.split('.');
+    if (parts.length !== 4) return false;
+    const nums = parts.map(Number);
+    if (nums.some(n => !Number.isInteger(n) || n < 0 || n > 255)) return false;
+    return nums[0] === 127;
+  } catch {
+    return false;
+  }
+}
+
 function normalizeBaseUrl(baseUrl, fallback = 'https://api.openai.com/v1') {
   return String(baseUrl || fallback).trim().replace(/\/+$/, '');
 }
@@ -525,6 +539,17 @@ function buildModelApiRequest(config = {}, prompt, options = {}) {
 
   if (!apiKey) {
     throw new ExtensionError('API Key is required. Please configure it in settings.', 'API_KEY_MISSING');
+  }
+
+  const urlValidation = validateUrl(baseUrl);
+  if (!urlValidation.valid) {
+    throw new ExtensionError('API Base URL is not a valid URL.', 'INSECURE_URL');
+  }
+  if (new URL(baseUrl).protocol !== 'https:' && !isLoopbackUrl(baseUrl)) {
+    throw new ExtensionError(
+      'Non-loopback API endpoints must use HTTPS to prevent network-level interception of API keys.',
+      'INSECURE_URL'
+    );
   }
 
   if (apiFormat === 'anthropic') {
@@ -814,6 +839,7 @@ if (typeof module !== 'undefined' && module.exports) {
     loadConfig,
     fetchWithTimeout,
     validateUrl,
+    isLoopbackUrl,
     normalizeBaseUrl,
     getApiFormat,
     buildModelApiRequest,
