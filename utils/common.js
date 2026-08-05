@@ -507,15 +507,15 @@ function validateUrl(urlString, allowedProtocols = ['https:', 'http:']) {
   }
 }
 
-function isLocalOrPrivateUrl(urlString) {
+function isLoopbackUrl(urlString) {
   try {
     const { hostname } = new URL(urlString);
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return true;
-    const parts = hostname.split('.').map(Number);
-    if (parts[0] === 10) return true;
-    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
-    if (parts[0] === 192 && parts[1] === 168) return true;
-    return false;
+    if (hostname === 'localhost' || hostname === '[::1]') return true;
+    const parts = hostname.split('.');
+    if (parts.length !== 4) return false;
+    const nums = parts.map(Number);
+    if (nums.some(n => !Number.isInteger(n) || n < 0 || n > 255)) return false;
+    return nums[0] === 127;
   } catch {
     return false;
   }
@@ -545,9 +545,9 @@ function buildModelApiRequest(config = {}, prompt, options = {}) {
   if (!urlValidation.valid) {
     throw new ExtensionError('API Base URL is not a valid URL.', 'INSECURE_URL');
   }
-  if (new URL(baseUrl).protocol !== 'https:' && !isLocalOrPrivateUrl(baseUrl)) {
+  if (new URL(baseUrl).protocol !== 'https:' && !isLoopbackUrl(baseUrl)) {
     throw new ExtensionError(
-      'Remote API endpoints must use HTTPS to prevent network-level interception of API keys.',
+      'Non-loopback API endpoints must use HTTPS to prevent network-level interception of API keys.',
       'INSECURE_URL'
     );
   }
@@ -839,7 +839,7 @@ if (typeof module !== 'undefined' && module.exports) {
     loadConfig,
     fetchWithTimeout,
     validateUrl,
-    isLocalOrPrivateUrl,
+    isLoopbackUrl,
     normalizeBaseUrl,
     getApiFormat,
     buildModelApiRequest,
