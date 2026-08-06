@@ -36,6 +36,9 @@ const DEFAULT_MAX_TOKENS = 4000;
 /** @constant {number} DEFAULT_MAX_INPUT_TOKENS - Default model input budget */
 const DEFAULT_MAX_INPUT_TOKENS = 200000;
 
+/** @constant {number} MAX_MODEL_SCREENSHOTS - Maximum screenshots attached to one model request */
+const MAX_MODEL_SCREENSHOTS = 12;
+
 /** @constant {number} MIN_MAX_TOKENS - Minimum configurable output tokens */
 const MIN_MAX_TOKENS = 500;
 
@@ -529,6 +532,58 @@ function getApiFormat(config = {}) {
   return config.apiFormat === 'anthropic' ? 'anthropic' : DEFAULT_API_FORMAT;
 }
 
+function parseModelImageDataUrl(dataUrl) {
+  const match = String(dataUrl || '').match(
+    /^data:image\/(png|jpe?g|gif|webp);base64,([a-z0-9+/=\s]+)$/i
+  );
+  if (!match) return null;
+
+  const subtype = match[1].toLowerCase();
+  return {
+    mediaType: `image/${subtype === 'jpg' ? 'jpeg' : subtype}`,
+    data: match[2].replace(/\s+/g, ''),
+    dataUrl: `data:image/${subtype === 'jpg' ? 'jpeg' : subtype};base64,${match[2].replace(/\s+/g, '')}`
+  };
+}
+
+function buildModelUserContent(apiFormat, prompt, images = []) {
+  const normalizedImages = (Array.isArray(images) ? images : [])
+    .map((image, index) => {
+      const parsed = parseModelImageDataUrl(image?.dataUrl);
+      if (!parsed) return null;
+      return {
+        ...parsed,
+        label: String(image?.label || `Screenshot ${index + 1}`).trim()
+      };
+    })
+    .filter(Boolean)
+    .slice(0, MAX_MODEL_SCREENSHOTS);
+
+  if (!normalizedImages.length) return prompt;
+
+  const content = [{ type: 'text', text: prompt }];
+  normalizedImages.forEach((image) => {
+    content.push({ type: 'text', text: image.label });
+    if (apiFormat === 'anthropic') {
+      content.push({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: image.mediaType,
+          data: image.data
+        }
+      });
+      return;
+    }
+
+    content.push({
+      type: 'image_url',
+      image_url: { url: image.dataUrl }
+    });
+  });
+  return content;
+}
+
 function buildModelApiRequest(config = {}, prompt, options = {}) {
   const apiFormat = getApiFormat(config);
   const baseUrl = normalizeBaseUrl(config.baseUrl);
@@ -536,6 +591,7 @@ function buildModelApiRequest(config = {}, prompt, options = {}) {
   const temperature = options.temperature ?? 0.7;
   const model = config.modelName || (apiFormat === 'anthropic' ? 'claude-sonnet-4-20250514' : 'gpt-4o-mini');
   const apiKey = String(config.apiKey || '').trim();
+  const userContent = buildModelUserContent(apiFormat, prompt, options.images);
 
   if (!apiKey) {
     throw new ExtensionError('API Key is required. Please configure it in settings.', 'API_KEY_MISSING');
@@ -566,7 +622,7 @@ function buildModelApiRequest(config = {}, prompt, options = {}) {
           model,
           max_tokens: maxTokens,
           temperature,
-          messages: [{ role: 'user', content: prompt }]
+          messages: [{ role: 'user', content: userContent }]
         })
       }
     };
@@ -582,7 +638,7 @@ function buildModelApiRequest(config = {}, prompt, options = {}) {
       },
       body: JSON.stringify({
         model,
-        messages: [{ role: 'user', content: prompt }],
+        messages: [{ role: 'user', content: userContent }],
         temperature,
         max_tokens: maxTokens
       })
@@ -773,6 +829,7 @@ async function loadConfig() {
     'smartDescription',
     'maxTokens',
     'maxInputTokens',
+    'multimodalEnabled',
     'promptMode',
     'promptAppend',
     'customPrompt',
@@ -780,32 +837,46 @@ async function loadConfig() {
     'apiFormat',
     'appLanguage',
     'styleGuide',
-    'documentExamples'
+    'documentExamples',
+    'providerProfiles',
+    'activeProviderId'
   ]);
-  const parsedMaxTokens = Number.parseInt(result.maxTokens, 10);
+  const providerProfiles = result.providerProfiles && typeof result.providerProfiles === 'object'
+    ? result.providerProfiles
+    : {};
+  const activeProviderId = String(result.activeProviderId || '');
+  const activeProfile = activeProviderId && providerProfiles[activeProviderId]
+    ? providerProfiles[activeProviderId]
+    : null;
+  const parsedMaxTokens = Number.parseInt(activeProfile?.maxTokens ?? result.maxTokens, 10);
   const maxTokens = Number.isFinite(parsedMaxTokens)
     ? Math.min(Math.max(parsedMaxTokens, MIN_MAX_TOKENS), MAX_MAX_TOKENS)
     : DEFAULT_MAX_TOKENS;
-  const parsedMaxInputTokens = Number.parseInt(result.maxInputTokens, 10);
+  const parsedMaxInputTokens = Number.parseInt(activeProfile?.maxInputTokens ?? result.maxInputTokens, 10);
   const maxInputTokens = Number.isFinite(parsedMaxInputTokens)
     ? Math.min(Math.max(parsedMaxInputTokens, MIN_MAX_INPUT_TOKENS), MAX_MAX_INPUT_TOKENS)
     : DEFAULT_MAX_INPUT_TOKENS;
 
   return {
-    apiKey: result.apiKey || '',
-    baseUrl: result.baseUrl || 'https://api.openai.com/v1',
-    modelName: result.modelName || 'gpt-3.5-turbo',
+    apiKey: activeProfile?.apiKey || result.apiKey || '',
+    baseUrl: activeProfile?.baseUrl || result.baseUrl || 'https://api.openai.com/v1',
+    modelName: activeProfile?.modelName || result.modelName || 'gpt-3.5-turbo',
     smartDescription: result.smartDescription !== undefined ? result.smartDescription : true,
     maxTokens,
     maxInputTokens,
+    multimodalEnabled: activeProfile
+      ? activeProfile.multimodalEnabled === true
+      : result.multimodalEnabled === true,
     promptMode: result.promptMode || DEFAULT_PROMPT_MODE,
     promptAppend: result.promptAppend || '',
     customPrompt: result.customPrompt || DEFAULT_PROMPT_TEMPLATE,
     outputFormat: result.outputFormat || DEFAULT_OUTPUT_FORMAT,
-    apiFormat: result.apiFormat || DEFAULT_API_FORMAT,
+    apiFormat: activeProfile?.apiFormat || result.apiFormat || DEFAULT_API_FORMAT,
     appLanguage: result.appLanguage || DEFAULT_APP_LANGUAGE,
     styleGuide: result.styleGuide || '',
-    documentExamples: result.documentExamples || {}
+    documentExamples: result.documentExamples || {},
+    providerProfiles,
+    activeProviderId
   };
 }
 
@@ -842,6 +913,8 @@ if (typeof module !== 'undefined' && module.exports) {
     isLoopbackUrl,
     normalizeBaseUrl,
     getApiFormat,
+    parseModelImageDataUrl,
+    buildModelUserContent,
     buildModelApiRequest,
     extractModelResponseText,
     sendMessage,
@@ -870,6 +943,7 @@ if (typeof module !== 'undefined' && module.exports) {
     DEBOUNCE_DELAY,
     THROTTLE_DELAY,
     DEFAULT_MAX_TOKENS,
-    DEFAULT_MAX_INPUT_TOKENS
+    DEFAULT_MAX_INPUT_TOKENS,
+    MAX_MODEL_SCREENSHOTS
   };
 }

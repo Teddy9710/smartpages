@@ -171,7 +171,7 @@ def build():
     add_h1(doc, '2. 配置模型')
     add_number(doc, '点击扩展图标，打开“设置”，选择模型服务商并填写 API Key。')
     add_number(doc, '推荐选择 GPT / OpenAI、Gemini、Claude、GLM、DeepSeek、Kimi、MiniMax、OpenRouter、SiliconFlow 或阿里云百炼；也可填写自定义 OpenAI-compatible API。')
-    add_number(doc, '点击“测试连接”，成功后点击“保存配置”。最大输出 Token 建议设为 3000–6000。')
+    add_number(doc, '点击“测试连接”，成功后点击“保存配置”。每个服务商会独立保存 API Key、Base URL、模型和图片设置，切换时自动恢复。最大输出 Token 建议设为 3000–6000。')
 
     add_h1(doc, '3. 首次录制与生成')
     add_number(doc, '打开目标网页，点击扩展图标后选择“开始录制”。')
@@ -183,7 +183,7 @@ def build():
     add_bullet(doc, '不要在录制期间输入密码、验证码、Token 或其他敏感信息。')
     add_bullet(doc, '测试连接失败时，检查 API Key、Base URL、模型名称和网络权限。')
     add_bullet(doc, '生成内容过短时，提高最大输出 Token，或改用更适合长文生成的模型。')
-    add_note(doc, '录制步骤和截图会在生成文档时发送给所配置的模型服务。')
+    add_note(doc, '录制步骤会在生成文档时发送给所配置的模型服务。只有启用“模型支持图片输入”后，未隐藏的步骤截图才会随请求发送给模型，每次最多 12 张。')
     doc.core_properties.title = 'SmartPages 配置与首次使用（精简版）'
     doc.core_properties.subject = 'SmartPages 浏览器扩展精简使用指南'
     doc.core_properties.author = 'SmartPages'
@@ -221,7 +221,7 @@ def build():
             r = cell.paragraphs[0].add_run(text)
             set_font(r, size=9.5)
     add_text(doc, '以上是项目当前预设的默认值；只要服务兼容相应 API 格式，也可以在设置页手动填写 Base URL 和模型名称。')
-    add_note(doc, '请勿在录制中输入密码、验证码、访问令牌、身份证号等敏感信息。录制步骤和截图会在生成文档时发送给所配置的模型服务。')
+    add_note(doc, '请勿在录制中输入密码、验证码、访问令牌、身份证号等敏感信息。录制步骤会发送给所配置的模型服务；启用“模型支持图片输入”后，未隐藏的步骤截图也会随请求发送。')
 
     add_h1(doc, '2. 安装扩展')
     add_h2(doc, '方式 A：加载下载并解压的 Release 扩展包')
@@ -240,7 +240,7 @@ def build():
     add_h1(doc, '3. 配置模型服务')
     for item in ['点击浏览器工具栏中的 SmartPages 图标，选择“设置”。', '在“模型服务商”选择所用服务。选择后会自动填写推荐的 Base URL、模型名和 API 格式，均可再手动调整。', '填写 API Key；如使用自定义兼容服务，同时填写 Base URL 和模型名称。', '建议将“最大输出 Token”设为 3000–6000。文档较长时可提高；设置过小可能导致生成内容被截断。', '保持“最大输入 Token”默认值即可。输入很长时，系统会保留前后内容并省略中间部分。', '选择默认输出格式：Markdown、HTML 或纯文本。', '点击“测试连接”。浏览器首次访问该 API 域名时，请允许 SmartPages 请求站点访问权限。', '测试成功后点击“保存配置”。']:
         add_number(doc, item)
-    add_text(doc, 'API Key 和其他配置保存在浏览器的本地存储中，不会写入项目仓库。')
+    add_text(doc, 'API Key 和其他配置按服务商分别保存在浏览器的本地存储中，不会写入项目仓库；正常更新 SmartPages 版本不会清除这些配置。')
     add_h2(doc, '支持的预设服务')
     add_text(doc, '设置页提供 GPT / OpenAI、Gemini、Claude、GLM、DeepSeek、MiniMax、Kimi、OpenRouter、SiliconFlow、阿里云百炼 DashScope，以及“自定义 OpenAI-compatible API”预设。Claude 使用 Anthropic Messages API；其余预设使用 OpenAI-compatible 格式。')
     add_h2(doc, '让生成结果更贴近团队规范（可选）')

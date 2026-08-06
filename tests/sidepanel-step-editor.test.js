@@ -129,3 +129,53 @@ const SidePanelManager = loadSidePanelManager();
   assert.equal(available, 'available');
   assert.equal(missing, 'missing');
 }
+
+{
+  const manager = Object.create(SidePanelManager.prototype);
+  manager.language = 'en-US';
+  manager.session = {
+    steps: Array.from({ length: 15 }, (_, index) => ({
+      screenshot: `data:image/png;base64,${String(index + 1).padStart(4, 'A')}`,
+      includeScreenshot: index === 7 ? false : undefined
+    }))
+  };
+
+  assert.equal(manager._getModelScreenshotInputs({ multimodalEnabled: false }).length, 0);
+  const inputs = manager._getModelScreenshotInputs({ multimodalEnabled: true });
+  assert.equal(inputs.length, 12);
+  assert.match(inputs[0].label, /Screenshot 1/);
+  assert.match(inputs.at(-1).label, /Screenshot 15/);
+  assert.equal(inputs.some(input => /Screenshot 8\b/.test(input.label)), false);
+}
+
+{
+  const manager = Object.create(SidePanelManager.prototype);
+  const leakedAnalysis = `The user wants me to generate a Markdown user guide based on the recorded web operations.
+
+Let me analyze the recorded steps:
+
+Step 1: Open the user menu
+Step 2: Click Profile
+
+So the flow is: repository page to profile page.
+
+# 打开 GitHub 个人主页
+
+## 操作步骤
+
+点击右上角头像。`;
+
+  assert.equal(
+    manager._normalizeGeneratedContent(leakedAnalysis, 'markdown'),
+    '# 打开 GitHub 个人主页\n\n## 操作步骤\n\n点击右上角头像。'
+  );
+  assert.equal(
+    manager._normalizeGeneratedContent('普通介绍段落。\n\n# 正式标题\n\n正文。', 'markdown'),
+    '普通介绍段落。\n\n# 正式标题\n\n正文。',
+    'normal introductory prose must not be removed'
+  );
+  assert.equal(
+    manager._normalizeGeneratedContent('<think>internal reasoning</think>\n# 标题\n\n正文。', 'markdown'),
+    '# 标题\n\n正文。'
+  );
+}

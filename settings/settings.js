@@ -22,21 +22,24 @@ const ApiProviders = {
     baseUrl: 'https://api.openai.com/v1',
     modelName: 'gpt-4o-mini',
     keyUrl: 'https://platform.openai.com/api-keys',
-    apiFormat: 'openai'
+    apiFormat: 'openai',
+    supportsVision: true
   },
   gemini: {
     label: 'Gemini / Google',
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
     modelName: 'gemini-3-flash-preview',
     keyUrl: 'https://aistudio.google.com/app/apikey',
-    apiFormat: 'openai'
+    apiFormat: 'openai',
+    supportsVision: true
   },
   claude: {
     label: 'Claude / Anthropic',
     baseUrl: 'https://api.anthropic.com/v1',
     modelName: 'claude-sonnet-4-20250514',
     keyUrl: 'https://console.anthropic.com/settings/keys',
-    apiFormat: 'anthropic'
+    apiFormat: 'anthropic',
+    supportsVision: true
   },
   glm: {
     label: 'GLM / Z.AI',
@@ -71,7 +74,8 @@ const ApiProviders = {
     baseUrl: 'https://openrouter.ai/api/v1',
     modelName: 'openai/gpt-4o-mini',
     keyUrl: 'https://openrouter.ai/settings/keys',
-    apiFormat: 'openai'
+    apiFormat: 'openai',
+    supportsVision: true
   },
   siliconflow: {
     label: 'SiliconFlow',
@@ -114,6 +118,7 @@ class SettingsManager {
       smartDescription: true,
       maxTokens: DEFAULT_MAX_TOKENS,
       maxInputTokens: DEFAULT_MAX_INPUT_TOKENS,
+      multimodalEnabled: false,
       promptMode: DEFAULT_PROMPT_MODE,
       outputFormat: DEFAULT_OUTPUT_FORMAT,
       promptAppend: '',
@@ -123,6 +128,8 @@ class SettingsManager {
     };
     this.api = new DocumentApi();
     this.cloudDocuments = new SupabaseCloudDocumentProvider();
+    this.providerProfiles = {};
+    this.activeProviderId = 'custom';
     this.docUI = new DocUIHelper({
       api: this.api,
       source: '',
@@ -136,6 +143,13 @@ class SettingsManager {
 
   async init() {
     this.config = await loadConfig();
+    this.providerProfiles = this.config.providerProfiles && typeof this.config.providerProfiles === 'object'
+      ? { ...this.config.providerProfiles }
+      : {};
+    this.activeProviderId = this.config.activeProviderId || this._inferApiProvider(this.config.baseUrl);
+    if (!this.providerProfiles[this.activeProviderId] && this.config.apiKey) {
+      this.providerProfiles[this.activeProviderId] = this._profileFromConfig(this.config);
+    }
     this._bindEvents();
     this._initDocumentManagement();
     this._populateForm();
@@ -169,13 +183,6 @@ class SettingsManager {
       };
       appLanguageSelect.addEventListener('change', handler);
       this.cleanupFunctions.push(() => appLanguageSelect.removeEventListener('change', handler));
-    }
-
-    const baseUrlInput = document.getElementById('base-url');
-    if (baseUrlInput) {
-      const handler = () => this._syncProviderFromBaseUrl();
-      baseUrlInput.addEventListener('input', handler);
-      this.cleanupFunctions.push(() => baseUrlInput.removeEventListener('input', handler));
     }
 
     const promptModeSelect = document.getElementById('prompt-mode');
@@ -229,6 +236,68 @@ class SettingsManager {
   // CONFIGURATION MANAGEMENT
   // ========================================================================
 
+  _profileFromConfig(config = {}) {
+    return {
+      apiKey: String(config.apiKey || ''),
+      baseUrl: String(config.baseUrl || ''),
+      modelName: String(config.modelName || ''),
+      apiFormat: config.apiFormat || DEFAULT_API_FORMAT,
+      maxTokens: Number(config.maxTokens) || DEFAULT_MAX_TOKENS,
+      maxInputTokens: Number(config.maxInputTokens) || DEFAULT_MAX_INPUT_TOKENS,
+      multimodalEnabled: config.multimodalEnabled === true
+    };
+  }
+
+  _readApiKeyFromForm() {
+    const inputValue = document.getElementById('api-key')?.value || '';
+    if (inputValue && inputValue !== maskApiKey(this.#apiKeyMemory)) return inputValue.trim();
+    return this.#apiKeyMemory;
+  }
+
+  _captureProviderProfile(providerId = this.activeProviderId) {
+    if (!providerId) return null;
+    const provider = ApiProviders[providerId] || ApiProviders.custom;
+    const profile = {
+      apiKey: this._readApiKeyFromForm(),
+      baseUrl: document.getElementById('base-url')?.value.trim() || '',
+      modelName: document.getElementById('model-name')?.value.trim() || '',
+      apiFormat: provider.apiFormat || DEFAULT_API_FORMAT,
+      maxTokens: Number(document.getElementById('max-tokens')?.value) || DEFAULT_MAX_TOKENS,
+      maxInputTokens: Number(document.getElementById('max-input-tokens')?.value) || DEFAULT_MAX_INPUT_TOKENS,
+      multimodalEnabled: document.getElementById('multimodal-enabled')?.checked === true
+    };
+    this.providerProfiles[providerId] = profile;
+    return profile;
+  }
+
+  _populateProviderProfile(providerId, profile) {
+    const provider = ApiProviders[providerId] || ApiProviders.custom;
+    const resolved = profile || {
+      apiKey: '',
+      baseUrl: provider.baseUrl || '',
+      modelName: provider.modelName || '',
+      apiFormat: provider.apiFormat || DEFAULT_API_FORMAT,
+      maxTokens: DEFAULT_MAX_TOKENS,
+      maxInputTokens: DEFAULT_MAX_INPUT_TOKENS,
+      multimodalEnabled: provider.supportsVision === true
+    };
+    const apiKeyInput = document.getElementById('api-key');
+    const baseUrlInput = document.getElementById('base-url');
+    const modelNameInput = document.getElementById('model-name');
+    const maxTokensInput = document.getElementById('max-tokens');
+    const maxInputTokensInput = document.getElementById('max-input-tokens');
+    const multimodalCheckbox = document.getElementById('multimodal-enabled');
+
+    this.#apiKeyMemory = resolved.apiKey || '';
+    if (apiKeyInput) apiKeyInput.value = resolved.apiKey ? maskApiKey(resolved.apiKey) : '';
+    if (baseUrlInput) baseUrlInput.value = resolved.baseUrl || '';
+    if (modelNameInput) modelNameInput.value = resolved.modelName || '';
+    if (maxTokensInput) maxTokensInput.value = resolved.maxTokens || DEFAULT_MAX_TOKENS;
+    if (maxInputTokensInput) maxInputTokensInput.value = resolved.maxInputTokens || DEFAULT_MAX_INPUT_TOKENS;
+    if (multimodalCheckbox) multimodalCheckbox.checked = resolved.multimodalEnabled === true;
+    this.config.apiFormat = resolved.apiFormat || provider.apiFormat || DEFAULT_API_FORMAT;
+  }
+
   _populateForm() {
     const apiKeyInput = document.getElementById('api-key');
     const appLanguageSelect = document.getElementById('app-language');
@@ -238,6 +307,7 @@ class SettingsManager {
     const smartDescCheckbox = document.getElementById('smart-description');
     const maxTokensInput = document.getElementById('max-tokens');
     const maxInputTokensInput = document.getElementById('max-input-tokens');
+    const multimodalCheckbox = document.getElementById('multimodal-enabled');
     const outputFormatSelect = document.getElementById('output-format');
     const promptModeSelect = document.getElementById('prompt-mode');
     const defaultPromptPreview = document.getElementById('default-prompt-preview');
@@ -250,12 +320,13 @@ class SettingsManager {
       apiKeyInput.value = maskApiKey(this.config.apiKey);
     }
     if (appLanguageSelect) appLanguageSelect.value = this.config.appLanguage || DEFAULT_APP_LANGUAGE;
-    if (apiProviderSelect) apiProviderSelect.value = this._inferApiProvider(this.config.baseUrl);
+    if (apiProviderSelect) apiProviderSelect.value = this.activeProviderId;
     if (baseUrlInput) baseUrlInput.value = this.config.baseUrl || '';
     if (modelNameInput) modelNameInput.value = this.config.modelName;
     if (smartDescCheckbox) smartDescCheckbox.checked = this.config.smartDescription;
     if (maxTokensInput) maxTokensInput.value = this.config.maxTokens || DEFAULT_MAX_TOKENS;
     if (maxInputTokensInput) maxInputTokensInput.value = this.config.maxInputTokens || DEFAULT_MAX_INPUT_TOKENS;
+    if (multimodalCheckbox) multimodalCheckbox.checked = this.config.multimodalEnabled === true;
     if (outputFormatSelect) outputFormatSelect.value = this.config.outputFormat || DEFAULT_OUTPUT_FORMAT;
     if (promptModeSelect) promptModeSelect.value = this.config.promptMode || DEFAULT_PROMPT_MODE;
     if (defaultPromptPreview) defaultPromptPreview.value = DEFAULT_PROMPT_TEMPLATE;
@@ -333,14 +404,11 @@ class SettingsManager {
 
   _applyApiProvider(providerId) {
     const provider = ApiProviders[providerId] || ApiProviders.custom;
-    const baseUrlInput = document.getElementById('base-url');
-    const modelNameInput = document.getElementById('model-name');
-
-    if (providerId !== 'custom') {
-      if (baseUrlInput) baseUrlInput.value = provider.baseUrl;
-      if (modelNameInput) modelNameInput.value = provider.modelName;
+    if (this.activeProviderId && this.activeProviderId !== providerId) {
+      this._captureProviderProfile(this.activeProviderId);
     }
-
+    this.activeProviderId = providerId;
+    this._populateProviderProfile(providerId, this.providerProfiles[providerId]);
     this.config.apiFormat = provider.apiFormat || DEFAULT_API_FORMAT;
     this._syncKeyHelp(providerId);
   }
@@ -349,9 +417,14 @@ class SettingsManager {
     const providerSelect = document.getElementById('api-provider');
     const baseUrl = document.getElementById('base-url')?.value || '';
     if (!providerSelect) return;
-    providerSelect.value = this._inferApiProvider(baseUrl);
-    this.config.apiFormat = (ApiProviders[providerSelect.value] || ApiProviders.custom).apiFormat || DEFAULT_API_FORMAT;
-    this._syncKeyHelp(providerSelect.value);
+    const inferredProviderId = this._inferApiProvider(baseUrl);
+    if (inferredProviderId !== this.activeProviderId) {
+      this._captureProviderProfile(this.activeProviderId);
+      this.activeProviderId = inferredProviderId;
+    }
+    providerSelect.value = inferredProviderId;
+    this.config.apiFormat = (ApiProviders[inferredProviderId] || ApiProviders.custom).apiFormat || DEFAULT_API_FORMAT;
+    this._syncKeyHelp(inferredProviderId);
   }
 
   _inferApiProvider(baseUrl) {
@@ -525,16 +598,14 @@ class SettingsManager {
     const smartDescCheckbox = document.getElementById('smart-description');
     const maxTokensInput = document.getElementById('max-tokens');
     const maxInputTokensInput = document.getElementById('max-input-tokens');
+    const multimodalCheckbox = document.getElementById('multimodal-enabled');
     const outputFormatSelect = document.getElementById('output-format');
     const promptModeSelect = document.getElementById('prompt-mode');
     const promptAppendInput = document.getElementById('prompt-append');
     const customPromptInput = document.getElementById('custom-prompt');
     const styleGuideInput = document.getElementById('style-guide');
 
-    let apiKey = this.#apiKeyMemory || apiKeyInput?.value || '';
-    const inputKeyValue = apiKeyInput?.value || '';
-    // If user typed something different from the mask, use the typed value
-    if (inputKeyValue && inputKeyValue !== maskApiKey(this.#apiKeyMemory)) apiKey = inputKeyValue.trim();
+    const apiKey = this._readApiKeyFromForm();
 
     const isEn = (appLanguageSelect?.value || this.config.appLanguage || DEFAULT_APP_LANGUAGE) === 'en-US';
     if (!apiKey) { this._showTestResult(isEn ? 'Please enter an API Key' : '请输入API Key', 'error'); return; }
@@ -569,6 +640,7 @@ class SettingsManager {
       return;
     }
 
+    this.activeProviderId = apiProviderSelect?.value || this.activeProviderId || 'custom';
     this.config = {
       apiKey,
       baseUrl: baseUrlInput?.value.trim() || '',
@@ -578,13 +650,18 @@ class SettingsManager {
       smartDescription: smartDescCheckbox?.checked ?? true,
       maxTokens,
       maxInputTokens,
+      multimodalEnabled: multimodalCheckbox?.checked === true,
       outputFormat: outputFormatSelect?.value || DEFAULT_OUTPUT_FORMAT,
       promptMode,
       promptAppend: promptAppendInput?.value.trim() || '',
       customPrompt,
       styleGuide: styleGuideInput?.value.trim() || '',
-      documentExamples: this._collectDocumentExamples()
+      documentExamples: this._collectDocumentExamples(),
+      activeProviderId: this.activeProviderId,
+      providerProfiles: this.providerProfiles
     };
+    this.providerProfiles[this.activeProviderId] = this._profileFromConfig(this.config);
+    this.config.providerProfiles = this.providerProfiles;
 
     try {
       await storagePromise('local', 'set', {
@@ -596,12 +673,15 @@ class SettingsManager {
         smartDescription: this.config.smartDescription,
         maxTokens: this.config.maxTokens,
         maxInputTokens: this.config.maxInputTokens,
+        multimodalEnabled: this.config.multimodalEnabled,
         outputFormat: this.config.outputFormat,
         promptMode: this.config.promptMode,
         promptAppend: this.config.promptAppend,
         customPrompt: this.config.customPrompt,
         styleGuide: this.config.styleGuide,
-        documentExamples: this.config.documentExamples
+        documentExamples: this.config.documentExamples,
+        activeProviderId: this.config.activeProviderId,
+        providerProfiles: this.config.providerProfiles
       });
       const bridgeSaved = await this.saveAgentBridgeConfig();
       if (!bridgeSaved) return;
@@ -694,13 +774,15 @@ class SettingsManager {
       apiDesc: 'Configure model API credentials for AI features',
       language: 'Interface Language',
       provider: 'Model Provider',
-      providerHelp: 'Selecting a provider fills the Base URL, recommended model, and API format. You can still edit them.',
+      providerHelp: 'Each provider keeps its own API key, Base URL, model, and image setting. Switching providers restores the last saved configuration.',
       baseUrl: 'Base URL (optional)',
       baseHelp: 'Leave empty to use the default OpenAI API URL',
       model: 'Model Name',
       modelHelp: 'For example: gpt-4o-mini, gemini-3-flash-preview, claude-sonnet-4-20250514',
       maxTokens: 'Max Output Tokens',
       maxInputTokens: 'Max Input Tokens',
+      multimodalTitle: 'Model supports image input',
+      multimodalDesc: 'Send visible step screenshots to the model during generation and optimization (up to 12 per request).',
       outputFormat: 'Default Output Format',
       promptMode: 'Prompt Mode',
       test: 'Test Connection',
@@ -724,13 +806,15 @@ class SettingsManager {
       apiDesc: '配置大模型 API 凭证以使用 AI 功能',
       language: '界面语言',
       provider: '模型服务商',
-      providerHelp: '选择服务商会自动填入 Base URL、推荐模型和 API 格式；仍可手动修改。',
+      providerHelp: '每个服务商的 API Key、Base URL、模型和图片设置会独立保存；切换时自动恢复上次配置。',
       baseUrl: 'Base URL（可选）',
       baseHelp: '留空使用默认的 OpenAI API 地址',
       model: '模型名称',
       modelHelp: '例如：gpt-4o-mini、gemini-3-flash-preview、claude-sonnet-4-20250514',
       maxTokens: '最大输出 Token',
       maxInputTokens: '最大输入 Token',
+      multimodalTitle: '模型支持图片输入',
+      multimodalDesc: '生成和优化文档时，将未隐藏的步骤截图发送给模型参考（每次最多 12 张）。',
       outputFormat: '默认输出格式',
       promptMode: '提示词模式',
       test: '测试连接',
@@ -830,6 +914,8 @@ class SettingsManager {
     set('#model-name + .help-text', text.modelHelp);
     set('label[for="max-tokens"]', text.maxTokens);
     set('label[for="max-input-tokens"]', text.maxInputTokens);
+    set('#multimodal-setting .switch-title', text.multimodalTitle);
+    set('#multimodal-setting .switch-desc', text.multimodalDesc);
     set('label[for="output-format"]', text.outputFormat);
     const outputTextOption = document.querySelector('#output-format option[value="text"]');
     if (outputTextOption) outputTextOption.textContent = text.outputText;
@@ -866,10 +952,10 @@ class SettingsManager {
     setButton('#refresh-documents', text.refresh);
     set('.documents-list-container h3', text.uploadedDocsTitle);
     set('.loading-placeholder', text.docsLoading);
-    set('.section:nth-of-type(3) h2', text.smartHeading);
-    set('.switch-title', text.smartTitle);
-    set('.switch-desc', text.smartDesc);
-    set('.section:nth-of-type(4) h2', text.aboutHeading);
+    set('#smart-settings h2', text.smartHeading);
+    set('#smart-settings .switch-title', text.smartTitle);
+    set('#smart-settings .switch-desc', text.smartDesc);
+    set('#about-settings h2', text.aboutHeading);
     const aboutParagraphs = document.querySelectorAll('.about p');
     if (aboutParagraphs[1]) aboutParagraphs[1].textContent = text.aboutVersion;
     if (aboutParagraphs[2]) aboutParagraphs[2].textContent = text.aboutDesc;

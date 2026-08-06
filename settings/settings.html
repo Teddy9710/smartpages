@@ -56,7 +56,7 @@
             <option value="dashscope">阿里云百炼 DashScope</option>
             <option value="custom">自定义 OpenAI-compatible API</option>
           </select>
-          <p class="help-text">选择服务商会自动填入 Base URL 和推荐模型；仍可手动修改。</p>
+          <p class="help-text">每个服务商的 API Key、Base URL、模型和图片设置会独立保存；切换时自动恢复。</p>
         </div>
         </div>
 
@@ -134,6 +134,17 @@
           </select>
           <p class="help-text">默认使用 Markdown。选择 HTML 时会参考风格文档的版式层级并生成可下载的 HTML 文档。</p>
         </div>
+        </div>
+
+        <div class="form-group-switch" id="multimodal-setting">
+          <label class="switch-label">
+            <input type="checkbox" id="multimodal-enabled">
+            <span class="switch-slider"></span>
+          </label>
+          <div class="switch-info">
+            <div class="switch-title">模型支持图片输入</div>
+            <div class="switch-desc">生成和优化文档时，将未隐藏的步骤截图发送给模型参考（每次最多 12 张）。</div>
+          </div>
         </div>
 
         <div class="form-group">

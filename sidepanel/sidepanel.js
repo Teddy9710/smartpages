@@ -1524,7 +1524,8 @@ ${bodyHtml}
       );
       const request = buildModelApiRequest(config, prompt, {
         temperature: 0.7,
-        maxTokens: config.maxTokens || DEFAULT_MAX_TOKENS
+        maxTokens: config.maxTokens || DEFAULT_MAX_TOKENS,
+        images: this._getModelScreenshotInputs(config)
       });
       const response = await fetchWithTimeout(
         request.url,
@@ -1593,9 +1594,9 @@ ${bodyHtml}
 
     prompt += `\n\n${outputFormatInstruction}`;
     if (config.appLanguage === 'en-US') {
-      prompt += '\n\nOutput language requirement: write the final document in clear English unless the user explicitly asks for another language.';
+      prompt += '\n\nOutput language requirement: write the final document in clear English unless the user explicitly asks for another language. Output only the finished document; never include analysis, reasoning, planning notes, or phrases such as "The user wants" or "Let me analyze".';
     } else {
-      prompt += '\n\n输出语言要求：除非用户明确要求其他语言，最终文档请使用简体中文。';
+      prompt += '\n\n输出语言要求：除非用户明确要求其他语言，最终文档请使用简体中文。只输出完成后的正式文档，禁止输出分析、思考过程、写作计划，或 “The user wants”“Let me analyze” 等前言。';
     }
 
     return prompt;
@@ -1736,6 +1737,30 @@ ${bodyHtml}
     if (status === 'hidden') return 'hidden by user';
     if (status === 'missing') return 'missing';
     return `[截图${stepNumber}]`;
+  }
+
+  _getModelScreenshotInputs(config = this.config) {
+    if (!config?.multimodalEnabled || !this.session?.steps?.length) return [];
+
+    const candidates = this.session.steps
+      .map((step, index) => ({ step, stepNumber: index + 1 }))
+      .filter(({ step }) => SidePanelManager.getStepScreenshotStatus(step) === 'available')
+      .map(({ step, stepNumber }) => ({
+        dataUrl: step.screenshot,
+        label: this.language === 'en-US'
+          ? `[Screenshot ${stepNumber}] Page screenshot for recorded step ${stepNumber}.`
+          : `[截图${stepNumber}] 录制步骤 ${stepNumber} 对应的页面截图。`
+      }));
+
+    const limit = typeof MAX_MODEL_SCREENSHOTS === 'number' ? MAX_MODEL_SCREENSHOTS : 12;
+    if (candidates.length <= limit) return candidates;
+
+    const sampled = [];
+    for (let index = 0; index < limit; index += 1) {
+      const candidateIndex = Math.round(index * (candidates.length - 1) / (limit - 1));
+      sampled.push(candidates[candidateIndex]);
+    }
+    return sampled;
   }
 
   _formatElementState(state) {
@@ -2570,7 +2595,29 @@ ${bodyHtml}
         ? /^```(?:markdown|md)?\s*([\s\S]*?)\s*```$/i
         : /^```(?:text|txt)?\s*([\s\S]*?)\s*```$/i;
     const match = value.match(fencePattern);
-    return (match?.[1] || value).trim();
+    return this._stripModelPreamble((match?.[1] || value).trim(), normalizedFormat);
+  }
+
+  _stripModelPreamble(content, format) {
+    let value = String(content || '').trim();
+    value = value.replace(/^<think>[\s\S]*?<\/think>\s*/i, '').trim();
+
+    const documentStartPattern = format === 'html'
+      ? /<!doctype\s+html\b|<html\b|<main\b|<article\b|<h1\b/i
+      : format === 'markdown'
+        ? /^#{1,6}\s+\S/m
+        : null;
+    if (!documentStartPattern) return value;
+
+    const documentStart = value.search(documentStartPattern);
+    if (documentStart <= 0) return value;
+
+    const prefix = value.slice(0, documentStart).trim();
+    const hasAnalysisOpening = /^(?:the user (?:wants|asked)|we need to|i need to|let me|i(?:'ll| will))\b/i.test(prefix);
+    const hasAnalysisLanguage = /\b(?:let me (?:analy[sz]e|write|create|generate)|so the flow is|recorded steps?|following the requested format|step\s+\d+\s*:)/i.test(prefix);
+    return hasAnalysisOpening || hasAnalysisLanguage
+      ? value.slice(documentStart).trim()
+      : value;
   }
 
   _extractHtmlBody(html) {
@@ -2675,7 +2722,11 @@ ${bodyHtml}
             config.maxInputTokens
           )
         ),
-        { temperature: 0.5, maxTokens: config.maxTokens || DEFAULT_MAX_TOKENS }
+        {
+          temperature: 0.5,
+          maxTokens: config.maxTokens || DEFAULT_MAX_TOKENS,
+          images: this._getModelScreenshotInputs(config)
+        }
       );
       const response = await fetchWithTimeout(
         request.url,

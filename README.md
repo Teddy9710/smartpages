@@ -108,12 +108,13 @@ SmartPages works with:
 - **OpenAI-compatible Chat Completions:** OpenAI, Gemini, GLM, DeepSeek, MiniMax, Kimi, OpenRouter, SiliconFlow, DashScope, and custom compatible services.
 - **Anthropic Messages API:** Claude models through Anthropic.
 
-You choose the provider, base URL, model, and API key. Provider limits and pricing remain under your control.
+You choose the provider, base URL, model, and API key. Each provider keeps an independent connection profile that is restored when you switch back. Provider limits and pricing remain under your control.
 
 ## Privacy by default
 
 - API keys stay in Chrome Storage and are never committed to the repository.
 - Recorded content is sent only to the model API you configure when you generate a document.
+- Step screenshots are sent only when you explicitly enable image input for a multimodal model; hidden screenshots are excluded and each request is limited to 12 images.
 - Supabase sync is off by default and uploads only after explicit configuration, sign-in, and save actions.
 - Local history can access only a folder you authorize through the browser directory picker.
 - Dynamic HTML is sanitized before rendering and export, and extension pages use Manifest V3 CSP.
