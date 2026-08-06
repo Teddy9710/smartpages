@@ -1,52 +1,65 @@
-# SmartPages
-
-<p align="right"><a href="README.zh-CN.md">中文</a></p>
-
 <p align="center">
-  <img src="icons/icon128.png" width="96" height="96" alt="SmartPages icon">
+  <img src="icons/icon128.png" width="112" height="112" alt="SmartPages icon">
 </p>
 
-<h3 align="center">Record once. Turn the workflow into clear documentation.</h3>
+<h1 align="center">SmartPages</h1>
+
+<h3 align="center">Turn browser workflows into polished documentation.</h3>
 
 <p align="center">
-  An open-source browser workflow recorder and AI documentation assistant.<br>
-  Capture actions and screenshots, then generate documentation you can edit, refine, and export.
+  Record clicks and screenshots once. Generate editable guides, tutorials,<br>
+  test cases, and bug reports with the AI model you choose.
+</p>
+
+<p align="center">
+  <a href="#quick-start"><strong>Quick Start</strong></a> ·
+  <a href="docs/examples/README.md">Examples</a> ·
+  <a href="#documentation">Documentation</a> ·
+  <a href="README.zh-CN.md">中文</a>
 </p>
 
 <p align="center">
   <img alt="Chrome Extension MV3" src="https://img.shields.io/badge/Chrome%20Extension-MV3-2563eb">
   <img alt="Version 1.3.0" src="https://img.shields.io/badge/version-1.3.0-7c3aed">
-  <img alt="Export formats" src="https://img.shields.io/badge/export-Markdown%20%7C%20HTML%20%7C%20PDF-14b8a6">
   <img alt="License GPL v3" src="https://img.shields.io/badge/license-GPL%20v3-111827">
 </p>
 
 <p align="center">
-  <img src="docs/assets/smartpages-demo-zh.gif" width="860" alt="SmartPages workflow recording and document generation demo">
+  <img src="docs/assets/readme-hero.png" width="900" alt="SmartPages recording a browser workflow and turning it into documentation">
 </p>
 
-## Why SmartPages
+<p align="center"><strong>Record → Generate → Refine → Export</strong></p>
 
-The slow part of writing a user guide, test case, or bug report is rarely the workflow itself. It is reconstructing every step, screenshot, and explanation afterward. SmartPages turns that repeated work into a single recording.
+## What can SmartPages create?
 
-| Automatic capture | AI-generated docs | Flexible delivery |
-| --- | --- | --- |
-| Record clicks, input, navigation, and step screenshots | Create guides, tutorials, test cases, and bug reports | Edit and refine, save locally or in the cloud, and export in multiple formats |
+<table>
+  <tr>
+    <td width="33%" align="center">
+      <h3>🧭 User guides</h3>
+      Record a product workflow and turn it into a clear, step-by-step guide.
+    </td>
+    <td width="33%" align="center">
+      <h3>🧪 Test cases</h3>
+      Capture a browser flow and generate structured QA documentation.
+    </td>
+    <td width="33%" align="center">
+      <h3>🐞 Bug reports</h3>
+      Reproduce an issue once and preserve every action and screenshot.
+    </td>
+  </tr>
+</table>
 
-- **Bring your preferred model:** use GPT, Gemini, Claude, DeepSeek, or a custom OpenAI-compatible API.
-- **Control the writing style:** configure prompts, style guides, and example documents for consistent output.
-- **Open-source and locally configured:** the extension is open source, and API keys stay in Chrome Storage.
+SmartPages removes the slow part of documentation: reconstructing every step, screenshot, and explanation after the work is already done.
 
-## How It Works
+## How it works
 
-1. Open the target page and start recording from the extension.
-2. Complete the workflow normally while SmartPages captures steps and screenshots.
-3. Stop recording and choose a document type or custom goal in the side panel.
-4. Generate the document with your configured model.
-5. Edit or refine the result, then save it locally or in the cloud, copy it, or export it.
+1. **Record** — complete the workflow normally while SmartPages captures actions and screenshots.
+2. **Generate** — choose a document goal and generate a draft with GPT, Gemini, Claude, DeepSeek, or another compatible model.
+3. **Deliver** — edit or refine the result, then save, copy, or export it in the format you need.
 
-## Installation
+## Quick Start
 
-### Build and load `dist/`
+### 1. Build the extension
 
 ```bash
 git clone https://github.com/Teddy9710/smartpages.git
@@ -55,86 +68,72 @@ npm install
 npm run build
 ```
 
+### 2. Load it in Chrome or Edge
+
 1. Open `chrome://extensions/` or `edge://extensions/`.
-2. Enable Developer mode.
-3. Choose **Load unpacked** and select the project's `dist/` directory.
+2. Enable **Developer mode**.
+3. Select **Load unpacked** and choose the project's `dist/` directory.
 
-After changing the code, run `npm run build` again, then select **Reload** on the extensions page. Do not load the source root directly.
+### 3. Generate your first document
 
-## Quick Start
+1. Open SmartPages Settings and configure a model provider.
+2. Visit the page you want to document and start recording.
+3. Complete the workflow, stop recording, and choose a document goal.
+4. Generate, edit, and export the result from the side panel.
 
-1. Open Settings, select a model provider, and enter the API key, base URL, and model name.
-2. Select **Test Connection**.
-3. Open the page you want to document, start recording, and complete the workflow.
-4. Stop recording, choose a document goal in the side panel, and generate.
-5. Edit the preview directly or ask AI to refine it.
-6. Save it to a local folder or an optional Supabase cloud project, copy the content, or export it as Markdown, HTML, plain text, Word, ZIP, an image, or PDF.
+> After changing the source, run `npm run build` again and reload the extension. Do not load the source root directly.
 
-> The PDF action opens the browser print dialog. Choose **Save as PDF** to create a fixed-layout file.
-
-## Core Capabilities
-
-### Capture real browser workflows
-
-- Record clicks, input, and SPA route changes.
-- Keep a screenshot for each important step.
-- Re-inject the recorder when needed to reduce manual page refreshes.
-- Pause and resume action recording, including interactions inside embedded frames.
-- Record an independent webpage GIF of up to 30 seconds. GIF capture does not add workflow steps or trigger document generation.
-
-### Generate documentation for the job
-
-- Start from built-in goals for user guides, tutorials, test cases, and bug reports.
-- Append extra requirements or replace the prompt entirely.
-- Apply type-specific style guides and Markdown or HTML examples.
-- Configure the output format and maximum token count for different deliverables.
-
-### Finish the document in the side panel
-
-- Edit the rendered preview directly or switch to Markdown source.
-- Refine with AI and revert to the previous version.
-- Copy, download, and export in multiple formats, with less-frequent actions grouped under the **More** menu.
-- Manage TXT, Markdown, HTML, and RTF document resources.
-
-### Save, sync, and manage documents
-
-- Save generated documents to a folder selected by the user and reopen them from local history.
-- Return to the document you were editing after opening a historical document, preserving the current context.
-- Optionally configure Supabase, sign in, and save documents and screenshots for access across devices.
-- Cloud sync, workflow export and test runs, and HTML export settings are grouped in the editor's **More** menu.
-
-## Product Tour
+## See it in action
 
 <p align="center">
-  <img src="docs/assets/readme-hero.png" width="760" alt="SmartPages product interface">
+  <img src="docs/assets/smartpages-demo-zh.gif" width="900" alt="SmartPages workflow recording and document generation demo">
 </p>
 
-| Surface | Purpose |
-| --- | --- |
-| Popup | Start or stop recording, check status, and open the document assistant |
-| Side Panel | Generate, edit, refine, save, sync, and export documents, with local and cloud history |
-| Settings | Configure models, prompts, style guides, examples, output formats, Supabase, and Agent Bridge |
+## Key features
 
-## Model Compatibility
+- **Capture real workflows:** record clicks, input, SPA navigation, embedded-frame interactions, and step screenshots; pause and resume whenever needed.
+- **Generate for the job:** start with goals for guides, tutorials, test cases, and bug reports, or provide a fully custom prompt.
+- **Control the output:** apply style guides and examples, choose Markdown or HTML, and configure the maximum token count.
+- **Edit before delivery:** refine the rendered document or Markdown source, use AI for a second pass, and revert when necessary.
+- **Export anywhere:** copy or export as Markdown, HTML, plain text, Word, ZIP, image, or PDF.
+- **Keep your history:** save to an authorized local folder or optionally configure Supabase cloud sync.
 
-SmartPages supports two API families:
+## Model support
 
-- **OpenAI-compatible Chat Completions:** GPT / OpenAI, Gemini / Google, GLM, DeepSeek, MiniMax, Kimi, OpenRouter, SiliconFlow, DashScope, and custom compatible services.
-- **Anthropic Messages API:** Claude / Anthropic.
+SmartPages works with:
 
-Model names, base URLs, context limits, and pricing vary by provider. Refer to the provider's official documentation.
+- **OpenAI-compatible Chat Completions:** OpenAI, Gemini, GLM, DeepSeek, MiniMax, Kimi, OpenRouter, SiliconFlow, DashScope, and custom compatible services.
+- **Anthropic Messages API:** Claude models through Anthropic.
 
-## Privacy and Security
+You choose the provider, base URL, model, and API key. Provider limits and pricing remain under your control.
 
-- API keys are stored in Chrome Storage and are not committed to the repository.
-- Recorded data is sent only to the model API you configure when you generate a document.
-- Supabase cloud sync is disabled by default. Documents and related screenshots are uploaded only after the user configures a project, signs in, and explicitly saves them.
-- Local history uses only a folder the user explicitly authorizes through the browser's directory picker.
-- Extension pages use Manifest V3 CSP, and third-party scripts are bundled locally.
-- Dynamic HTML is sanitized before rendering and export to reduce XSS risk.
-- Generation prompts instruct the model to mask passwords, tokens, phone numbers, and identity numbers. You should still avoid recording sensitive information whenever possible.
+## Privacy by default
 
-## Development and Contributing
+- API keys stay in Chrome Storage and are never committed to the repository.
+- Recorded content is sent only to the model API you configure when you generate a document.
+- Supabase sync is off by default and uploads only after explicit configuration, sign-in, and save actions.
+- Local history can access only a folder you authorize through the browser directory picker.
+- Dynamic HTML is sanitized before rendering and export, and extension pages use Manifest V3 CSP.
+
+Avoid recording passwords, tokens, identity numbers, or other sensitive information even though generation prompts request masking.
+
+## Advanced workflows
+
+SmartPages can also export machine-readable `.smartpages.json` workflows, replay them locally with safety checks, and expose approved workflows to local agents through the experimental MCP bridge.
+
+[Read the executable workflow and Local Agent Bridge guide →](docs/advanced-workflows.md)
+
+## Documentation
+
+- [Example documents](docs/examples/README.md)
+- [Quick start](QUICKSTART.md)
+- [Supabase cloud storage](docs/cloud-storage-supabase.md)
+- [Advanced workflows and Agent Bridge](docs/advanced-workflows.md)
+- [Testing guide](TESTING.md)
+- [Troubleshooting](TROUBLESHOOTING.md)
+- [Code structure](CODE_STRUCTURE.md)
+
+## Development
 
 ```bash
 npm run dev         # Build dist/ in watch mode
@@ -144,15 +143,6 @@ npm run typecheck   # Run TypeScript checks
 npm run build       # Generate the loadable dist/ directory
 npm run verify      # Run the full verification pipeline
 ```
-
-More project documentation:
-
-- [Quick start](QUICKSTART.md)
-- [Testing guide](TESTING.md)
-- [Troubleshooting](TROUBLESHOOTING.md)
-- [Code structure](CODE_STRUCTURE.md)
-- [Supabase cloud document setup](docs/cloud-storage-supabase.md)
-- [Example documents](docs/examples/README.md)
 
 Issues and pull requests are welcome. Please read the [Contributor License Agreement](CONTRIBUTING.en.md) before contributing.
 
@@ -165,58 +155,4 @@ SmartPages uses a dual-license model:
 | Personal, educational, and non-commercial use | [GPL v3](LICENSE) | Free to use, modify, and distribute; derivative works must remain open source |
 | Commercial use | Commercial license | A separate license is required before integration into commercial products, SaaS services, or enterprise deployments |
 
-- The copyright holder (Hongru Wang / 汪鸿儒) retains all commercial rights and may use this software commercially without restriction.
-- Unauthorized commercial use — including integration into commercial products, SaaS services, or enterprise deployments — is prohibited.
-- For commercial licensing inquiries, please contact the author via GitHub Issues.
-
----
-
-## Executable Workflow Preview (Phase 1)
-
-SmartPages can export a recorded session as both a human-readable Markdown document and a machine-readable `.smartpages.json` workflow. The side panel provides a local **Test Run** for reviewing and replaying that workflow in the current browser tab.
-
-- Supported actions: `navigate`, `click`, `input`, `select`, `scroll`, `wait`, and `assert`.
-- Workflows are restricted to explicitly declared, exact HTTP/HTTPS origins. Wildcards and privileged URL schemes are rejected.
-- High-risk steps pause before page dispatch and require explicit confirmation.
-- Workflow JSON is untrusted input and must pass schema validation before execution.
-- Passwords, tokens, and other secrets are runtime inputs; recorded values are not exported into the workflow.
-- Phase 1 runs locally inside the extension. MCP Server and Native Messaging integration are an architectural direction and are **not included in Phase 1**.
-
-This preview is intended for controlled, same-site workflow replay. It does not provide production-ready MCP integration or autonomous cross-site browsing.
-
----
-
-## Local Agent Bridge (Experimental Phase 2A)
-
-SmartPages can expose exported `.smartpages.json` workflows to a local agent through MCP. The lightweight bridge runs only on the user's machine: the agent calls `smartpages-mcp` over MCP stdio, and `smartpages-mcp` connects to the SmartPages extension over a `127.0.0.1` WebSocket. The extension still performs the actual browser operations.
-
-Usage:
-
-1. Export a `.smartpages.json` workflow from the side panel.
-2. Put the file in `%LOCALAPPDATA%\SmartPages\workflows\`.
-3. Start the local MCP bridge:
-
-   ```bash
-   npm run mcp:serve
-   ```
-
-4. Copy the host, port, and token printed in the terminal.
-5. Open SmartPages settings, enable “Local Agent Bridge”, enter the port and token, then click “Test Agent Bridge”.
-6. Configure your agent to use `smartpages-mcp`, then call `list_workflows`, `start_run`, `get_run_status`, and `cancel_run`.
-
-### First-time Setup Checklist
-
-1. Enable Developer mode at `chrome://extensions` and load the project's `dist/` directory, not the source root. After changing the code, run `npm run build`, then select **Reload** on the extensions page.
-2. Save the model API key on the Settings page. The saved key remains in the extension's local configuration, so you do not need to enter it again after reloading the extension.
-3. After enabling Local Agent Bridge, configure the extension with `127.0.0.1`, the bridge port, and the token from `bridge-token.json`. Select **Test Agent Bridge** to establish the connection.
-4. When the extension requests site access, allow the workflow's target site. For example, a local demo page requires access to `http://localhost/*`.
-5. Open the page required by the workflow's first step in the **desktop Chrome instance where SmartPages is installed**. The agent can replay actions only through that extension; other browser instances and embedded browser tabs are not controlled by the bridge.
-
-### Agent Replay and Troubleshooting
-
-- `start_run` validates the workflow schema, allowed origins, runtime variables, and first-step preconditions before performing any page action. If any check fails, the workflow does not run.
-- The workflow prefers an already-open tab that matches the first step's URL precondition, preventing execution on the wrong page within the same site.
-- If the bridge disconnects, the extension attempts to reconnect automatically. You can also select **Test Agent Bridge** on the Settings page to reconnect immediately.
-- Do not store API keys, bridge tokens, passwords, or other sensitive values in `.smartpages.json` files or commit them to the repository.
-
-The first version only supports local calls. SmartPages does not expose arbitrary JavaScript execution, arbitrary file reads, or tools that bypass browser extension permissions; high-risk actions still require confirmation inside the extension before dispatch.
+The copyright holder (Hongru Wang / 汪鸿儒) retains all commercial rights. For commercial licensing inquiries, contact the author through GitHub Issues.
