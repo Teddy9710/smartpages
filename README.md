@@ -12,7 +12,8 @@
 </p>
 
 <p align="center">
-  <a href="#quick-start"><strong>Quick Start</strong></a> ·
+  <a href="https://github.com/Teddy9710/smartpages/releases/latest"><strong>Download</strong></a> ·
+  <a href="#quick-start">Build from source</a> ·
   <a href="docs/examples/README.md">Examples</a> ·
   <a href="#documentation">Documentation</a> ·
   <a href="README.zh-CN.md">中文</a>
@@ -58,6 +59,8 @@ SmartPages removes the slow part of documentation: reconstructing every step, sc
 3. **Deliver** — edit or refine the result, then save, copy, or export it in the format you need.
 
 ## Quick Start
+
+> For a stable, ready-to-install extension, download the latest package from [GitHub Releases](https://github.com/Teddy9710/smartpages/releases/latest). Build from source when you want to develop SmartPages or try the newest changes.
 
 ### 1. Build the extension
 

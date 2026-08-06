@@ -12,7 +12,8 @@
 </p>
 
 <p align="center">
-  <a href="#快速开始"><strong>快速开始</strong></a> ·
+  <a href="https://github.com/Teddy9710/smartpages/releases/latest"><strong>下载稳定版</strong></a> ·
+  <a href="#快速开始">从源码构建</a> ·
   <a href="docs/examples/README.md">示例文档</a> ·
   <a href="#项目文档">项目文档</a> ·
   <a href="README.md">English</a>
@@ -58,6 +59,8 @@ SmartPages 省去文档工作中最耗时的部分：操作完成后，再重新
 3. **交付**——直接编辑或继续优化，然后按需要保存、复制或导出。
 
 ## 快速开始
+
+> 如需稳定、可直接安装的插件版本，请从 [GitHub Releases](https://github.com/Teddy9710/smartpages/releases/latest) 下载最新安装包；开发 SmartPages 或体验最新改动时再从源码构建。
 
 ### 1. 构建扩展
 
