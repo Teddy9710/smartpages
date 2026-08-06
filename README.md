@@ -1,16 +1,16 @@
 # SmartPages
 
-<p align="right"><a href="README.en.md">English</a></p>
+<p align="right"><a href="README.zh-CN.md">中文</a></p>
 
 <p align="center">
-  <img src="icons/icon128.png" width="96" height="96" alt="SmartPages 图标">
+  <img src="icons/icon128.png" width="96" height="96" alt="SmartPages icon">
 </p>
 
-<h3 align="center">录一次操作，自动写成清晰文档</h3>
+<h3 align="center">Record once. Turn the workflow into clear documentation.</h3>
 
 <p align="center">
-  开源的浏览器工作流录制与 AI 文档生成工具。<br>
-  自动捕获操作和截图，生成可编辑、可优化、可导出的专业文档。
+  An open-source browser workflow recorder and AI documentation assistant.<br>
+  Capture actions and screenshots, then generate documentation you can edit, refine, and export.
 </p>
 
 <p align="center">
@@ -21,32 +21,32 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/smartpages-demo-zh.gif" width="860" alt="SmartPages 从录制网页操作到生成文档的演示">
+  <img src="docs/assets/smartpages-demo-zh.gif" width="860" alt="SmartPages workflow recording and document generation demo">
 </p>
 
-## 为什么选择 SmartPages
+## Why SmartPages
 
-写操作手册、测试用例或 Bug 复现步骤，最费时间的往往不是操作本身，而是重新整理每一步、截图和措辞。SmartPages 把这段重复劳动压缩成一次录制。
+The slow part of writing a user guide, test case, or bug report is rarely the workflow itself. It is reconstructing every step, screenshot, and explanation afterward. SmartPages turns that repeated work into a single recording.
 
-| 自动捕获 | AI 成文 | 灵活交付 |
+| Automatic capture | AI-generated docs | Flexible delivery |
 | --- | --- | --- |
-| 记录点击、输入、页面跳转和步骤截图 | 生成用户指南、教程、测试用例、问题报告 | 直接编辑、AI 润色，保存到本地或云端，并导出多种格式 |
+| Record clicks, input, navigation, and step screenshots | Create guides, tutorials, test cases, and bug reports | Edit and refine, save locally or in the cloud, and export in multiple formats |
 
-- **自带模型选择权**：支持 GPT、Gemini、Claude、DeepSeek 等服务，也兼容自定义 OpenAI-compatible API。
-- **文档风格可控**：可配置提示词、风格指南和示例文档，让输出贴近团队规范。
-- **开源且可自托管配置**：扩展本身开源，API Key 保存在浏览器 Chrome Storage 中。
+- **Bring your preferred model:** use GPT, Gemini, Claude, DeepSeek, or a custom OpenAI-compatible API.
+- **Control the writing style:** configure prompts, style guides, and example documents for consistent output.
+- **Open-source and locally configured:** the extension is open source, and API keys stay in Chrome Storage.
 
-## 它如何工作
+## How It Works
 
-1. 在目标网页点击扩展图标，开始录制。
-2. 正常完成操作，SmartPages 自动记录步骤和截图。
-3. 停止录制，在侧边栏选择文档类型或输入自定义目标。
-4. 调用你配置的模型生成文档。
-5. 直接编辑、AI 优化，然后保存到本地或云端、复制或导出。
+1. Open the target page and start recording from the extension.
+2. Complete the workflow normally while SmartPages captures steps and screenshots.
+3. Stop recording and choose a document type or custom goal in the side panel.
+4. Generate the document with your configured model.
+5. Edit or refine the result, then save it locally or in the cloud, copy it, or export it.
 
-## 安装
+## Installation
 
-### 构建并加载 `dist/`
+### Build and load `dist/`
 
 ```bash
 git clone https://github.com/Teddy9710/smartpages.git
@@ -55,168 +55,168 @@ npm install
 npm run build
 ```
 
-1. 打开 `chrome://extensions/` 或 `edge://extensions/`。
-2. 开启“开发者模式”。
-3. 点击“加载已解压的扩展程序”，选择项目中的 `dist/` 目录。
+1. Open `chrome://extensions/` or `edge://extensions/`.
+2. Enable Developer mode.
+3. Choose **Load unpacked** and select the project's `dist/` directory.
 
-后续修改代码后，重新运行 `npm run build`，再在扩展管理页点击“重新加载”。不要直接加载源码根目录。
+After changing the code, run `npm run build` again, then select **Reload** on the extensions page. Do not load the source root directly.
 
-## 快速开始
+## Quick Start
 
-1. 打开扩展设置，选择模型服务商并填写 API Key、Base URL 和模型名。
-2. 点击“测试连接”。
-3. 打开需要记录的网页，开始录制并完成操作。
-4. 停止录制，在侧边栏选择文档目标并生成。
-5. 在预览区直接修改，或使用 AI 继续优化。
-6. 保存到本地文件夹或可选的 Supabase 云端，也可复制内容，或导出为 Markdown、HTML、纯文本、Word、ZIP、图片和 PDF。
+1. Open Settings, select a model provider, and enter the API key, base URL, and model name.
+2. Select **Test Connection**.
+3. Open the page you want to document, start recording, and complete the workflow.
+4. Stop recording, choose a document goal in the side panel, and generate.
+5. Edit the preview directly or ask AI to refine it.
+6. Save it to a local folder or an optional Supabase cloud project, copy the content, or export it as Markdown, HTML, plain text, Word, ZIP, an image, or PDF.
 
-> PDF 按钮会打开浏览器打印窗口；选择“另存为 PDF”即可保存固定版式文件。
+> The PDF action opens the browser print dialog. Choose **Save as PDF** to create a fixed-layout file.
 
-## 核心能力
+## Core Capabilities
 
-### 记录真实网页操作
+### Capture real browser workflows
 
-- 捕获点击、输入和 SPA 路由变化。
-- 为关键步骤保留页面截图。
-- 需要时自动补注入录制脚本，减少手动刷新。
-- 可暂停和继续操作录制，并支持嵌入式 frame 内的交互。
-- 提供最长 30 秒的独立网页 GIF 录屏；GIF 录屏不会写入操作步骤或触发文档生成。
+- Record clicks, input, and SPA route changes.
+- Keep a screenshot for each important step.
+- Re-inject the recorder when needed to reduce manual page refreshes.
+- Pause and resume action recording, including interactions inside embedded frames.
+- Record an independent webpage GIF of up to 30 seconds. GIF capture does not add workflow steps or trigger document generation.
 
-### 生成符合目标的文档
+### Generate documentation for the job
 
-- 内置用户指南、教程、测试用例、问题报告等文档目标。
-- 支持追加要求或完全自定义提示词。
-- 可按文档类型提供风格指南和 Markdown / HTML 示例。
-- 可设置输出格式和最大 Token，适应不同交付场景。
+- Start from built-in goals for user guides, tutorials, test cases, and bug reports.
+- Append extra requirements or replace the prompt entirely.
+- Apply type-specific style guides and Markdown or HTML examples.
+- Configure the output format and maximum token count for different deliverables.
 
-### 在侧边栏完成交付
+### Finish the document in the side panel
 
-- 在渲染预览中直接编辑，也可切换到 Markdown 源码。
-- 支持 AI 二次优化与版本回退。
-- 支持复制、下载和多种导出格式；低频功能集中在“更多”菜单中。
-- 可管理 TXT、Markdown、HTML、RTF 等文档资源。
+- Edit the rendered preview directly or switch to Markdown source.
+- Refine with AI and revert to the previous version.
+- Copy, download, and export in multiple formats, with less-frequent actions grouped under the **More** menu.
+- Manage TXT, Markdown, HTML, and RTF document resources.
 
-### 保存、同步与管理文档
+### Save, sync, and manage documents
 
-- 将生成结果保存到用户选择的本地文件夹，并从本地历史中重新打开。
-- 打开历史文档后可一键返回刚才编辑的文档，避免丢失当前上下文。
-- 可选配置 Supabase，在登录后保存文档与截图，并在不同设备访问云端文档。
-- 云端同步、工作流导出与测试运行、HTML 导出设置统一收纳在编辑器的“更多”菜单中。
+- Save generated documents to a folder selected by the user and reopen them from local history.
+- Return to the document you were editing after opening a historical document, preserving the current context.
+- Optionally configure Supabase, sign in, and save documents and screenshots for access across devices.
+- Cloud sync, workflow export and test runs, and HTML export settings are grouped in the editor's **More** menu.
 
-## 产品界面
+## Product Tour
 
 <p align="center">
-  <img src="docs/assets/readme-hero.png" width="760" alt="SmartPages 产品界面">
+  <img src="docs/assets/readme-hero.png" width="760" alt="SmartPages product interface">
 </p>
 
-| 界面 | 用途 |
+| Surface | Purpose |
 | --- | --- |
-| Popup 弹窗 | 开始或停止录制，查看状态，打开文档助手 |
-| Side Panel 侧边栏 | 生成、编辑、优化、保存、同步和导出文档，查看本地或云端历史 |
-| Settings 设置页 | 配置模型、提示词、风格指南、示例文档、输出格式、Supabase 和 Agent Bridge |
+| Popup | Start or stop recording, check status, and open the document assistant |
+| Side Panel | Generate, edit, refine, save, sync, and export documents, with local and cloud history |
+| Settings | Configure models, prompts, style guides, examples, output formats, Supabase, and Agent Bridge |
 
-## 模型兼容
+## Model Compatibility
 
-SmartPages 支持两类 API：
+SmartPages supports two API families:
 
-- **OpenAI-compatible Chat Completions**：GPT / OpenAI、Gemini / Google、GLM、DeepSeek、MiniMax、Kimi、OpenRouter、SiliconFlow、DashScope，以及自定义兼容服务。
-- **Anthropic Messages API**：Claude / Anthropic。
+- **OpenAI-compatible Chat Completions:** GPT / OpenAI, Gemini / Google, GLM, DeepSeek, MiniMax, Kimi, OpenRouter, SiliconFlow, DashScope, and custom compatible services.
+- **Anthropic Messages API:** Claude / Anthropic.
 
-不同服务商的模型名、Base URL、上下文长度和计费规则不同，请以对应官方文档为准。
+Model names, base URLs, context limits, and pricing vary by provider. Refer to the provider's official documentation.
 
-## 隐私与安全
+## Privacy and Security
 
-- API Key 存储在 Chrome Storage 中，不写入仓库。
-- 录制数据只在生成文档时发送到你配置的模型 API。
-- Supabase 云同步默认不启用；只有在用户自行配置、登录并主动保存时，文档和相关截图才会上传到对应项目。
-- 本地历史仅使用用户通过浏览器目录选择器明确授权的文件夹。
-- 扩展页面启用 Manifest V3 CSP，第三方脚本在本地打包。
-- 动态 HTML 在渲染和导出前经过清理，降低 XSS 风险。
-- 生成提示词要求遮蔽密码、Token、手机号、证件号等敏感内容；录制前仍建议主动避开敏感信息。
+- API keys are stored in Chrome Storage and are not committed to the repository.
+- Recorded data is sent only to the model API you configure when you generate a document.
+- Supabase cloud sync is disabled by default. Documents and related screenshots are uploaded only after the user configures a project, signs in, and explicitly saves them.
+- Local history uses only a folder the user explicitly authorizes through the browser's directory picker.
+- Extension pages use Manifest V3 CSP, and third-party scripts are bundled locally.
+- Dynamic HTML is sanitized before rendering and export to reduce XSS risk.
+- Generation prompts instruct the model to mask passwords, tokens, phone numbers, and identity numbers. You should still avoid recording sensitive information whenever possible.
 
-## 开发与贡献
+## Development and Contributing
 
 ```bash
-npm run dev         # watch 模式构建 dist/
-npm test            # 运行测试
-npm run lint        # ESLint 检查
-npm run typecheck   # TypeScript 类型检查
-npm run build       # 生成可加载的 dist/
-npm run verify      # 完整验证
+npm run dev         # Build dist/ in watch mode
+npm test            # Run the test suite
+npm run lint        # Run ESLint
+npm run typecheck   # Run TypeScript checks
+npm run build       # Generate the loadable dist/ directory
+npm run verify      # Run the full verification pipeline
 ```
 
-更多资料：
+More project documentation:
 
-- [快速上手](QUICKSTART.md)
-- [测试指南](TESTING.md)
-- [故障排查](TROUBLESHOOTING.md)
-- [代码结构](CODE_STRUCTURE.md)
-- [Supabase 云文档配置](docs/cloud-storage-supabase.md)
-- [示例文档](docs/examples/README.md)
+- [Quick start](QUICKSTART.md)
+- [Testing guide](TESTING.md)
+- [Troubleshooting](TROUBLESHOOTING.md)
+- [Code structure](CODE_STRUCTURE.md)
+- [Supabase cloud document setup](docs/cloud-storage-supabase.md)
+- [Example documents](docs/examples/README.md)
 
-欢迎提交 Issue 和 Pull Request。贡献前请阅读[贡献者许可协议（CLA）](CONTRIBUTING.md)。
+Issues and pull requests are welcome. Please read the [Contributor License Agreement](CONTRIBUTING.en.md) before contributing.
 
-## 许可证
+## License
 
-SmartPages 采用双许可证模式：
+SmartPages uses a dual-license model:
 
-| 使用场景 | 许可证 | 说明 |
+| Use case | License | Details |
 | --- | --- | --- |
-| 个人、学习、非商业用途 | [GPL v3](LICENSE) | 可免费使用、修改和分发；衍生作品需继续开源 |
-| 商业用途 | 商业许可证 | 集成到商业产品、SaaS 或企业部署前需另行获得授权 |
+| Personal, educational, and non-commercial use | [GPL v3](LICENSE) | Free to use, modify, and distribute; derivative works must remain open source |
+| Commercial use | Commercial license | A separate license is required before integration into commercial products, SaaS services, or enterprise deployments |
 
-- 版权所有者（汪鸿儒）保留所有商业权利，可不受限制地商业使用。
-- 未经授权，不得将本软件用于任何商业目的，包括但不限于商业产品集成、SaaS 服务、企业部署。
-- 商业授权咨询请通过 GitHub Issues 联系作者。
-
----
-
-## 可执行工作流预览（Phase 1）
-
-SmartPages 可以把一次录制同时导出为供人阅读的 Markdown 文档和供机器读取的 `.smartpages.json` 工作流。侧边栏提供本地 **Test Run**，用于在当前浏览器标签页中审核和回放该流程。
-
-- 支持的动作：`navigate`、`click`、`input`、`select`、`scroll`、`wait` 和 `assert`。
-- 工作流只能访问明确声明的、完全匹配的 HTTP/HTTPS Origin；不接受通配符或浏览器特权协议。
-- 高风险步骤会在向页面发送操作前暂停，并要求用户明确确认。
-- 工作流 JSON 属于不可信输入，执行前必须通过 Schema 校验。
-- 密码、Token 等敏感信息应在运行时提供；录制到的输入值不会写入导出的工作流。
-- Phase 1 完全在扩展本地运行。MCP Server 与 Native Messaging 只是后续架构方向，**不包含在 Phase 1 中**。
-
-当前预览面向受控的同站点流程回放，不代表已经具备生产级 MCP 集成或跨站点自主操作能力。
+- The copyright holder (Hongru Wang / 汪鸿儒) retains all commercial rights and may use this software commercially without restriction.
+- Unauthorized commercial use — including integration into commercial products, SaaS services, or enterprise deployments — is prohibited.
+- For commercial licensing inquiries, please contact the author via GitHub Issues.
 
 ---
 
-## 本地 Agent Bridge（实验性 Phase 2A）
+## Executable Workflow Preview (Phase 1)
 
-SmartPages 可以把导出的 `.smartpages.json` workflow 暴露给本机 Agent 调用。轻量版只在本机运行：Agent 通过 MCP stdio 调用 `smartpages-mcp`，`smartpages-mcp` 再通过 `127.0.0.1` WebSocket 连接 SmartPages 扩展，实际页面操作仍由扩展完成。
+SmartPages can export a recorded session as both a human-readable Markdown document and a machine-readable `.smartpages.json` workflow. The side panel provides a local **Test Run** for reviewing and replaying that workflow in the current browser tab.
 
-使用方式：
+- Supported actions: `navigate`, `click`, `input`, `select`, `scroll`, `wait`, and `assert`.
+- Workflows are restricted to explicitly declared, exact HTTP/HTTPS origins. Wildcards and privileged URL schemes are rejected.
+- High-risk steps pause before page dispatch and require explicit confirmation.
+- Workflow JSON is untrusted input and must pass schema validation before execution.
+- Passwords, tokens, and other secrets are runtime inputs; recorded values are not exported into the workflow.
+- Phase 1 runs locally inside the extension. MCP Server and Native Messaging integration are an architectural direction and are **not included in Phase 1**.
 
-1. 在侧边栏导出 `.smartpages.json` workflow。
-2. 将文件放入 `%LOCALAPPDATA%\SmartPages\workflows\`。
-3. 启动本地 MCP Bridge：
+This preview is intended for controlled, same-site workflow replay. It does not provide production-ready MCP integration or autonomous cross-site browsing.
+
+---
+
+## Local Agent Bridge (Experimental Phase 2A)
+
+SmartPages can expose exported `.smartpages.json` workflows to a local agent through MCP. The lightweight bridge runs only on the user's machine: the agent calls `smartpages-mcp` over MCP stdio, and `smartpages-mcp` connects to the SmartPages extension over a `127.0.0.1` WebSocket. The extension still performs the actual browser operations.
+
+Usage:
+
+1. Export a `.smartpages.json` workflow from the side panel.
+2. Put the file in `%LOCALAPPDATA%\SmartPages\workflows\`.
+3. Start the local MCP bridge:
 
    ```bash
    npm run mcp:serve
    ```
 
-4. 复制终端显示的 host、port 和 token。
-5. 打开 SmartPages 设置页，启用“本地 Agent Bridge”，填入 port 和 token，点击“测试 Agent Bridge”。
-6. 在 Agent 的 MCP 配置中使用 `smartpages-mcp`，即可调用 `list_workflows`、`start_run`、`get_run_status` 和 `cancel_run`。
+4. Copy the host, port, and token printed in the terminal.
+5. Open SmartPages settings, enable “Local Agent Bridge”, enter the port and token, then click “Test Agent Bridge”.
+6. Configure your agent to use `smartpages-mcp`, then call `list_workflows`, `start_run`, `get_run_status`, and `cancel_run`.
 
-### 首次接入检查清单
+### First-time Setup Checklist
 
-1. 在 `chrome://extensions` 开启开发者模式，并加载项目的 `dist/` 目录，而不是源码根目录。代码变更后运行 `npm run build`，再在扩展管理页点击“重新加载”。
-2. 在设置页保存模型 API Key。保存后的 Key 会保留在扩展本地配置中，重载扩展后无需重新输入。
-3. 启用本地 Agent Bridge 后，使用 `127.0.0.1`、bridge 端口和 `bridge-token.json` 中的 token 配置扩展；点击“测试 Agent Bridge”以建立连接。
-4. 当扩展请求网页访问权限时，允许工作流目标站点。例如本地演示页需允许 `http://localhost/*`。
-5. 在**安装了 SmartPages 扩展的桌面 Chrome**中打开工作流首步要求的页面。Agent 只能通过该扩展回放操作；其他浏览器实例或内置浏览器标签不会被 bridge 执行。
+1. Enable Developer mode at `chrome://extensions` and load the project's `dist/` directory, not the source root. After changing the code, run `npm run build`, then select **Reload** on the extensions page.
+2. Save the model API key on the Settings page. The saved key remains in the extension's local configuration, so you do not need to enter it again after reloading the extension.
+3. After enabling Local Agent Bridge, configure the extension with `127.0.0.1`, the bridge port, and the token from `bridge-token.json`. Select **Test Agent Bridge** to establish the connection.
+4. When the extension requests site access, allow the workflow's target site. For example, a local demo page requires access to `http://localhost/*`.
+5. Open the page required by the workflow's first step in the **desktop Chrome instance where SmartPages is installed**. The agent can replay actions only through that extension; other browser instances and embedded browser tabs are not controlled by the bridge.
 
-### Agent 回放与排障
+### Agent Replay and Troubleshooting
 
-- `start_run` 会先校验 workflow schema、允许的 Origin、运行时变量和首步前置条件；任一检查失败时不会执行页面操作。
-- 工作流会优先匹配首步 URL 前置条件对应的已打开标签，避免在同一站点的错误页面执行。
-- Bridge 断开后，扩展会自动尝试重连；也可在设置页点击“测试 Agent Bridge”立即重新连接。
-- API Key、bridge token 和密码等敏感值不要写入 `.smartpages.json` 或提交到仓库。
+- `start_run` validates the workflow schema, allowed origins, runtime variables, and first-step preconditions before performing any page action. If any check fails, the workflow does not run.
+- The workflow prefers an already-open tab that matches the first step's URL precondition, preventing execution on the wrong page within the same site.
+- If the bridge disconnects, the extension attempts to reconnect automatically. You can also select **Test Agent Bridge** on the Settings page to reconnect immediately.
+- Do not store API keys, bridge tokens, passwords, or other sensitive values in `.smartpages.json` files or commit them to the repository.
 
-第一版只支持本机调用。SmartPages 不提供任意 JavaScript 执行、任意文件读取或绕过扩展权限的工具；高风险动作仍由扩展在操作发生前要求用户确认。
+The first version only supports local calls. SmartPages does not expose arbitrary JavaScript execution, arbitrary file reads, or tools that bypass browser extension permissions; high-risk actions still require confirmation inside the extension before dispatch.
