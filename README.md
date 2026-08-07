@@ -62,6 +62,12 @@ SmartPages removes the slow part of documentation: reconstructing every step, sc
 
 > For a stable, ready-to-install extension, download the latest package from [GitHub Releases](https://github.com/Teddy9710/smartpages/releases/latest). Build from source when you want to develop SmartPages or try the newest changes.
 
+<p align="center">
+  <a href="assets/smartpages-poster-first-setup-en.png">
+    <img src="assets/smartpages-poster-first-setup-en.png" width="760" alt="SmartPages quick setup and first-use guide">
+  </a>
+</p>
+
 ### 1. Build the extension
 
 ```bash

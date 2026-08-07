@@ -62,6 +62,12 @@ SmartPages 省去文档工作中最耗时的部分：操作完成后，再重新
 
 > 如需稳定、可直接安装的插件版本，请从 [GitHub Releases](https://github.com/Teddy9710/smartpages/releases/latest) 下载最新安装包；开发 SmartPages 或体验最新改动时再从源码构建。
 
+<p align="center">
+  <a href="assets/smartpages-poster-first-setup-v4.png">
+    <img src="assets/smartpages-poster-first-setup-v4.png" width="760" alt="SmartPages 初步配置与首次使用指南">
+  </a>
+</p>
+
 ### 1. 构建扩展
 
 ```bash
