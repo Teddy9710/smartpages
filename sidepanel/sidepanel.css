@@ -839,6 +839,10 @@ body {
   width: min(920px, 96vw);
 }
 
+.image-crop-panel .modal-actions {
+  flex-wrap: wrap;
+}
+
 .image-crop-body {
   display: grid;
   gap: 12px;

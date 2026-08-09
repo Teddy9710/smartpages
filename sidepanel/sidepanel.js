@@ -484,6 +484,29 @@ ${bodyHtml}
     return ['crop', 'box', 'number', 'blur'].includes(mode) ? mode : 'crop';
   }
 
+  static createImageEditHistory(snapshot) {
+    return { states: [{ ...snapshot }], index: 0 };
+  }
+
+  static pushImageEditHistory(history, snapshot) {
+    if (!history?.states?.length) return SidePanelManager.createImageEditHistory(snapshot);
+    const next = { ...snapshot };
+    const current = history.states[history.index];
+    if (JSON.stringify(current) === JSON.stringify(next)) return history;
+    history.states = history.states.slice(0, history.index + 1);
+    history.states.push(next);
+    history.index = history.states.length - 1;
+    return history;
+  }
+
+  static stepImageEditHistory(history, direction) {
+    if (!history?.states?.length) return null;
+    const nextIndex = Math.max(0, Math.min(history.states.length - 1, history.index + direction));
+    if (nextIndex === history.index) return null;
+    history.index = nextIndex;
+    return { ...history.states[history.index] };
+  }
+
   static getNextAnnotationNumber(images) {
     const values = Array.from(images || [])
       .map(image => Number.parseInt(image?.dataset?.annotationNumber, 10))
@@ -521,6 +544,8 @@ ${bodyHtml}
     this._workflowReplayPendingOperation = null;
     this._workflowReplayActiveRunId = null;
     this.toastContainer = null;
+    this.imageEditHistories = new Map();
+    this.nextImageEditHistoryId = 1;
     this.imageCropState = {
       imageElement: null,
       sourceImage: null,
@@ -592,6 +617,9 @@ ${bodyHtml}
     this._bindButton('btn-close-image-crop', () => this.closeImageCropDialog());
     this._bindButton('btn-cancel-image-crop', () => this.closeImageCropDialog());
     this._bindButton('btn-reset-image-crop', () => this.resetImageCropSelection());
+    this._bindButton('btn-restore-original-image', () => this.restoreOriginalImage());
+    this._bindButton('btn-undo-image-edit', () => this.undoImageEdit());
+    this._bindButton('btn-redo-image-edit', () => this.redoImageEdit());
     this._bindButton('btn-apply-image-crop', () => this.applyImageCrop());
     this._bindButton('btn-image-mode-crop', () => this.setImageEditMode('crop'));
     this._bindButton('btn-image-mode-box', () => this.setImageEditMode('box'));
@@ -686,21 +714,36 @@ ${bodyHtml}
   _bindImageCropEvents() {
     const canvas = document.getElementById('image-crop-canvas');
     if (!canvas) return;
+    const modal = document.getElementById('image-crop-modal');
 
     const handlePointerDown = (event) => this._startImageCropDrag(event);
     const handlePointerMove = (event) => this._moveImageCropDrag(event);
     const handlePointerUp = (event) => this._endImageCropDrag(event);
+    const handleKeyDown = (event) => {
+      if (!(event.ctrlKey || event.metaKey) || modal?.classList.contains('hidden')) return;
+      const key = String(event.key || '').toLowerCase();
+      if (key === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) this.redoImageEdit();
+        else this.undoImageEdit();
+      } else if (key === 'y') {
+        event.preventDefault();
+        this.redoImageEdit();
+      }
+    };
 
     canvas.addEventListener('pointerdown', handlePointerDown);
     canvas.addEventListener('pointermove', handlePointerMove);
     canvas.addEventListener('pointerup', handlePointerUp);
     canvas.addEventListener('pointercancel', handlePointerUp);
+    document.addEventListener('keydown', handleKeyDown);
 
     this.cleanupFunctions.push(() => {
       canvas.removeEventListener('pointerdown', handlePointerDown);
       canvas.removeEventListener('pointermove', handlePointerMove);
       canvas.removeEventListener('pointerup', handlePointerUp);
       canvas.removeEventListener('pointercancel', handlePointerUp);
+      document.removeEventListener('keydown', handleKeyDown);
     });
   }
 
@@ -895,6 +938,12 @@ ${bodyHtml}
       imageEditModeLabel: 'Image editing mode',
       cropClose: 'Close',
       cropReset: 'Reset',
+      imageRestoreOriginal: 'Restore original',
+      imageUndo: 'Undo',
+      imageRedo: 'Redo',
+      imageUndoDone: 'Undid the last image edit.',
+      imageRedoDone: 'Redid the image edit.',
+      imageRestoreDone: 'Original image restored.',
       cropApply: 'Apply Crop',
       cropHint: 'Drag on the image to choose the crop area.',
       cropLoadFailed: 'Unable to load this image for cropping.',
@@ -945,6 +994,12 @@ ${bodyHtml}
       imageEditModeLabel: '图片编辑模式',
       cropClose: '关闭',
       cropReset: '重置',
+      imageRestoreOriginal: '恢复原图',
+      imageUndo: '撤销',
+      imageRedo: '重做',
+      imageUndoDone: '已撤销上一步图片编辑。',
+      imageRedoDone: '已重做图片编辑。',
+      imageRestoreDone: '已恢复原图。',
       cropApply: '应用裁剪',
       cropHint: '在图片上拖拽选择裁剪区域。',
       cropLoadFailed: '无法加载这张图片进行裁剪。',
@@ -1126,6 +1181,13 @@ ${bodyHtml}
     set('#image-crop-title', text.imageEditTitle);
     set('#image-crop-status', text.cropHint);
     setButton('#btn-reset-image-crop', text.cropReset);
+    setButton('#btn-restore-original-image', text.imageRestoreOriginal);
+    setButton('#btn-undo-image-edit', text.imageUndo);
+    setButton('#btn-redo-image-edit', text.imageRedo);
+    const undoImageButton = document.getElementById('btn-undo-image-edit');
+    const redoImageButton = document.getElementById('btn-redo-image-edit');
+    if (undoImageButton) undoImageButton.title = `${text.imageUndo} (Ctrl+Z)`;
+    if (redoImageButton) redoImageButton.title = `${text.imageRedo} (Ctrl+Y)`;
     setButton('#btn-cancel-image-crop', text.cancel);
     setButton('#btn-apply-image-crop', text.cropApply);
     setButton('#btn-image-mode-crop', text.cropMode);
@@ -2026,7 +2088,8 @@ ${bodyHtml}
     return value.slice(0, headLength) + marker + value.slice(-tailLength);
   }
 
-  _setEditorContent(content) {
+  _setEditorContent(content, options = {}) {
+    if (!options.preserveImageHistory) this._resetImageEditHistories();
     const editor = document.getElementById('markdown-editor');
     if (editor) {
       editor.value = content;
@@ -2079,9 +2142,12 @@ ${bodyHtml}
 
   _attachImageEditing(root) {
     if (!root) return;
+    const assignedHistoryIds = new Set();
     root.querySelectorAll('img').forEach((img, index) => {
       if (!img.getAttribute('src')) return;
-      if (!img.dataset.originalSrc) img.dataset.originalSrc = img.getAttribute('src') || '';
+      const history = this._ensureImageEditHistory(img, assignedHistoryIds);
+      assignedHistoryIds.add(history.id);
+      img.dataset.originalSrc = history.states[0].src;
       if (!img.dataset.imageId) img.dataset.imageId = `img_${Date.now()}_${index}`;
       if (/^data:image\//i.test(img.getAttribute('src') || '') && !this._isKnownSessionScreenshot(img.getAttribute('src'))) {
         img.dataset.imageEdited = 'true';
@@ -2118,6 +2184,8 @@ ${bodyHtml}
         canvasScale: 1
       };
       document.getElementById('image-crop-modal')?.classList.remove('hidden');
+      this._ensureImageEditHistory(imageElement);
+      this._updateImageHistoryControls();
       this.setImageEditMode('crop', { preserveSelection: true });
     } catch (error) {
       console.error('[Scribe:SidePanel] Failed to open image crop dialog:', error);
@@ -2137,6 +2205,142 @@ ${bodyHtml}
       displayScale: 1,
       canvasScale: 1
     };
+    this._updateImageHistoryControls();
+  }
+
+  _resetImageEditHistories() {
+    this.imageEditHistories.clear();
+    this.nextImageEditHistoryId = 1;
+  }
+
+  _getImageSnapshot(imageElement) {
+    const get = name => imageElement?.dataset?.[name] || null;
+    return {
+      src: imageElement?.getAttribute?.('src') || '',
+      imageEdited: get('imageEdited'),
+      imageEditOperation: get('imageEditOperation'),
+      cropRect: get('cropRect'),
+      annotationNumber: get('annotationNumber')
+    };
+  }
+
+  _ensureImageEditHistory(imageElement, excludedIds = new Set()) {
+    const currentSnapshot = this._getImageSnapshot(imageElement);
+    let id = imageElement?.dataset?.imageHistoryId;
+    let history = id ? this.imageEditHistories.get(id) : null;
+    if (!history) {
+      const match = Array.from(this.imageEditHistories.entries()).find(([candidateId, candidate]) => (
+        !excludedIds.has(candidateId) && candidate.states.some(state => state.src === currentSnapshot.src)
+      ));
+      if (match) [id, history] = match;
+    }
+    if (!history) {
+      id = `image_history_${this.nextImageEditHistoryId++}`;
+      const originalSrc = imageElement?.dataset?.originalSrc || currentSnapshot.src;
+      history = SidePanelManager.createImageEditHistory({
+        src: originalSrc,
+        imageEdited: null,
+        imageEditOperation: null,
+        cropRect: null,
+        annotationNumber: null
+      });
+      if (originalSrc !== currentSnapshot.src) {
+        SidePanelManager.pushImageEditHistory(history, currentSnapshot);
+      }
+      this.imageEditHistories.set(id, history);
+    }
+    imageElement.dataset.imageHistoryId = id;
+    return { id, ...history };
+  }
+
+  _getActiveImageHistory() {
+    const imageElement = this.imageCropState.imageElement;
+    if (!imageElement) return null;
+    const id = imageElement.dataset.imageHistoryId;
+    return id ? this.imageEditHistories.get(id) : null;
+  }
+
+  _setImageDatasetValue(imageElement, name, value) {
+    if (value === null || value === undefined || value === '') delete imageElement.dataset[name];
+    else imageElement.dataset[name] = String(value);
+  }
+
+  _applyImageSnapshot(imageElement, snapshot) {
+    imageElement.setAttribute('src', snapshot.src);
+    this._setImageDatasetValue(imageElement, 'imageEdited', snapshot.imageEdited);
+    this._setImageDatasetValue(imageElement, 'imageEditOperation', snapshot.imageEditOperation);
+    this._setImageDatasetValue(imageElement, 'cropRect', snapshot.cropRect);
+    this._setImageDatasetValue(imageElement, 'annotationNumber', snapshot.annotationNumber);
+  }
+
+  _commitImageEdit() {
+    this._syncPreviewToEditor();
+    this._markLocalDocumentDirty();
+    this._markCloudDocumentDirty();
+    this._saveDraftDebounced();
+    this._updateImageHistoryControls();
+  }
+
+  _updateImageHistoryControls() {
+    const history = this._getActiveImageHistory();
+    const restoreButton = document.getElementById('btn-restore-original-image');
+    const undoButton = document.getElementById('btn-undo-image-edit');
+    const redoButton = document.getElementById('btn-redo-image-edit');
+    const current = history?.states?.[history.index];
+    const original = history?.states?.[0];
+    const isOriginal = Boolean(current && original && JSON.stringify(current) === JSON.stringify(original));
+    if (restoreButton) restoreButton.disabled = !history || isOriginal;
+    if (undoButton) undoButton.disabled = !history || history.index <= 0;
+    if (redoButton) redoButton.disabled = !history || history.index >= history.states.length - 1;
+  }
+
+  async _moveImageEditHistory(direction, messageKey) {
+    const imageElement = this.imageCropState.imageElement;
+    const history = this._getActiveImageHistory();
+    const snapshot = SidePanelManager.stepImageEditHistory(history, direction);
+    if (!imageElement || !snapshot) return;
+    this._applyImageSnapshot(imageElement, snapshot);
+    this._commitImageEdit();
+    try {
+      const sourceImage = await this._loadImageForCrop(snapshot.src);
+      if (this.imageCropState.imageElement !== imageElement) return;
+      this.imageCropState.sourceImage = sourceImage;
+      this.imageCropState.displayScale = this._getImageCropDisplayScale(sourceImage);
+      this.resetImageCropSelection();
+    } catch (error) {
+      console.error('[Scribe:SidePanel] Failed to refresh image edit history:', error);
+      this._setImageCropStatus(this._t('cropLoadFailed'));
+    }
+    this._showNotification(this._t(messageKey), 'success');
+  }
+
+  undoImageEdit() {
+    return this._moveImageEditHistory(-1, 'imageUndoDone');
+  }
+
+  redoImageEdit() {
+    return this._moveImageEditHistory(1, 'imageRedoDone');
+  }
+
+  async restoreOriginalImage() {
+    const imageElement = this.imageCropState.imageElement;
+    const history = this._getActiveImageHistory();
+    if (!imageElement || !history || history.index === 0) return;
+    const original = { ...history.states[0] };
+    SidePanelManager.pushImageEditHistory(history, original);
+    this._applyImageSnapshot(imageElement, original);
+    this._commitImageEdit();
+    try {
+      const sourceImage = await this._loadImageForCrop(original.src);
+      if (this.imageCropState.imageElement !== imageElement) return;
+      this.imageCropState.sourceImage = sourceImage;
+      this.imageCropState.displayScale = this._getImageCropDisplayScale(sourceImage);
+      this.resetImageCropSelection();
+    } catch (error) {
+      console.error('[Scribe:SidePanel] Failed to restore original image in editor:', error);
+      this._setImageCropStatus(this._t('cropLoadFailed'));
+    }
+    this._showNotification(this._t('imageRestoreDone'), 'success');
   }
 
   setImageEditMode(mode, options = {}) {
@@ -2216,7 +2420,9 @@ ${bodyHtml}
       imageElement.dataset.imageEdited = 'true';
       imageElement.dataset.imageEditOperation = SidePanelManager.normalizeImageEditMode(mode);
       imageElement.dataset.cropRect = `${Math.round(rect.x)},${Math.round(rect.y)},${Math.round(rect.width)},${Math.round(rect.height)}`;
-      this._syncPreviewToEditor();
+      const history = this._getActiveImageHistory();
+      SidePanelManager.pushImageEditHistory(history, this._getImageSnapshot(imageElement));
+      this._commitImageEdit();
       this.closeImageCropDialog();
       this._showNotification(this._getImageEditText(mode, 'Done'), 'success');
     } catch (error) {
@@ -3294,7 +3500,7 @@ ${markdown}`;
         format: this._getOutputFormat(),
         content
       });
-      this._setEditorContent(saved.content || content);
+      this._setEditorContent(saved.content || content, { preserveImageHistory: true });
       this.cloudDocumentState = { id: saved.id, revision: saved.revision, dirty: false };
       await this._saveLocalDraft();
       this._setCloudSaveStatus(this.language === 'en-US' ? 'Saved' : '已保存', 'saved');

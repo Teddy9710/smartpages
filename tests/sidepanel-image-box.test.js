@@ -87,6 +87,39 @@ function assertRect(actual, expected) {
 }
 
 {
+  const original = { src: 'original.png', imageEdited: null };
+  const history = SidePanelManager.createImageEditHistory(original);
+  SidePanelManager.pushImageEditHistory(history, { src: 'crop.png', imageEdited: 'true' });
+  SidePanelManager.pushImageEditHistory(history, { src: 'blur.png', imageEdited: 'true' });
+
+  assert.equal(history.index, 2);
+  assert.equal(SidePanelManager.stepImageEditHistory(history, -1).src, 'crop.png');
+  assert.equal(SidePanelManager.stepImageEditHistory(history, -1).src, 'original.png');
+  assert.equal(SidePanelManager.stepImageEditHistory(history, -1), null);
+  assert.equal(SidePanelManager.stepImageEditHistory(history, 1).src, 'crop.png');
+
+  SidePanelManager.pushImageEditHistory(history, { src: 'box.png', imageEdited: 'true' });
+  assert.equal(history.index, 2);
+  assert.deepEqual(JSON.parse(JSON.stringify(history.states.map(state => state.src))), ['original.png', 'crop.png', 'box.png']);
+  assert.equal(SidePanelManager.stepImageEditHistory(history, 1), null);
+
+  SidePanelManager.pushImageEditHistory(history, original);
+  assert.equal(history.states[history.index].src, 'original.png');
+  assert.equal(SidePanelManager.stepImageEditHistory(history, -1).src, 'box.png');
+}
+
+{
+  const source = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.js'), 'utf8');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.html'), 'utf8');
+  assert.match(html, /id="btn-restore-original-image"/);
+  assert.match(html, /id="btn-undo-image-edit"/);
+  assert.match(html, /id="btn-redo-image-edit"/);
+  assert.match(source, /restoreOriginalImage\(\)/);
+  assert.match(source, /undoImageEdit\(\)/);
+  assert.match(source, /redoImageEdit\(\)/);
+}
+
+{
   const result = SidePanelManager.sanitizeHtmlExportCss('body { color: red; }\nmain { max-width: 720px; }');
 
   assert.equal(result.ok, true);
