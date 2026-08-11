@@ -51,13 +51,14 @@ SmartPages 是一个功能强大的浏览器扩展，用于智能录制网页操
 
 ```
 smartpages/
-├── docs/                    # 文档管理功能目录
+├── docs/                    # 项目文档与媒体资源
+│   └── VERIFICATION.md      # 本验证报告
+├── legacy/document-management/ # 未进入发布包的文档管理原型
 │   ├── document-storage.js  # 文档存储管理
 │   ├── api-endpoints.js     # API端点定义
 │   ├── cli-interface.js     # 命令行接口
 │   ├── integration-test.js  # 集成测试
-│   ├── index.js            # 系统主入口
-│   └── VERIFICATION.md     # 本验证报告
+│   └── index.js             # 系统主入口
 ├── upload/                  # 上传功能模块
 ├── settings/                # 设置界面（已更新）
 ├── utils/                   # 工具函数

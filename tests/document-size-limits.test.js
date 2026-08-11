@@ -19,7 +19,7 @@ function loadClass(file, exportName) {
 }
 
 (async () => {
-  const DocumentStorage = loadClass('docs/document-storage.js', 'DocumentStorage');
+  const DocumentStorage = loadClass('legacy/document-management/document-storage.js', 'DocumentStorage');
   const storage = new DocumentStorage();
   let storageRead = false;
   storage.readFileContent = async () => {
