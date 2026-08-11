@@ -362,7 +362,7 @@ function sanitizeHtmlDocument(doc) {
 function safeSetInnerHTML(element, html, allowBasicFormatting = false) {
   if (!element) return;
   if (!html) {
-    element.innerHTML = '';
+    element.replaceChildren();
     return;
   }
 

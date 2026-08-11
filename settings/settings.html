@@ -22,7 +22,8 @@
         <a class="settings-nav-link is-active" href="#api-settings"><span>01</span>AI 配置</a>
         <a class="settings-nav-link" href="#documents-settings"><span>02</span>参考文档</a>
         <a class="settings-nav-link" href="#smart-settings"><span>03</span>智能功能</a>
-        <a class="settings-nav-link" href="#about-settings"><span>04</span>关于</a>
+        <a class="settings-nav-link" href="#storage-settings"><span>04</span>存储与缓存</a>
+        <a class="settings-nav-link" href="#about-settings"><span>05</span>关于</a>
       </nav>
 
       <main class="content">
@@ -336,6 +337,19 @@
             <div class="switch-desc">AI将自动分析您的操作并推测任务意图</div>
           </div>
         </div>
+      </section>
+
+      <section class="section" id="storage-settings">
+        <h2>存储与缓存</h2>
+        <p class="section-desc">管理录制过程产生的临时数据，不影响已导出的文件或云端文档。</p>
+        <div class="storage-action-row">
+          <div>
+            <strong>未完成录制缓存</strong>
+            <p class="help-text">遇到录制状态异常或需要释放空间时使用。录制进行中不可清理。</p>
+          </div>
+          <button id="btn-clear-recording-cache" class="btn btn-danger" type="button">清理录制缓存</button>
+        </div>
+        <p id="recording-cache-result" class="test-result hidden" aria-live="polite"></p>
       </section>
 
       <!-- 关于 -->

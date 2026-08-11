@@ -107,7 +107,22 @@ body {
 .btn-secondary:hover { background: var(--surface-soft); border-color: #b8c5d6; }
 .btn-outline { border-color: #9bbcf6; background: #fff; color: #205ec5; }
 .btn-outline:hover { background: var(--blue-soft); }
+.btn-danger { border-color: #fecaca; background: #fff; color: #b91c1c; }
+.btn-danger:hover { border-color: #fca5a5; background: #fef2f2; }
 .btn-small { min-height: 36px; padding: 7px 10px; font-size: 12px; }
+
+.storage-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+.storage-action-row strong { color: #334155; }
+.storage-action-row .help-text { max-width: 620px; }
 
 .icon { position: relative; display: inline-flex; flex: 0 0 16px; width: 16px; height: 16px; font-size: 0; }
 .icon::before, .icon::after { position: absolute; content: ""; }
@@ -190,6 +205,7 @@ body {
   .settings-layout { padding: 14px 14px 28px; }
   .section { padding: 20px 16px; border-radius: 12px; }
   .documents-actions, .button-group { flex-direction: column; }
+  .storage-action-row { align-items: stretch; flex-direction: column; gap: 14px; }
   .input-small, .btn { width: 100%; max-width: none; }
   .doc-item { align-items: flex-start; flex-direction: column; }
   .doc-actions { width: 100%; justify-content: flex-start; }

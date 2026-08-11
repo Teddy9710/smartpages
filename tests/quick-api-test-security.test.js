@@ -10,3 +10,5 @@ assert.match(source, /name="referrer" content="no-referrer"/i);
 assert.match(source, /仅供开发调试使用，不要输入生产环境的 API Key/);
 assert.match(source, /id="api-key"[^>]*autocomplete="new-password"/i);
 assert.doesNotMatch(source, /window\.addEventListener\(['"]DOMContentLoaded['"][\s\S]*loadConfig\(\)/);
+assert.doesNotMatch(source, /\.innerHTML\b/);
+assert.match(source, /paragraph\.textContent = text/);

@@ -58,7 +58,7 @@
     function generateIcons() {
       const sizes = [16, 32, 48, 128];
       const preview = document.getElementById('preview');
-      preview.innerHTML = '';
+      preview.replaceChildren();
 
       sizes.forEach(size => {
         const wrapper = document.createElement('div');

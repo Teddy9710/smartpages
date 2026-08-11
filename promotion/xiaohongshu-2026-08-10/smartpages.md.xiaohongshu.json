@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "platform": "xiaohongshu",
+  "mode": "preview_only",
+  "explicit_publish_confirmation_required": true,
+  "source_draft": "D:\\smartpages\\promotion\\xiaohongshu-2026-08-10\\smartpages.md",
+  "humanwriting_receipt": "D:\\smartpages\\promotion\\xiaohongshu-2026-08-10\\smartpages.md.humanwriting.sha256",
+  "content_sha256": "028a5c66f2ef0dcbf7557a55031dc6fdc858a6805dbcf8081ca316d9c782bb82",
+  "title": "做了个工具：录网页操作，自动生成文档",
+  "title_weight": 36,
+  "body": "写操作说明，最机械的一步往往发生在操作结束以后：再翻一遍流程，把截图、步骤和说明重新拼起来。\n\nSmartPages 是一个开源的 Chrome / Edge 扩展，想把这段重复劳动缩短一点。\n\n使用方式很直接：\n\n① 打开录制，按平时的方式完成网页操作\n② 自动记录点击、输入、页面跳转和关键截图\n③ 选择要生成的内容：用户指南、教程、测试用例或 Bug 报告\n④ 检查并修改结果，再导出成 Markdown、HTML、Word、PDF、图片或 ZIP\n\n模型也不锁死。可以配置 OpenAI、Gemini、Claude、DeepSeek、Kimi、通义千问等服务，也支持其他兼容接口。API Key、Base URL 和模型都由自己选择。\n\n生成出来的内容不是一份不能动的“成品”。可以继续编辑正文或 Markdown，用 AI 再优化，也可以保留不同版本，确认后再导出。\n\n有两点使用前值得注意：\n\n• API Key 保存在 Chrome Storage，不会写进项目仓库\n• 录制时仍要避开密码、验证码、Token 等敏感信息；只有主动开启图片输入后，截图才会发送给所配置的多模态模型\n\n如果你经常整理产品操作手册、内部 SOP、测试步骤或 Bug 复现过程，可以试试这个思路。\n\n项目已开源，GitHub 搜索：Teddy9710/smartpages\n\n欢迎直接提 Issue，说说你最想让它生成哪一类文档。",
+  "tags": [
+    "SmartPages",
+    "AI效率工具",
+    "Chrome插件",
+    "开源项目",
+    "产品经理",
+    "测试工程师",
+    "技术写作"
+  ],
+  "media_type": "images",
+  "media": [
+    "D:\\smartpages\\assets\\smartpages-poster-zh.png",
+    "D:\\smartpages\\assets\\smartpages-poster-first-setup-v4.png",
+    "D:\\smartpages\\docs\\assets\\readme-hero.png"
+  ],
+  "prepared_at": "2026-08-10T06:25:22.921556+00:00"
+}

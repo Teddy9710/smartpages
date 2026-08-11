@@ -14,7 +14,7 @@ const converterIndex = html.indexOf('../workflow/converter.js');
 const sidepanelIndex = html.indexOf('src="sidepanel.js"');
 assert.ok(schemaIndex >= 0 && schemaIndex < converterIndex && converterIndex < sidepanelIndex);
 assert.match(html, /id="btn-export-workflow"[^>]+(?:title|aria-label)="[^"]+"/);
-assert.match(html, /id="btn-export-workflow"[\s\S]*?JSON[\s\S]*?<\/button>/);
+assert.match(html, /id="btn-export-workflow"[\s\S]*?导出工作流[\s\S]*?<\/button>/);
 
 let editorContent = '# Checkout: Demo / Flow?\n\nFollow these steps.';
 let appLanguage = 'en-US';

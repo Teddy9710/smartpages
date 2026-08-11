@@ -334,10 +334,12 @@
       return session;
     }
 
-    async listDocuments() {
+    async listDocuments(search = '') {
       const context = await this._authorizedContext();
+      const query = String(search || '').trim();
+      const searchFilter = query ? `&title=ilike.*${encodeURIComponent(query.replace(/[,*()]/g, ''))}*` : '';
       const response = await this.fetch(
-        `${context.config.url}/rest/v1/cloud_documents?select=id,title,format,revision,created_at,updated_at&order=updated_at.desc`,
+        `${context.config.url}/rest/v1/cloud_documents?document_type=eq.generated&select=id,title,format,revision,created_at,updated_at&order=updated_at.desc${searchFilter}`,
         { headers: this._headers(context.config, context.session.accessToken) }
       );
       return this._readResponse(response);
@@ -347,7 +349,7 @@
       const context = await this._authorizedContext();
       const safeId = encodeURIComponent(String(id || ''));
       const response = await this.fetch(
-        `${context.config.url}/rest/v1/cloud_documents?id=eq.${safeId}&select=*`,
+        `${context.config.url}/rest/v1/cloud_documents?id=eq.${safeId}&document_type=eq.generated&select=*`,
         { headers: this._headers(context.config, context.session.accessToken) }
       );
       const rows = await this._readResponse(response);
@@ -362,42 +364,58 @@
       return this._hydrateAssets(this._dehydrateKnownAssets(content), context);
     }
 
+    async listDocumentVersions(documentId) {
+      const context = await this._authorizedContext();
+      const safeId = encodeURIComponent(String(documentId || ''));
+      const response = await this.fetch(
+        `${context.config.url}/rest/v1/cloud_document_versions?document_id=eq.${safeId}&select=id,document_id,title,format,revision,event,created_at&order=revision.desc`,
+        { headers: this._headers(context.config, context.session.accessToken) }
+      );
+      return this._readResponse(response);
+    }
+
+    async getDocumentVersion(versionId) {
+      const context = await this._authorizedContext();
+      const safeId = encodeURIComponent(String(versionId || ''));
+      const response = await this.fetch(
+        `${context.config.url}/rest/v1/cloud_document_versions?id=eq.${safeId}&select=*`,
+        { headers: this._headers(context.config, context.session.accessToken) }
+      );
+      const rows = await this._readResponse(response);
+      if (!rows?.length) throw new CloudDocumentError('Cloud document version was not found', 'NOT_FOUND', 404);
+      const version = rows[0];
+      version.content = await this._hydrateAssets(version.content, context);
+      return version;
+    }
+
     async saveDocument(input) {
       const context = await this._authorizedContext();
       const documentId = input?.id || this.randomUUID();
       const cloudContent = await this._uploadEmbeddedAssets(String(input?.content || ''), documentId, context);
-      const payload = {
-        id: documentId,
-        user_id: context.session.user.id,
-        title: String(input?.title || 'SmartPages document').slice(0, 200),
-        format: ['markdown', 'html', 'text'].includes(input?.format) ? input.format : 'markdown',
-        content: cloudContent
-      };
+      const response = await this.fetch(`${context.config.url}/rest/v1/rpc/save_generated_document`, {
+        method: 'POST',
+        headers: this._headers(context.config, context.session.accessToken),
+        body: JSON.stringify({
+          p_id: documentId,
+          p_title: String(input?.title || 'SmartPages document').slice(0, 200),
+          p_format: ['markdown', 'html', 'text'].includes(input?.format) ? input.format : 'markdown',
+          p_content: cloudContent,
+          p_expected_revision: input?.id ? Math.max(1, Number(input.revision) || 1) : null,
+          p_event: input?.event === 'generated' ? 'generated' : 'cloud_save'
+        })
+      });
 
-      let response;
-      if (input?.id) {
-        const revision = Math.max(1, Number(input.revision) || 1);
-        response = await this.fetch(
-          `${context.config.url}/rest/v1/cloud_documents?id=eq.${encodeURIComponent(documentId)}&revision=eq.${revision}`,
-          {
-            method: 'PATCH',
-            headers: { ...this._headers(context.config, context.session.accessToken), Prefer: 'return=representation' },
-            body: JSON.stringify({ ...payload, revision: revision + 1, updated_at: new Date(this.now()).toISOString() })
-          }
-        );
-      } else {
-        response = await this.fetch(`${context.config.url}/rest/v1/cloud_documents`, {
-          method: 'POST',
-          headers: { ...this._headers(context.config, context.session.accessToken), Prefer: 'return=representation' },
-          body: JSON.stringify(payload)
-        });
+      let result;
+      try {
+        result = await this._readResponse(response);
+      } catch (error) {
+        if (error.code === '40001' || error.message === 'VERSION_CONFLICT') {
+          throw new CloudDocumentError('This document changed in another session. Reload it before saving.', 'VERSION_CONFLICT', 409);
+        }
+        throw error;
       }
-
-      const rows = await this._readResponse(response);
-      if (!rows?.length) {
-        throw new CloudDocumentError('This document changed in another session. Reload it before saving.', 'VERSION_CONFLICT', 409);
-      }
-      const saved = rows[0];
+      const saved = Array.isArray(result) ? result[0] : result;
+      if (!saved?.id) throw new CloudDocumentError('Cloud history schema is missing. Run the latest supabase/schema.sql.', 'HISTORY_SCHEMA_REQUIRED');
       try {
         saved.content = await this._hydrateAssets(saved.content, context);
       } catch (error) {
@@ -409,10 +427,23 @@
       return saved;
     }
 
+    async saveVersionAsNew(documentId, versionId = null) {
+      const source = versionId ? await this.getDocumentVersion(versionId) : await this.getDocument(documentId);
+      const current = await this.getDocument(documentId || source.document_id);
+      return this.saveDocument({
+        id: current.id,
+        revision: current.revision,
+        title: source.title,
+        format: source.format,
+        content: source.content,
+        event: 'cloud_save'
+      });
+    }
+
     async deleteDocument(id) {
       const context = await this._authorizedContext();
       const response = await this.fetch(
-        `${context.config.url}/rest/v1/cloud_documents?id=eq.${encodeURIComponent(String(id || ''))}`,
+        `${context.config.url}/rest/v1/cloud_documents?id=eq.${encodeURIComponent(String(id || ''))}&document_type=eq.generated`,
         {
           method: 'DELETE',
           headers: this._headers(context.config, context.session.accessToken)

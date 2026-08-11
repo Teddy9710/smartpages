@@ -99,17 +99,31 @@
 
         const display = document.getElementById('config-display');
         if (result.apiKey) {
-          display.innerHTML = '<p class="success">✅ 配置已加载</p>';
-          display.innerHTML += '<p>API Key: ' + maskKey(result.apiKey) + '</p>';
-          display.innerHTML += '<p>Base URL: ' + (result.baseUrl || '未配置') + '</p>';
-          display.innerHTML += '<p>模型: ' + (result.modelName || '未配置') + '</p>';
+          renderConfigMessages([
+            { text: '✅ 配置已加载', type: 'success' },
+            { text: `API Key: ${maskKey(result.apiKey)}` },
+            { text: `Base URL: ${result.baseUrl || '未配置'}` },
+            { text: `模型: ${result.modelName || '未配置'}` }
+          ]);
         } else {
-          display.innerHTML = '<p class="warning">⚠️ 未找到API配置</p>';
+          renderConfigMessages([{ text: '⚠️ 未找到API配置', type: 'warning' }]);
         }
       } catch (error) {
-        document.getElementById('config-display').innerHTML =
-          '<p class="error">❌ 加载失败: ' + error.message + '</p>';
+        renderConfigMessages([{ text: `❌ 加载失败: ${error.message}`, type: 'error' }]);
       }
+    }
+
+    function renderConfigMessages(messages) {
+      const fragment = document.createDocumentFragment();
+
+      for (const { text, type } of messages) {
+        const paragraph = document.createElement('p');
+        paragraph.textContent = text;
+        if (type) paragraph.className = type;
+        fragment.appendChild(paragraph);
+      }
+
+      document.getElementById('config-display').replaceChildren(fragment);
     }
 
     function maskKey(key) {

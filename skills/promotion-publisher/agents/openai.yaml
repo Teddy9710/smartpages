@@ -1,0 +1,4 @@
+interface:
+  display_name: "Promotion Publisher"
+  short_description: "Review, stage, track, and safely publish promotion posts."
+  default_prompt: "Use $promotion-publisher to adapt this project announcement, run HumanWriting review, save a platform draft, and publish only after exact confirmation."

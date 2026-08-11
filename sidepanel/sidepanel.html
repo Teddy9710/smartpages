@@ -15,6 +15,7 @@
         <p>录制流程转化为可交付文档</p>
       </div>
       <div class="header-actions">
+        <button id="btn-history" class="btn-icon icon-history" title="生成文档历史" aria-label="生成文档历史"></button>
         <button id="btn-documents" class="btn-icon icon-docs" title="文档管理" aria-label="文档管理"></button>
         <button id="btn-new" class="btn-icon icon-new" title="新建" aria-label="新建"></button>
       </div>
@@ -120,28 +121,47 @@
           <span class="icon icon-copy" aria-hidden="true"></span> 复制
         </button>
         <button id="btn-local-save" class="btn-tool btn-tool-primary" title="保存到本地文件夹">
-          <span class="icon" aria-hidden="true">▣</span> 保存
+          <span class="icon icon-save" aria-hidden="true"></span> 保存
         </button>
         <button id="btn-local-documents" class="btn-tool" title="打开本地历史">
-          <span class="icon" aria-hidden="true">☰</span> 历史
+          <span class="icon icon-library" aria-hidden="true"></span> 历史
         </button>
         <button id="btn-document-back" class="btn-tool hidden" title="返回刚才查看的文档">
-          <span class="icon" aria-hidden="true">↩</span> 返回
+          <span class="icon icon-back" aria-hidden="true"></span> 返回
         </button>
         <span id="local-save-status" class="cloud-save-status toolbar-save-status" aria-live="polite">未保存本地</span>
         <div class="toolbar-spacer"></div>
+        <div class="toolbar-more-wrap toolbar-automation-wrap">
+          <button id="btn-automation-tools" class="btn-tool" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="toolbar-automation-menu">
+            <span class="icon icon-automation" aria-hidden="true"></span> 自动化
+          </button>
+          <div id="toolbar-automation-menu" class="toolbar-more-menu toolbar-automation-menu hidden" role="menu" aria-labelledby="btn-automation-tools">
+            <section class="toolbar-menu-section toolbar-menu-section-last" aria-labelledby="toolbar-workflow-title">
+              <h3 id="toolbar-workflow-title">可执行工作流</h3>
+              <p class="toolbar-menu-help">导出录制流程，或在当前页面测试运行。</p>
+              <div class="toolbar-menu-grid">
+                <button id="btn-export-workflow" class="btn-tool" title="导出可执行工作流" aria-label="导出可执行工作流">
+                  <span class="icon icon-workflow" aria-hidden="true"></span> 导出工作流
+                </button>
+                <button id="btn-run-workflow" class="btn-tool" title="测试运行工作流" aria-label="测试运行工作流">
+                  <span class="icon icon-play" aria-hidden="true"></span> 测试运行
+                </button>
+              </div>
+            </section>
+          </div>
+        </div>
         <div class="toolbar-more-wrap">
           <button id="btn-more-tools" class="btn-tool" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="toolbar-more-menu">
-            <span class="icon toolbar-more-icon" aria-hidden="true">•••</span> 更多
+            <span class="icon icon-download" aria-hidden="true"></span> 导出
           </button>
           <div id="toolbar-more-menu" class="toolbar-more-menu hidden" role="menu" aria-labelledby="btn-more-tools">
             <section class="toolbar-menu-section" aria-labelledby="toolbar-export-title">
-              <h3 id="toolbar-export-title">导出文档</h3>
+              <h3 id="toolbar-export-title">选择交付格式</h3>
               <div class="toolbar-menu-grid">
-                <button id="btn-download" class="btn-tool" title="下载当前格式文件">
-                  <span class="icon icon-download" aria-hidden="true"></span> 当前格式
+                <button id="btn-download" class="btn-tool" title="下载生成时选择的原始格式">
+                  <span class="icon icon-download" aria-hidden="true"></span> 原始文件
                 </button>
-                <button id="btn-export-html" class="btn-tool" title="导出HTML文件">
+                <button id="btn-configure-html-export" class="btn-tool" type="button" title="配置并导出HTML文件" data-menu-keep-open>
                   <span class="icon icon-html" aria-hidden="true">HTML</span> HTML
                 </button>
                 <button id="btn-export-word" class="btn-tool" title="导出Word文件">
@@ -150,32 +170,12 @@
                 <button id="btn-export-pdf" class="btn-tool" title="导出PDF文件">
                   <span class="icon icon-pdf" aria-hidden="true">PDF</span> PDF
                 </button>
-              </div>
-            </section>
-            <section class="toolbar-menu-section" aria-labelledby="toolbar-cloud-title">
-              <h3 id="toolbar-cloud-title">云端同步</h3>
-              <div class="toolbar-menu-grid">
-                <button id="btn-cloud-save" class="btn-tool btn-tool-primary" title="保存到云端">
-                  <span class="icon" aria-hidden="true">☁</span> 保存云端
-                </button>
-                <button id="btn-cloud-documents" class="btn-tool" title="打开云端文档">
-                  <span class="icon" aria-hidden="true">☰</span> 云端文档
-                </button>
-              </div>
-              <span id="cloud-save-status" class="cloud-save-status toolbar-menu-status" aria-live="polite">未保存</span>
-            </section>
-            <section class="toolbar-menu-section" aria-labelledby="toolbar-workflow-title">
-              <h3 id="toolbar-workflow-title">工作流</h3>
-              <div class="toolbar-menu-grid">
-                <button id="btn-export-workflow" class="btn-tool" title="导出可执行工作流" aria-label="导出可执行工作流">
-                  <span class="icon" aria-hidden="true">JSON</span> 导出工作流
-                </button>
-                <button id="btn-run-workflow" class="btn-tool" title="测试运行工作流" aria-label="测试运行工作流">
-                  <span class="icon" aria-hidden="true">▶</span> 测试运行
+                <button id="btn-copy-export" class="btn-tool toolbar-copy-export" title="复制文档内容">
+                  <span class="icon icon-copy" aria-hidden="true"></span> 复制内容
                 </button>
               </div>
             </section>
-            <section class="toolbar-menu-section" aria-labelledby="toolbar-html-title">
+            <section id="html-export-settings" class="toolbar-menu-section toolbar-menu-section-last hidden" aria-labelledby="toolbar-html-title">
               <h3 id="toolbar-html-title">HTML 导出设置</h3>
               <label class="toolbar-select" title="HTML图片导出方式">
                 <span id="export-image-mode-label">图片</span>
@@ -195,12 +195,10 @@
               <button id="btn-upload-html-css" class="btn-tool hidden" title="上传CSS样式">
                 <span class="icon icon-css" aria-hidden="true">CSS</span> 选择 CSS 文件
               </button>
-              <input type="file" id="html-css-file" accept=".css,text/css" style="display: none;">
-            </section>
-            <section class="toolbar-menu-section toolbar-menu-section-last">
-              <button id="btn-clear-cache" class="btn-tool toolbar-menu-danger" title="清理录制缓存">
-                <span class="icon icon-clean" aria-hidden="true"></span> 清理录制缓存
+              <button id="btn-export-html" class="btn-tool btn-tool-primary" title="导出HTML文件">
+                <span class="icon icon-html" aria-hidden="true">HTML</span> 导出 HTML
               </button>
+              <input type="file" id="html-css-file" accept=".css,text/css" style="display: none;">
             </section>
           </div>
         </div>
@@ -290,8 +288,8 @@
           <div class="cloud-library-header">
             <span id="local-folder-name">尚未选择文件夹</span>
             <div>
-              <button id="btn-choose-local-folder" class="btn btn-small btn-primary" type="button">选择文件夹</button>
-              <button id="btn-refresh-local-documents" class="btn btn-small btn-secondary" type="button">刷新</button>
+              <button id="btn-choose-local-folder" class="btn btn-small btn-primary" type="button"><span class="icon icon-folder" aria-hidden="true"></span>选择文件夹</button>
+              <button id="btn-refresh-local-documents" class="btn btn-small btn-secondary" type="button"><span class="icon icon-retry" aria-hidden="true"></span>刷新</button>
             </div>
           </div>
           <p class="local-folder-help">SmartPages 只显示由它创建的 .md、.html 和 .txt 文档。</p>
@@ -305,7 +303,7 @@
       <div class="modal-backdrop"></div>
       <div class="modal-panel cloud-documents-panel">
         <div class="modal-header">
-          <h2 id="cloud-documents-title">云端文档</h2>
+          <h2 id="cloud-documents-title">生成文档历史</h2>
           <button id="btn-close-cloud-documents" class="btn-icon icon-close" title="关闭" aria-label="关闭"></button>
         </div>
         <div class="modal-body">
@@ -314,7 +312,7 @@
             <button id="btn-open-cloud-settings" class="btn btn-primary" type="button">打开设置</button>
           </div>
           <form id="cloud-auth-form" class="cloud-auth-view hidden">
-            <p>登录后可以在不同设备打开已保存的文档。</p>
+            <p>登录后可查看生成文档的历史和版本；参考文档不会显示在这里。</p>
             <label for="cloud-email">邮箱</label>
             <input id="cloud-email" class="input" type="email" autocomplete="email" required>
             <label for="cloud-password">密码</label>
@@ -328,10 +326,13 @@
             <div class="cloud-library-header">
               <span id="cloud-user-email"></span>
               <div>
-                <button id="btn-refresh-cloud-documents" class="btn btn-small btn-secondary" type="button">刷新</button>
-                <button id="btn-cloud-sign-out" class="btn btn-small btn-secondary" type="button">退出</button>
+                <button id="btn-cloud-save" class="btn btn-small btn-primary" type="button"><span class="icon icon-cloud-save" aria-hidden="true"></span>保存当前文档</button>
+                <button id="btn-refresh-cloud-documents" class="btn btn-small btn-secondary" type="button"><span class="icon icon-retry" aria-hidden="true"></span>刷新</button>
+                <button id="btn-cloud-sign-out" class="btn btn-small btn-secondary" type="button"><span class="icon icon-exit" aria-hidden="true"></span>退出</button>
               </div>
             </div>
+            <span id="cloud-save-status" class="cloud-save-status cloud-history-save-status" aria-live="polite">未保存</span>
+            <input id="cloud-history-search" class="input cloud-history-search" type="search" placeholder="搜索生成文档..." autocomplete="off">
             <div id="cloud-documents-list" class="cloud-documents-list"></div>
           </div>
           <p id="cloud-dialog-status" class="cloud-dialog-status hidden" aria-live="polite"></p>

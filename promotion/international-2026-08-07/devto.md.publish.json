@@ -1,0 +1,17 @@
+{
+  "platform": "dev-community",
+  "account": "smith_david_7539e1d8a0235",
+  "remote_id": "5554390",
+  "status": "published",
+  "url": "https://dev.to/smith_david_7539e1d8a0235/i-built-a-browser-extension-that-turns-recorded-workflows-into-docs-1f0j",
+  "content_sha256": "70c372fee70595ea805ddbab06cfa8fe209e5a5ee18af32e8cecccf5cce64598",
+  "updated_at": "2026-08-09T08:07:53.233319+00:00",
+  "history": [
+    {
+      "timestamp": "2026-08-09T08:07:53.233319+00:00",
+      "status": "published",
+      "url": "https://dev.to/smith_david_7539e1d8a0235/i-built-a-browser-extension-that-turns-recorded-workflows-into-docs-1f0j",
+      "content_sha256": "70c372fee70595ea805ddbab06cfa8fe209e5a5ee18af32e8cecccf5cce64598"
+    }
+  ]
+}

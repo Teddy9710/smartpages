@@ -530,6 +530,7 @@ ${bodyHtml}
     this.cloudDocumentState = { id: null, revision: 0, dirty: true };
     this.isCloudAuthenticating = false;
     this._saveDraftDebounced = debounce(() => this._saveLocalDraft(), 500);
+    this._searchCloudHistoryDebounced = debounce(() => this.loadCloudDocuments(), 250);
     this.docUI = new DocUIHelper({
       api: this.documentApi,
       source: 'sidepanel',
@@ -583,7 +584,10 @@ ${bodyHtml}
     this._bindButton('btn-preview', () => this.switchToPreview());
     this._bindButton('btn-edit', () => this.switchToEdit());
     this._bindButton('btn-copy', () => this.copyDocument());
+    this._bindButton('btn-copy-export', () => this.copyDocument());
     this._bindButton('btn-more-tools', event => this.toggleToolbarMenu(event));
+    this._bindButton('btn-automation-tools', event => this.toggleAutomationMenu(event));
+    this._bindButton('btn-configure-html-export', () => this.toggleHtmlExportSettings());
     this._bindButton('btn-download', () => this.downloadDocument());
     this._bindButton('btn-local-save', () => this.saveCurrentDocumentLocally());
     this._bindButton('btn-local-documents', () => this.openLocalDocumentsDialog());
@@ -592,7 +596,7 @@ ${bodyHtml}
     this._bindButton('btn-choose-local-folder', () => this.chooseLocalDocumentsFolder());
     this._bindButton('btn-refresh-local-documents', () => this.loadLocalDocuments());
     this._bindButton('btn-cloud-save', () => this.saveCurrentDocumentToCloud());
-    this._bindButton('btn-cloud-documents', () => this.openCloudDocumentsDialog());
+    this._bindButton('btn-history', () => this.openCloudDocumentsDialog());
     this._bindButton('btn-close-cloud-documents', () => this.closeCloudDocumentsDialog());
     this._bindButton('btn-open-cloud-settings', () => chrome.runtime.openOptionsPage());
     this._bindButton('btn-cloud-sign-up', () => this.signUpForCloud());
@@ -606,7 +610,6 @@ ${bodyHtml}
     this._bindButton('btn-export-html', () => this.exportHtmlDocument());
     this._bindButton('btn-export-word', () => this.exportWordDocument());
     this._bindButton('btn-export-pdf', () => this.exportPdfDocument());
-    this._bindButton('btn-clear-cache', () => this.clearRecordingCache());
     this._bindButton('btn-ai-optimize', () => this.openOptimizeDialog());
     this._bindButton('btn-revert-optimization', () => this.revertOptimization());
     this._bindButton('btn-close-optimize', () => this.closeOptimizeDialog());
@@ -636,6 +639,12 @@ ${bodyHtml}
       const handleCloudSignIn = event => { event.preventDefault(); this.signInToCloud(); };
       cloudAuthForm.addEventListener('submit', handleCloudSignIn);
       this.cleanupFunctions.push(() => cloudAuthForm.removeEventListener('submit', handleCloudSignIn));
+    }
+    const cloudHistorySearch = document.getElementById('cloud-history-search');
+    if (cloudHistorySearch) {
+      const handleSearch = () => this._searchCloudHistoryDebounced();
+      cloudHistorySearch.addEventListener('input', handleSearch);
+      this.cleanupFunctions.push(() => cloudHistorySearch.removeEventListener('input', handleSearch));
     }
   }
 
@@ -1134,7 +1143,8 @@ ${bodyHtml}
     setButton('#btn-ai-optimize', text.optimize);
     setButton('#btn-revert-optimization', text.revert);
     setButton('#btn-copy', text.copy);
-    setButton('#btn-download', text.download);
+    setButton('#btn-copy-export', isEn ? 'Copy content' : '复制内容');
+    setButton('#btn-download', isEn ? 'Original file' : '原始文件');
     setButton('#btn-export-workflow', text.workflowExport);
     setButton('#btn-run-workflow', text.workflowRun);
     setButton('#btn-workflow-approve', text.workflowRunApprove);
@@ -1150,7 +1160,8 @@ ${bodyHtml}
       workflowExportButton.title = text.workflowExportTitle;
       workflowExportButton.setAttribute('aria-label', text.workflowExportTitle);
     }
-    setButton('#btn-export-html', text.html);
+    setButton('#btn-configure-html-export', text.html);
+    setButton('#btn-export-html', isEn ? 'Export HTML' : '导出 HTML');
     setButton('#btn-export-word', text.word);
     setButton('#btn-export-pdf', text.pdf);
     set('#export-image-mode-label', text.imageMode);
@@ -1167,7 +1178,6 @@ ${bodyHtml}
       styleMode.querySelector('option[value="ai"]').textContent = text.styleAi;
     }
     setButton('#btn-upload-html-css', text.uploadCss);
-    setButton('#btn-clear-cache', text.clearCache);
     set('#empty-state h2', text.emptyTitle);
     set('#empty-state p', text.emptyDesc);
     setButton('#btn-start-here', text.start);
@@ -1201,18 +1211,22 @@ ${bodyHtml}
       closeCrop.setAttribute('aria-label', text.cropClose);
     }
     const cloudText = isEn ? {
-      save: 'Save Cloud', library: 'Cloud Docs', unsaved: 'Unsaved', title: 'Cloud Documents',
+      save: 'Save current document', library: 'History', unsaved: 'Unsaved', title: 'Generated Document History',
       config: 'Configure the Supabase Project URL and anon key in Settings first.', settings: 'Open Settings',
-      authHelp: 'Sign in to open saved documents on other devices.', email: 'Email', password: 'Password',
+      authHelp: 'Sign in to view generated-document history and versions. Reference uploads stay separate.', email: 'Email', password: 'Password',
       signIn: 'Sign In', signUp: 'Sign Up', refresh: 'Refresh', signOut: 'Sign Out'
     } : {
-      save: '保存云端', library: '云端文档', unsaved: '未保存', title: '云端文档',
+      save: '保存当前文档', library: '生成历史', unsaved: '未保存', title: '生成文档历史',
       config: '请先在设置页配置 Supabase Project URL 和 anon key。', settings: '打开设置',
-      authHelp: '登录后可以在不同设备打开已保存的文档。', email: '邮箱', password: '密码',
+      authHelp: '登录后可查看生成文档的历史和版本；参考文档不会显示在这里。', email: '邮箱', password: '密码',
       signIn: '登录', signUp: '注册', refresh: '刷新', signOut: '退出'
     };
     setButton('#btn-cloud-save', cloudText.save);
-    setButton('#btn-cloud-documents', cloudText.library);
+    const historyButton = document.getElementById('btn-history');
+    if (historyButton) {
+      historyButton.title = cloudText.title;
+      historyButton.setAttribute('aria-label', cloudText.title);
+    }
     set('#cloud-documents-title', cloudText.title);
     set('#cloud-config-required p', cloudText.config);
     setButton('#btn-open-cloud-settings', cloudText.settings);
@@ -1223,6 +1237,8 @@ ${bodyHtml}
     setButton('#btn-cloud-sign-up', cloudText.signUp);
     setButton('#btn-refresh-cloud-documents', cloudText.refresh);
     setButton('#btn-cloud-sign-out', cloudText.signOut);
+    const historySearch = document.getElementById('cloud-history-search');
+    if (historySearch) historySearch.placeholder = isEn ? 'Search generated documents...' : '搜索生成文档...';
     this._setCloudSaveStatus(cloudText.unsaved);
     const localText = isEn ? {
       save: 'Save', library: 'History', unsaved: 'Not saved locally', title: 'Local Document History',
@@ -1242,39 +1258,56 @@ ${bodyHtml}
     set('#local-folder-name', localText.noFolder);
     set('.local-folder-help', localText.help);
     this._setLocalSaveStatus(localText.unsaved);
-    const moreText = isEn ? {
-      more: 'More', export: 'Export document', cloud: 'Cloud sync', workflow: 'Workflow', html: 'HTML export settings'
+    const exportText = isEn ? {
+      export: 'Export', formats: 'Choose delivery format', automation: 'Automation', workflow: 'Executable workflow',
+      workflowHelp: 'Export the recorded flow or test it on the current page.', html: 'HTML export settings'
     } : {
-      more: '更多', export: '导出文档', cloud: '云端同步', workflow: '工作流', html: 'HTML 导出设置'
+      export: '导出', formats: '选择交付格式', automation: '自动化', workflow: '可执行工作流',
+      workflowHelp: '导出录制流程，或在当前页面测试运行。', html: 'HTML 导出设置'
     };
-    setButton('#btn-more-tools', moreText.more);
-    set('#toolbar-export-title', moreText.export);
-    set('#toolbar-cloud-title', moreText.cloud);
-    set('#toolbar-workflow-title', moreText.workflow);
-    set('#toolbar-html-title', moreText.html);
+    setButton('#btn-more-tools', exportText.export);
+    setButton('#btn-automation-tools', exportText.automation);
+    set('#toolbar-export-title', exportText.formats);
+    set('#toolbar-workflow-title', exportText.workflow);
+    set('.toolbar-menu-help', exportText.workflowHelp);
+    set('#toolbar-html-title', exportText.html);
   }
 
   _bindToolbarMenuEvents() {
     const menu = document.getElementById('toolbar-more-menu');
-    const wrap = document.querySelector('.toolbar-more-wrap');
-    if (!menu || !wrap) return;
+    const wrap = document.getElementById('btn-more-tools')?.closest('.toolbar-more-wrap');
+    const automationMenu = document.getElementById('toolbar-automation-menu');
+    const automationWrap = document.getElementById('btn-automation-tools')?.closest('.toolbar-more-wrap');
+    if (!menu || !wrap || !automationMenu || !automationWrap) return;
 
     const handleDocumentClick = event => {
       if (!wrap.contains(event.target)) this.closeToolbarMenu();
+      if (!automationWrap.contains(event.target)) this.closeAutomationMenu();
     };
     const handleDocumentKeydown = event => {
-      if (event.key === 'Escape') this.closeToolbarMenu(true);
+      if (event.key === 'Escape') {
+        const exportOpen = !menu.classList.contains('hidden');
+        const automationOpen = !automationMenu.classList.contains('hidden');
+        this.closeToolbarMenu(exportOpen);
+        this.closeAutomationMenu(!exportOpen && automationOpen);
+      }
     };
     const handleMenuClick = event => {
-      if (event.target.closest('button')) this.closeToolbarMenu();
+      const button = event.target.closest('button');
+      if (button && !button.hasAttribute('data-menu-keep-open')) this.closeToolbarMenu();
+    };
+    const handleAutomationClick = event => {
+      if (event.target.closest('button')) this.closeAutomationMenu();
     };
 
     document.addEventListener('click', handleDocumentClick);
     document.addEventListener('keydown', handleDocumentKeydown);
     menu.addEventListener('click', handleMenuClick);
+    automationMenu.addEventListener('click', handleAutomationClick);
     this.cleanupFunctions.push(() => document.removeEventListener('click', handleDocumentClick));
     this.cleanupFunctions.push(() => document.removeEventListener('keydown', handleDocumentKeydown));
     this.cleanupFunctions.push(() => menu.removeEventListener('click', handleMenuClick));
+    this.cleanupFunctions.push(() => automationMenu.removeEventListener('click', handleAutomationClick));
   }
 
   toggleToolbarMenu(event) {
@@ -1283,13 +1316,38 @@ ${bodyHtml}
     const button = document.getElementById('btn-more-tools');
     if (!menu || !button) return;
     const willOpen = menu.classList.contains('hidden');
+    if (willOpen) this.closeAutomationMenu();
     menu.classList.toggle('hidden', !willOpen);
     button.setAttribute('aria-expanded', String(willOpen));
+  }
+
+  toggleAutomationMenu(event) {
+    event?.stopPropagation();
+    const menu = document.getElementById('toolbar-automation-menu');
+    const button = document.getElementById('btn-automation-tools');
+    if (!menu || !button) return;
+    const willOpen = menu.classList.contains('hidden');
+    if (willOpen) this.closeToolbarMenu();
+    menu.classList.toggle('hidden', !willOpen);
+    button.setAttribute('aria-expanded', String(willOpen));
+  }
+
+  toggleHtmlExportSettings() {
+    const settings = document.getElementById('html-export-settings');
+    settings?.classList.toggle('hidden');
   }
 
   closeToolbarMenu(focusButton = false) {
     const menu = document.getElementById('toolbar-more-menu');
     const button = document.getElementById('btn-more-tools');
+    menu?.classList.add('hidden');
+    button?.setAttribute('aria-expanded', 'false');
+    if (focusButton) button?.focus();
+  }
+
+  closeAutomationMenu(focusButton = false) {
+    const menu = document.getElementById('toolbar-automation-menu');
+    const button = document.getElementById('btn-automation-tools');
     menu?.classList.add('hidden');
     button?.setAttribute('aria-expanded', 'false');
     if (focusButton) button?.focus();
@@ -1609,6 +1667,7 @@ ${bodyHtml}
       this.showEditor();
       this._setEditorContent(this._injectScreenshots(markdown, outputFormat));
       this._resetOptimizationState();
+      await this._saveGeneratedDocumentToHistory();
       if (await this.localDocuments.hasPermission().catch(() => false)) {
         await this.saveCurrentDocumentLocally();
       }
@@ -3472,7 +3531,17 @@ ${markdown}`;
     this._setCloudDialogStatus(this.language === 'en-US' ? 'Signed out.' : '已退出登录。', 'success');
   }
 
-  async saveCurrentDocumentToCloud() {
+  async _saveGeneratedDocumentToHistory() {
+    const configured = await this.cloudDocuments.isConfigured().catch(() => false);
+    if (!configured) return false;
+    const session = await this.cloudDocuments.getSession().catch(() => null);
+    if (!session) return false;
+    return this.saveCurrentDocumentToCloud({ event: 'generated', silent: true });
+  }
+
+  async saveCurrentDocumentToCloud(options = {}) {
+    const event = options?.event === 'generated' ? 'generated' : 'cloud_save';
+    const silent = Boolean(options?.silent);
     this._ensureEditorContentFresh();
     const content = document.getElementById('markdown-editor')?.value || '';
     if (!content.trim()) {
@@ -3480,13 +3549,13 @@ ${markdown}`;
       return;
     }
     if (!await this.cloudDocuments.isConfigured().catch(() => false)) {
-      await this.openCloudDocumentsDialog();
-      return;
+      if (!silent) await this.openCloudDocumentsDialog();
+      return false;
     }
     const session = await this.cloudDocuments.getSession().catch(() => null);
     if (!session) {
-      await this.openCloudDocumentsDialog();
-      return;
+      if (!silent) await this.openCloudDocumentsDialog();
+      return false;
     }
 
     const button = document.getElementById('btn-cloud-save');
@@ -3498,16 +3567,20 @@ ${markdown}`;
         revision: this.cloudDocumentState.revision,
         title: this._extractDocumentTitle(content),
         format: this._getOutputFormat(),
-        content
+        content,
+        event
       });
       this._setEditorContent(saved.content || content, { preserveImageHistory: true });
       this.cloudDocumentState = { id: saved.id, revision: saved.revision, dirty: false };
       await this._saveLocalDraft();
       this._setCloudSaveStatus(this.language === 'en-US' ? 'Saved' : '已保存', 'saved');
-      this._showNotification(this.language === 'en-US' ? 'Saved to Supabase.' : '文档已保存到 Supabase。', 'success');
+      if (!silent) this._showNotification(this.language === 'en-US' ? 'Saved as a new cloud version.' : '已保存为新的云端版本。', 'success');
+      return true;
     } catch (error) {
       this._setCloudSaveStatus(this.language === 'en-US' ? 'Save failed' : '保存失败', 'error');
-      this._showError(error.message);
+      if (!silent) this._showError(error.message);
+      else console.warn('[SmartPages:History] Failed to save generated document:', error);
+      return false;
     } finally {
       if (button) button.disabled = false;
     }
@@ -3518,10 +3591,11 @@ ${markdown}`;
     if (!list) return;
     list.textContent = this.language === 'en-US' ? 'Loading...' : '正在加载...';
     try {
-      const documents = await this.cloudDocuments.listDocuments();
+      const search = document.getElementById('cloud-history-search')?.value || '';
+      const documents = await this.cloudDocuments.listDocuments(search);
       list.textContent = '';
       if (!documents.length) {
-        list.textContent = this.language === 'en-US' ? 'No cloud documents yet.' : '还没有云端文档。';
+        list.textContent = this.language === 'en-US' ? 'No generated documents found.' : '没有找到生成文档。';
         return;
       }
       documents.forEach(cloudDocument => list.appendChild(this._createCloudDocumentItem(cloudDocument)));
@@ -3539,7 +3613,7 @@ ${markdown}`;
     title.textContent = cloudDocument.title || 'SmartPages document';
     const meta = document.createElement('div');
     meta.className = 'cloud-document-meta';
-    meta.textContent = `${cloudDocument.format || 'markdown'} · ${new Date(cloudDocument.updated_at).toLocaleString()}`;
+    meta.textContent = `${cloudDocument.format || 'markdown'} · v${cloudDocument.revision || 1} · ${new Date(cloudDocument.updated_at).toLocaleString()}`;
     const actions = document.createElement('div');
     actions.className = 'cloud-document-actions';
     const openButton = document.createElement('button');
@@ -3547,8 +3621,73 @@ ${markdown}`;
     openButton.className = 'btn btn-small btn-primary';
     openButton.textContent = this.language === 'en-US' ? 'Open' : '打开';
     openButton.addEventListener('click', () => this.openCloudDocument(cloudDocument.id));
-    actions.appendChild(openButton);
-    item.append(title, meta, actions);
+    const versionsButton = document.createElement('button');
+    versionsButton.type = 'button';
+    versionsButton.className = 'btn btn-small btn-secondary';
+    versionsButton.textContent = this.language === 'en-US' ? 'Versions' : '版本';
+    const versions = document.createElement('div');
+    versions.className = 'cloud-document-versions hidden';
+    versionsButton.addEventListener('click', () => this.toggleCloudDocumentVersions(cloudDocument.id, versions, versionsButton));
+    const saveVersionButton = document.createElement('button');
+    saveVersionButton.type = 'button';
+    saveVersionButton.className = 'btn btn-small btn-secondary';
+    saveVersionButton.textContent = this.language === 'en-US' ? 'Save new version' : '另存为新版本';
+    saveVersionButton.addEventListener('click', () => this.saveCloudVersionAsNew(cloudDocument.id));
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'btn btn-small btn-secondary';
+    deleteButton.textContent = this.language === 'en-US' ? 'Delete' : '删除';
+    deleteButton.addEventListener('click', () => this.deleteCloudDocument(cloudDocument.id));
+    actions.append(openButton, versionsButton, saveVersionButton, deleteButton);
+    item.append(title, meta, actions, versions);
+    return item;
+  }
+
+  async toggleCloudDocumentVersions(documentId, container, button) {
+    if (!container.classList.contains('hidden')) {
+      container.classList.add('hidden');
+      return;
+    }
+    container.classList.remove('hidden');
+    if (container.dataset.loaded === 'true') return;
+    container.textContent = this.language === 'en-US' ? 'Loading versions...' : '正在加载版本...';
+    if (button) button.disabled = true;
+    try {
+      const versions = await this.cloudDocuments.listDocumentVersions(documentId);
+      container.textContent = '';
+      versions.forEach(version => container.appendChild(this._createCloudVersionItem(version)));
+      if (!versions.length) container.textContent = this.language === 'en-US' ? 'No version snapshots.' : '暂无版本快照。';
+      container.dataset.loaded = 'true';
+    } catch (error) {
+      container.textContent = error.message;
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
+  _createCloudVersionItem(version) {
+    const item = document.createElement('div');
+    item.className = 'cloud-version-item';
+    const meta = document.createElement('div');
+    const eventLabel = version.event === 'generated'
+      ? (this.language === 'en-US' ? 'Generated' : '生成')
+      : (this.language === 'en-US' ? 'Cloud save' : '云端保存');
+    meta.className = 'cloud-document-meta';
+    meta.textContent = `v${version.revision} · ${eventLabel} · ${new Date(version.created_at).toLocaleString()}`;
+    const actions = document.createElement('div');
+    actions.className = 'cloud-document-actions';
+    const openButton = document.createElement('button');
+    openButton.type = 'button';
+    openButton.className = 'btn btn-small btn-secondary';
+    openButton.textContent = this.language === 'en-US' ? 'Open' : '打开';
+    openButton.addEventListener('click', () => this.openCloudDocumentVersion(version.id));
+    const saveButton = document.createElement('button');
+    saveButton.type = 'button';
+    saveButton.className = 'btn btn-small btn-secondary';
+    saveButton.textContent = this.language === 'en-US' ? 'Save as new' : '另存新版';
+    saveButton.addEventListener('click', () => this.saveCloudVersionAsNew(version.document_id, version.id));
+    actions.append(openButton, saveButton);
+    item.append(meta, actions);
     return item;
   }
 
@@ -3565,6 +3704,60 @@ ${markdown}`;
       await this._saveLocalDraft();
       this._setCloudSaveStatus(this.language === 'en-US' ? 'Saved' : '已保存', 'saved');
       this.closeCloudDocumentsDialog();
+    } catch (error) {
+      this._setCloudDialogStatus(error.message, 'error');
+    }
+  }
+
+  async openCloudDocumentVersion(versionId) {
+    this._setCloudDialogStatus(this.language === 'en-US' ? 'Opening version...' : '正在打开版本...');
+    try {
+      const version = await this.cloudDocuments.getDocumentVersion(versionId);
+      const current = await this.cloudDocuments.getDocument(version.document_id);
+      this._pushCurrentDocumentForNavigation();
+      this.config = { ...(this.config || {}), outputFormat: version.format || 'markdown' };
+      this.localDocumentState = { fileName: null, dirty: true };
+      this.showEditor();
+      this._setEditorContent(version.content || '');
+      this.cloudDocumentState = { id: current.id, revision: current.revision, dirty: true };
+      await this._saveLocalDraft();
+      this._setCloudSaveStatus(this.language === 'en-US' ? `Opened v${version.revision}; save to create a new version` : `已打开 v${version.revision}，保存后将创建新版本`);
+      this.closeCloudDocumentsDialog();
+    } catch (error) {
+      this._setCloudDialogStatus(error.message, 'error');
+    }
+  }
+
+  async saveCloudVersionAsNew(documentId, versionId = null) {
+    this._setCloudDialogStatus(this.language === 'en-US' ? 'Creating a new version...' : '正在创建新版本...');
+    try {
+      const saved = await this.cloudDocuments.saveVersionAsNew(documentId, versionId);
+      if (this.cloudDocumentState.id === saved.id) {
+        this.cloudDocumentState.revision = saved.revision;
+        this.cloudDocumentState.dirty = false;
+        this._setCloudSaveStatus(this.language === 'en-US' ? 'Saved' : '已保存', 'saved');
+      }
+      this._setCloudDialogStatus(this.language === 'en-US' ? `Created v${saved.revision}.` : `已创建 v${saved.revision}。`, 'success');
+      await this.loadCloudDocuments();
+    } catch (error) {
+      this._setCloudDialogStatus(error.message, 'error');
+    }
+  }
+
+  async deleteCloudDocument(id) {
+    if (!confirm(this.language === 'en-US'
+      ? 'Delete this generated document and all of its versions?'
+      : '确定删除这份生成文档及其全部版本吗？')) return;
+    this._setCloudDialogStatus(this.language === 'en-US' ? 'Deleting...' : '正在删除...');
+    try {
+      await this.cloudDocuments.deleteDocument(id);
+      if (this.cloudDocumentState.id === id) {
+        this.cloudDocumentState = { id: null, revision: 0, dirty: true };
+        this._setCloudSaveStatus(this.language === 'en-US' ? 'Unsaved' : '未保存');
+        await this._saveLocalDraft();
+      }
+      this._setCloudDialogStatus(this.language === 'en-US' ? 'Deleted.' : '已删除。', 'success');
+      await this.loadCloudDocuments();
     } catch (error) {
       this._setCloudDialogStatus(error.message, 'error');
     }
@@ -3976,7 +4169,10 @@ ${markdown}`;
       'color: #111',
       'z-index: -1'
     ].join(';');
-    host.innerHTML = `<style>${styleHtml}</style>${bodyHtml}`;
+    safeSetInnerHTML(host, bodyHtml, true);
+    const styleElement = document.createElement('style');
+    styleElement.textContent = styleHtml;
+    host.prepend(styleElement);
     document.body.appendChild(host);
     try {
       await this._waitForImages(host);

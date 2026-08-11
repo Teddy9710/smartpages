@@ -6,6 +6,9 @@ const vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.js'), 'utf8');
 let sanitizerCalls = 0;
 
+assert.doesNotMatch(source, /host\.innerHTML\s*=/);
+assert.match(source, /safeSetInnerHTML\(host, bodyHtml, true\)/);
+
 const parsedDocument = {
   body: { innerHTML: '<a href="javascript:alert(1)">Unsafe</a>' },
   querySelectorAll: () => []

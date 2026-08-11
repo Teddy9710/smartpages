@@ -167,6 +167,7 @@ class SettingsManager {
     this._bindButton('btn-agent-bridge-test', () => this.testAgentBridgeConnection());
     this._bindButton('btn-toggle-key', () => this._toggleApiKeyVisibility());
     this._bindButton('btn-save-cloud-settings', () => this.saveCloudConfig());
+    this._bindButton('btn-clear-recording-cache', () => this.clearRecordingCache());
 
     const apiProviderSelect = document.getElementById('api-provider');
     if (apiProviderSelect) {
@@ -727,9 +728,12 @@ class SettingsManager {
     if (!urlValidation.valid) { this._showTestResult(urlValidation.error, 'error'); return; }
     const apiFormat = (ApiProviders[apiProviderSelect?.value] || ApiProviders.custom).apiFormat || DEFAULT_API_FORMAT;
 
-    const originalText = testBtn.innerHTML;
+    const originalContent = Array.from(testBtn.childNodes, node => node.cloneNode(true));
     testBtn.disabled = true;
-    testBtn.innerHTML = `<span class="icon icon-loading" aria-hidden="true"></span> ${isEn ? 'Testing...' : '测试中...'}`;
+    const loadingIcon = document.createElement('span');
+    loadingIcon.className = 'icon icon-loading';
+    loadingIcon.setAttribute('aria-hidden', 'true');
+    testBtn.replaceChildren(loadingIcon, document.createTextNode(` ${isEn ? 'Testing...' : '测试中...'}`));
 
     try {
       const request = buildModelApiRequest(
@@ -751,7 +755,7 @@ class SettingsManager {
       this._showTestResult((isEn ? 'Connection failed: ' : '连接失败：') + ((error.name === 'AbortError') ? (isEn ? 'Connection timed out. Check your network or API URL.' : '连接超时，请检查网络连接或API地址') : error.message), 'error');
     } finally {
       testBtn.disabled = false;
-      testBtn.innerHTML = originalText;
+      testBtn.replaceChildren(...originalContent);
     }
   }
 
@@ -854,6 +858,12 @@ class SettingsManager {
       examplesHelp: 'Generation uses the example matching the current document type first. Examples teach structure, tone, layout, and granularity without copying facts.',
       uploadedDocsTitle: 'Uploaded Reference Documents',
       docsLoading: 'Loading documents...',
+      storageNav: 'Storage & Cache',
+      storageHeading: 'Storage & Cache',
+      storageDesc: 'Manage temporary recording data without affecting exported files or cloud documents.',
+      cacheTitle: 'Unfinished recording cache',
+      cacheHelp: 'Use this if recording state is stuck or you need to free space. Cache cannot be cleared while recording.',
+      clearCache: 'Clear recording cache',
       aboutHeading: 'About',
       aboutVersion: `Version ${manifestVersion}`,
       aboutDesc: 'Record browser workflows and automatically generate documentation.',
@@ -880,6 +890,12 @@ class SettingsManager {
       examplesHelp: '生成时会优先使用当前文档类型对应的示例；示例只用于学习结构、语气、版式层级和颗粒度，不会照抄事实内容。',
       uploadedDocsTitle: '已上传的参考文档',
       docsLoading: '正在加载文档列表...',
+      storageNav: '存储与缓存',
+      storageHeading: '存储与缓存',
+      storageDesc: '管理录制过程产生的临时数据，不影响已导出的文件或云端文档。',
+      cacheTitle: '未完成录制缓存',
+      cacheHelp: '遇到录制状态异常或需要释放空间时使用。录制进行中不可清理。',
+      clearCache: '清理录制缓存',
       aboutHeading: '关于',
       aboutVersion: `版本 ${manifestVersion}`,
       aboutDesc: '智能录制网页操作并自动生成文档。',
@@ -955,6 +971,18 @@ class SettingsManager {
     set('#smart-settings h2', text.smartHeading);
     set('#smart-settings .switch-title', text.smartTitle);
     set('#smart-settings .switch-desc', text.smartDesc);
+    const storageNav = document.querySelector('.settings-nav-link[href="#storage-settings"]');
+    if (storageNav) {
+      const index = storageNav.querySelector('span');
+      storageNav.replaceChildren();
+      if (index) storageNav.appendChild(index);
+      storageNav.append(document.createTextNode(text.storageNav));
+    }
+    set('#storage-settings h2', text.storageHeading);
+    set('#storage-settings .section-desc', text.storageDesc);
+    set('#storage-settings .storage-action-row strong', text.cacheTitle);
+    set('#storage-settings .help-text', text.cacheHelp);
+    setButton('#btn-clear-recording-cache', text.clearCache);
     set('#about-settings h2', text.aboutHeading);
     const aboutParagraphs = document.querySelectorAll('.about p');
     if (aboutParagraphs[1]) aboutParagraphs[1].textContent = text.aboutVersion;
@@ -967,6 +995,41 @@ class SettingsManager {
     }
     const toggle = document.getElementById('btn-toggle-key');
     if (toggle) toggle.textContent = document.getElementById('api-key')?.type === 'text' ? text.hide : text.show;
+  }
+
+  async clearRecordingCache() {
+    const isEn = (this.config?.appLanguage || DEFAULT_APP_LANGUAGE) === 'en-US';
+    const confirmed = confirm(isEn
+      ? 'Clear unfinished recording data? Exported files and cloud documents will not be affected.'
+      : '确定清理未完成的录制数据吗？已导出的文件和云端文档不会受影响。');
+    if (!confirmed) return;
+
+    const button = document.getElementById('btn-clear-recording-cache');
+    const result = document.getElementById('recording-cache-result');
+    if (button) button.disabled = true;
+    if (result) {
+      result.textContent = isEn ? 'Clearing recording cache...' : '正在清理录制缓存...';
+      result.className = 'test-result';
+    }
+    try {
+      const response = await sendMessage({ type: 'CLEAR_RECORDING_CACHE' });
+      if (response?.error) throw new Error(response.error);
+      const message = isEn ? 'Recording cache cleared.' : '录制缓存已清理。';
+      if (result) {
+        result.textContent = message;
+        result.className = 'test-result success';
+      }
+      this._showToast(message, 'success');
+    } catch (error) {
+      const message = error?.message || (isEn ? 'Failed to clear recording cache.' : '清理录制缓存失败。');
+      if (result) {
+        result.textContent = message;
+        result.className = 'test-result error';
+      }
+      this._showToast(message, 'error');
+    } finally {
+      if (button) button.disabled = false;
+    }
   }
 
   // ========================================================================
