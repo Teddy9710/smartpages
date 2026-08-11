@@ -16,7 +16,6 @@ async function main() {
   console.error(`SmartPages MCP bridge listening on ws://127.0.0.1:${bridge.port}`);
   console.error(`Workflow directory: ${workflowDir}`);
   console.error(`Bridge token file: ${filePath}`);
-  console.error(`Bridge token: ${token}`);
 
   await startMcpServer({ workflowDir, bridge });
 }

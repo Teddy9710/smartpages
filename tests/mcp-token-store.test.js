@@ -6,6 +6,16 @@ const test = require('node:test');
 
 const { getSmartPagesDir, loadOrCreateToken } = require('../packages/smartpages-mcp/src/token-store');
 
+test('MCP startup logs the token path without exposing the token value', () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, '..', 'packages', 'smartpages-mcp', 'src', 'index.js'),
+    'utf8'
+  );
+
+  assert.match(source, /Bridge token file: \$\{filePath\}/);
+  assert.doesNotMatch(source, /console\.error\([^)]*\$\{token\}/);
+});
+
 test('getSmartPagesDir prefers SMARTPAGES_HOME', () => {
   const dir = path.join(os.tmpdir(), `sp-home-${Date.now()}`);
   assert.equal(getSmartPagesDir({ SMARTPAGES_HOME: dir }), dir);

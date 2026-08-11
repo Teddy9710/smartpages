@@ -19,7 +19,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const STORAGE_WARNING_THRESHOLD = 8 * 1024 * 1024;
 
 /** @constant {string[]} SUPPORTED_FILE_FORMATS - Supported document formats for upload */
-const SUPPORTED_FILE_FORMATS = ['.pdf', '.docx', '.txt', '.md', '.html', '.htm'];
+const SUPPORTED_FILE_FORMATS = ['.txt', '.md', '.html', '.htm', '.rtf'];
 
 /** @constant {number} SCREENSHOT_QUALITY - Default screenshot quality (0-100) */
 const SCREENSHOT_QUALITY = 60;
@@ -96,6 +96,10 @@ const API_TEST_TIMEOUT = 15000;
 
 /** @constant {boolean} DEBUG - Debug logging flag */
 const DEBUG = false;
+
+function debugLog(...args) {
+  if (DEBUG) console['debug'](...args);
+}
 
 // ============================================================================
 // ERROR HANDLING
@@ -888,6 +892,7 @@ async function loadConfig() {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     ExtensionError,
+    debugLog,
     safeExecute,
     storagePromise,
     escapeHtml,

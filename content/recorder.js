@@ -21,6 +21,8 @@
 (function() {
   'use strict';
 
+  const debugLog = () => {};
+
   // Import common utilities (content scripts can import from utils)
   // Note: In content scripts, we need to use the full URL or rely on
   // the fact that utils are loaded separately. For now, we'll define
@@ -188,6 +190,29 @@
   // SELECTOR GENERATION
   // ==========================================================================
 
+  function escapeSelectorPart(value) {
+    const text = String(value ?? '');
+    if (window.CSS?.escape) return window.CSS.escape(text);
+
+    let escaped = '';
+    for (let index = 0; index < text.length; index += 1) {
+      const char = text[index];
+      const code = char.charCodeAt(0);
+      const isLeadingDigit = index === 0 && code >= 48 && code <= 57;
+      const isSecondDigitAfterDash = index === 1 && text[0] === '-' && code >= 48 && code <= 57;
+
+      if (code === 0) escaped += '\uFFFD';
+      else if (isLeadingDigit || isSecondDigitAfterDash) escaped += `\\${code.toString(16)} `;
+      else if (code >= 128 || char === '-' || char === '_' || /[A-Za-z0-9]/.test(char)) escaped += char;
+      else escaped += `\\${char}`;
+    }
+    return escaped;
+  }
+
+  function datasetKeyToAttributeName(key) {
+    return `data-${String(key).replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}`;
+  }
+
   /**
    * Generates a CSS selector for an element
    * Optimized to generate short, unique selectors
@@ -199,14 +224,16 @@
 
     // Try ID first (shortest and most specific)
     if (element.id) {
-      return `#${element.id}`;
+      const selector = `#${escapeSelectorPart(element.id)}`;
+      if (isUniqueSelector(selector)) return selector;
     }
 
     // Try data attributes (common in modern frameworks)
     if (element.dataset) {
       for (const [key, value] of Object.entries(element.dataset)) {
         if (value && value.length < 50) {
-          const selector = `[data-${key}="${value}"]`;
+          const attributeName = datasetKeyToAttributeName(key);
+          const selector = `[${attributeName}="${escapeSelectorPart(value)}"]`;
           if (isUniqueSelector(selector)) {
             return selector;
           }
@@ -216,9 +243,9 @@
 
     // Try class name (if unique enough)
     if (element.className && typeof element.className === 'string') {
-      const classes = element.className.split(' ').filter(c => c && c.length < 20);
+      const classes = element.className.split(/\s+/).filter(c => c && c.length < 20);
       if (classes.length > 0 && classes.length < 5) {
-        const selector = element.tagName.toLowerCase() + '.' + classes.join('.');
+        const selector = element.tagName.toLowerCase() + '.' + classes.map(escapeSelectorPart).join('.');
         if (isUniqueSelector(selector)) {
           return selector;
         }
@@ -256,16 +283,19 @@
 
       // Add ID if present
       if (current.id) {
-        selector += '#' + current.id;
-        path.unshift(selector);
-        break;
+        const idSelector = `#${escapeSelectorPart(current.id)}`;
+        if (isUniqueSelector(idSelector)) {
+          path.unshift(idSelector);
+          break;
+        }
       }
 
       // Add classes (limited)
       if (current.className && typeof current.className === 'string') {
-        const classes = current.className.split(' ')
+        const classes = current.className.split(/\s+/)
           .filter(c => c && c.length < 20)
           .slice(0, 3)
+          .map(escapeSelectorPart)
           .join('.');
         if (classes) {
           selector += '.' + classes;
@@ -366,14 +396,16 @@
       element.getAttribute('title'),
       element.getAttribute('alt'),
       element.getAttribute('placeholder'),
-      canExposeValue ? element.getAttribute('value') : '',
+      canExposeValue ? maskSensitiveValue(element.getAttribute('value'), inputType) : '',
       element.getAttribute('data-label'),
       element.getAttribute('data-title'),
       element.getAttribute('data-name'),
       element.getAttribute('data-testid'),
       element.getAttribute('data-test'),
       element.getAttribute('data-cy'),
-      canExposeValue && (tag === 'INPUT' || tag === 'TEXTAREA') ? element.value : '',
+      canExposeValue && (tag === 'INPUT' || tag === 'TEXTAREA')
+        ? maskSensitiveValue(element.value, inputType)
+        : '',
       element.innerText,
       element.textContent
     ];
@@ -683,11 +715,11 @@
    * @returns {string}
    */
   function buildActionDescription(elementInfo) {
-    var element = elementInfo.element;
-    var text = elementInfo.name;
-    var tag = elementInfo.tagName;
-    var type = elementInfo.inputType;
-    var role = elementInfo.role;
+    const element = elementInfo.element;
+    const text = elementInfo.name;
+    const tag = elementInfo.tagName;
+    const type = elementInfo.inputType;
+    const role = elementInfo.role;
     if (role === 'tab') return text ? '点击了“' + text + '”页签' : '点击了页签';
     if (role === 'menuitem') return text ? '点击了“' + text + '”菜单项' : '点击了菜单项';
     if (role === 'option') return text ? '选择了“' + text + '”选项' : '选择了选项';
@@ -695,15 +727,15 @@
     if (role === 'checkbox' || type === 'checkbox') return text ? '点击了“' + text + '”复选框' : '点击了复选框';
     if (role === 'radio' || type === 'radio') return text ? '点击了“' + text + '”单选项' : '点击了单选项';
     if (tag === 'a' || role === 'link') {
-      var href = element.getAttribute('href') || '';
+      const href = element.getAttribute('href') || '';
       return text ? '点击了“' + text + '”链接' + (href ? '（' + href + '）' : '') : '点击了链接 ' + href;
     }
     if (tag === 'button' || role === 'button' || type === 'button' || type === 'submit') {
       return text ? '点击了“' + text + '”按钮' : '点击了按钮';
     }
     if (tag === 'input') {
-      var itype = type || 'text';
-      var ph = element.getAttribute('placeholder') || '';
+      const itype = type || 'text';
+      const ph = element.getAttribute('placeholder') || '';
       if (ph) return '点击了“' + ph + '”输入框';
       return text ? '点击了“' + text + '”输入框' : '点击了' + itype + '输入框';
     }
@@ -867,13 +899,13 @@
 
     // Debounce: prevent recording same element too quickly
     if (event.target === lastElement && now - lastClickTime < DEBOUNCE_DELAY) {
-      console.log('[Scribe:Content] Click debounced (same element, too fast)');
+      debugLog('[Scribe:Content] Click debounced (same element, too fast)');
       return;
     }
 
     // Throttle: prevent recording too frequently
     if (now - lastRecordedAction < THROTTLE_DELAY) {
-      console.log('[Scribe:Content] Click throttled (too frequent)');
+      debugLog('[Scribe:Content] Click throttled (too frequent)');
       return;
     }
 
@@ -1058,7 +1090,7 @@
    */
   function startListening() {
     if (isListening) {
-      console.log('[Scribe:Content] Already listening');
+      debugLog('[Scribe:Content] Already listening');
       hideRecordingIndicator();
       return;
     }
@@ -1079,7 +1111,7 @@
     lastUrl = location.href;
     lastRecordedScroll = { x: window.scrollX || 0, y: window.scrollY || 0 };
 
-    console.log('[Scribe:Content] Recording started');
+    debugLog('[Scribe:Content] Recording started');
   }
 
   /**
@@ -1087,7 +1119,7 @@
    */
   function stopListening() {
     if (!isListening) {
-      console.log('[Scribe:Content] Not listening');
+      debugLog('[Scribe:Content] Not listening');
       return;
     }
 
@@ -1119,7 +1151,7 @@
     }
     hideRecordingIndicator();
 
-    console.log('[Scribe:Content] Recording stopped');
+    debugLog('[Scribe:Content] Recording stopped');
   }
 
   // ==========================================================================
@@ -1179,7 +1211,7 @@
 
   // Log initialization
   const logInit = () => {
-    console.log('[Scribe:Content] Content script loaded', {
+    debugLog('[Scribe:Content] Content script loaded', {
       version: '1.3.0',
       isListening
     });

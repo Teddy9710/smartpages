@@ -183,6 +183,7 @@ async function route(listener, message) {
     const starting = manager.start(workflow(), {}, 1);
     await new Promise(resolve => setImmediate(resolve));
     await manager.cancel(manager.getStatus().runId);
+    assert.equal(messages.some(item => item.destination === 'tab' && item.message.type === 'WORKFLOW_CANCEL'), true);
     resolveStep({ ok: true, code: 'STEP_COMPLETED' });
     await starting;
     assert.equal(manager.getStatus().status, 'CANCELLED');

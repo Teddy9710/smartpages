@@ -59,7 +59,8 @@ class DocumentUploader {
           file.name.toLowerCase().endsWith('.txt') ||
           file.name.toLowerCase().endsWith('.md') ||
           file.name.toLowerCase().endsWith('.html') ||
-          file.name.toLowerCase().endsWith('.htm')) {
+          file.name.toLowerCase().endsWith('.htm') ||
+          file.name.toLowerCase().endsWith('.rtf')) {
         reader.readAsText(file);
       } else {
         reader.readAsDataURL(file);
@@ -81,15 +82,7 @@ class DocumentUploader {
         try {
           let content = '';
 
-          if (ext === 'txt' || ext === 'md' || ext === 'html' || ext === 'htm' || ext === 'rtf') {
-            content = result;
-          } else if (ext === 'pdf') {
-            content = this._parsePdf(result);
-          } else if (ext === 'docx') {
-            content = this._parseDocx(result);
-          } else {
-            content = result;
-          }
+          content = result;
 
           resolve({
             name: file.name,
@@ -108,7 +101,8 @@ class DocumentUploader {
       if (file.type.startsWith('text/') || file.name.toLowerCase().endsWith('.txt') ||
           file.name.toLowerCase().endsWith('.md') ||
           file.name.toLowerCase().endsWith('.html') ||
-          file.name.toLowerCase().endsWith('.htm')) {
+          file.name.toLowerCase().endsWith('.htm') ||
+          file.name.toLowerCase().endsWith('.rtf')) {
         reader.readAsText(file);
       } else {
         reader.readAsArrayBuffer(file);
@@ -167,18 +161,6 @@ class DocumentUploader {
     } catch (error) {
       throw new Error('删除文档失败: ' + error.message);
     }
-  }
-
-  /** @private 解析PDF（需集成PDF.js） */
-  _parsePdf(arrayBuffer) {
-    console.warn('PDF解析需要PDF.js库支持');
-    return '[PDF内容 - 需要PDF.js库支持]';
-  }
-
-  /** @private 解析DOCX（需集成docx库） */
-  _parseDocx(arrayBuffer) {
-    console.warn('DOCX解析需要docx库支持');
-    return '[DOCX内容 - 需要docx库支持]';
   }
 
   /**

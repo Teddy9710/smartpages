@@ -8,6 +8,12 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { createLogger } = require('./utils/logger.js');
+
+const log = createLogger({
+  quiet: process.argv.includes('--quiet'),
+  verbose: process.argv.includes('--verbose')
+});
 
 const filesToCheck = [
   'background/background.js',
@@ -19,7 +25,7 @@ const filesToCheck = [
 
 const issues = [];
 
-console.log('🔍 Validating SmartPages extension files...\n');
+log.info('🔍 Validating SmartPages extension files...\n');
 
 filesToCheck.forEach(filePath => {
   const fullPath = path.join(__dirname, filePath);
@@ -40,7 +46,7 @@ filesToCheck.forEach(filePath => {
       if (syntaxCheck.status !== 0) {
         throw new Error(String(syntaxCheck.stderr || syntaxCheck.error?.message || 'Unknown syntax error').trim());
       }
-      console.log(`✅ ${filePath}: No syntax errors`);
+      log.info(`✅ ${filePath}: No syntax errors`);
     } catch (error) {
       issues.push(`❌ ${filePath}: Syntax error - ${error.message}`);
     }
@@ -82,14 +88,14 @@ filesToCheck.forEach(filePath => {
   }
 });
 
-console.log('\n' + '='.repeat(60));
+log.info('\n' + '='.repeat(60));
 
 if (issues.length === 0) {
-  console.log('✅ All validations passed! No issues found.');
+  log.info('✅ All validations passed! No issues found.');
   process.exit(0);
 } else {
-  console.log(`\n⚠️  Found ${issues.length} issue(s):\n`);
-  issues.forEach(issue => console.log(issue));
-  console.log('\n' + '='.repeat(60));
+  log.info(`\n⚠️  Found ${issues.length} issue(s):\n`);
+  issues.forEach(issue => log.info(issue));
+  log.info('\n' + '='.repeat(60));
   process.exit(1);
 }

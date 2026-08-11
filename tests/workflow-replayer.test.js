@@ -189,5 +189,18 @@ const plain = value => JSON.parse(JSON.stringify(value));
   await Promise.resolve();
   assert.equal(response.code, 'STEP_COMPLETED');
 
+  let clearedTimer = null;
+  env.sandbox.setTimeout = () => 42;
+  env.sandbox.clearTimeout = timerId => { clearedTimer = timerId; };
+  let waitResponse;
+  assert.equal(listener({ type: 'WORKFLOW_EXECUTE_STEP', step: { action: 'wait', input: { ms: 10000 } }, context }, {}, value => { waitResponse = value; }), true);
+  let cancelResponse;
+  assert.equal(listener({ type: 'WORKFLOW_CANCEL' }, {}, value => { cancelResponse = value; }), false);
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(cancelResponse.code, 'CANCELLED');
+  assert.equal(waitResponse.code, 'CANCELLED');
+  assert.equal(clearedTimer, 42);
+
   console.log('workflow-replayer tests passed');
 })().catch(error => { console.error(error); process.exitCode = 1; });

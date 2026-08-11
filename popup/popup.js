@@ -118,7 +118,7 @@ class PopupManager {
    */
   _bindMessageListener() {
     const messageListener = (message) => {
-      console.log('[Scribe:Popup] Received message:', message);
+      debugLog('[Scribe:Popup] Received message:', message);
       if (message.type === 'RECORDING_STATE_CHANGED') {
         this._updateState(message.state?.state, message.state);
       }
@@ -143,7 +143,7 @@ class PopupManager {
   async _refreshState() {
     try {
       const response = await sendMessage({ type: 'GET_RECORDING_STATE' });
-      console.log('[Scribe:Popup] Current state:', response);
+      debugLog('[Scribe:Popup] Current state:', response);
 
       if (response?.state) {
         this._updateState(response.state, response);
@@ -221,7 +221,7 @@ class PopupManager {
    * @param {Object} [response=null] - Full response object
    */
   _updateState(state, response = null) {
-    console.log('[Scribe:Popup] Updating state to:', state);
+    debugLog('[Scribe:Popup] Updating state to:', state);
 
     // Hide all state views
     document.querySelectorAll('.state').forEach(el => el.classList.remove('active'));
@@ -297,7 +297,7 @@ class PopupManager {
    * @param {number} count - Step count
    */
   _updateStepCount(count) {
-    console.log('[Scribe:Popup] Step count:', count);
+    debugLog('[Scribe:Popup] Step count:', count);
     this.currentStepCount = count;
     const stepCountEl = document.getElementById('step-count');
     if (stepCountEl) {
@@ -420,11 +420,11 @@ class PopupManager {
    */
   async startRecording() {
     try {
-      console.log('[Scribe:Popup] Starting recording...');
+      debugLog('[Scribe:Popup] Starting recording...');
 
       // Debounce check
       if (this.isStartingRecording) {
-        console.log('[Scribe:Popup] Start recording already in progress');
+        debugLog('[Scribe:Popup] Start recording already in progress');
         return;
       }
 
@@ -437,7 +437,7 @@ class PopupManager {
         tabId: tab.id
       });
 
-      console.log('[Scribe:Popup] Start recording response:', response);
+      debugLog('[Scribe:Popup] Start recording response:', response);
 
       if (response?.success) {
         await this._refreshState();
@@ -459,11 +459,11 @@ class PopupManager {
    */
   async stopRecording() {
     try {
-      console.log('[Scribe:Popup] Stopping recording...');
+      debugLog('[Scribe:Popup] Stopping recording...');
 
       // Debounce check
       if (this.isStoppingRecording) {
-        console.log('[Scribe:Popup] Stop recording already in progress');
+        debugLog('[Scribe:Popup] Stop recording already in progress');
         return;
       }
 
@@ -480,7 +480,7 @@ class PopupManager {
 
       const response = await sendMessage({ type: 'STOP_RECORDING' });
 
-      console.log('[Scribe:Popup] Stop recording response:', response);
+      debugLog('[Scribe:Popup] Stop recording response:', response);
 
       if (response?.success) {
         // Wait for state update
@@ -512,10 +512,10 @@ class PopupManager {
    */
   async pauseRecording() {
     try {
-      console.log('[Scribe:Popup] Pausing recording...');
+      debugLog('[Scribe:Popup] Pausing recording...');
 
       if (this.isPausingRecording) {
-        console.log('[Scribe:Popup] Pause recording already in progress');
+        debugLog('[Scribe:Popup] Pause recording already in progress');
         return;
       }
 
@@ -525,7 +525,7 @@ class PopupManager {
       if (btn) btn.disabled = true;
 
       const response = await sendMessage({ type: 'PAUSE_RECORDING' });
-      console.log('[Scribe:Popup] Pause recording response:', response);
+      debugLog('[Scribe:Popup] Pause recording response:', response);
 
       if (response?.success) {
         await this._refreshState();
@@ -550,10 +550,10 @@ class PopupManager {
    */
   async resumeRecording() {
     try {
-      console.log('[Scribe:Popup] Resuming recording...');
+      debugLog('[Scribe:Popup] Resuming recording...');
 
       if (this.isResumingRecording) {
-        console.log('[Scribe:Popup] Resume recording already in progress');
+        debugLog('[Scribe:Popup] Resume recording already in progress');
         return;
       }
 
@@ -563,7 +563,7 @@ class PopupManager {
       if (btn) btn.disabled = true;
 
       const response = await sendMessage({ type: 'RESUME_RECORDING' });
-      console.log('[Scribe:Popup] Resume recording response:', response);
+      debugLog('[Scribe:Popup] Resume recording response:', response);
 
       if (response?.success) {
         await this._refreshState();
@@ -681,7 +681,7 @@ class PopupManager {
     });
 
     this.listeners = [];
-    console.log('[Scribe:Popup] Cleaned up listeners');
+    debugLog('[Scribe:Popup] Cleaned up listeners');
   }
 }
 
@@ -696,7 +696,7 @@ let popupManager = null;
  * Initializes the popup when DOM is ready
  */
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('[Scribe:Popup] Popup loaded');
+  debugLog('[Scribe:Popup] Popup loaded');
   popupManager = new PopupManager();
 });
 

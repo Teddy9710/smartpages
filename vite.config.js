@@ -13,13 +13,11 @@ const copyTargets = [
   { src: 'libs', dest: '.' },
   { src: 'styles', dest: '.' },
   { src: 'skills', dest: '.' },
-  { src: 'docs', dest: '.' },
   { src: 'workflow', dest: '.' },
   // Modules with subdirectory nesting - use rename.stripBase
   { src: 'popup/*', dest: 'popup', rename: { stripBase: 1 } },
   { src: 'sidepanel/*', dest: 'sidepanel', rename: { stripBase: 1 } },
   { src: 'settings/*', dest: 'settings', rename: { stripBase: 1 } },
-  { src: 'upload/*', dest: 'upload', rename: { stripBase: 1 } },
   { src: 'background/*', dest: 'background', rename: { stripBase: 1 } },
   { src: 'content/*', dest: 'content', rename: { stripBase: 1 } },
   { src: 'utils/*', dest: 'utils', rename: { stripBase: 1 } },

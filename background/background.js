@@ -456,7 +456,7 @@ class RecordingManager {
       await this._startContentScriptListening(tabId, { resetOnFailure: false });
       await this._persistState();
       this._notifyStateChanged();
-      console.log('[Scribe:Background] Recording resumed after navigation:', currentTab.url);
+      debugLog('[Scribe:Background] Recording resumed after navigation:', currentTab.url);
     } catch (error) {
       console.warn('[Scribe:Background] Failed to resume recording after navigation:', error);
     }
@@ -661,7 +661,7 @@ class RecordingManager {
       }
 
       if (!config.smartDescription) {
-        console.log('[Scribe:Background] Smart description is disabled');
+        debugLog('[Scribe:Background] Smart description is disabled');
         return;
       }
 
@@ -674,7 +674,7 @@ class RecordingManager {
         session: this.currentSession,
         config: config
       }).catch(() => {
-        console.log('[Scribe:Background] Sidepanel not open - analysis queued');
+        debugLog('[Scribe:Background] Sidepanel not open - analysis queued');
       });
     } catch (error) {
       console.error('[Scribe:Background] AI analysis trigger failed:', error);
@@ -1038,9 +1038,14 @@ class WorkflowRunManager {
   async _cancelUnlocked() {
     if (!this.run) throw this._error('NO_RUN', 'No workflow run exists.');
     if (!this._isActive()) throw this._error('INVALID_RUN_STATE', 'Workflow run is already terminal.');
+    const tabId = this.run.tabId;
     this.run.status = WorkflowRunStatus.CANCELLED;
     this.run.endedAt = new Date().toISOString();
+    this.run.navigationPending = false;
     this._log(this.run.pendingStep, 'CANCELLED');
+    if (Number.isInteger(tabId) && tabId > 0) {
+      Promise.resolve(chrome.tabs.sendMessage(tabId, { type: 'WORKFLOW_CANCEL' })).catch(() => {});
+    }
     await this._notify();
     return this.getStatus();
   }
@@ -1308,7 +1313,7 @@ function messageHandler(message, sender, sendResponse) {
   // Handle async response
   (async () => {
     try {
-      console.log('[Scribe:Background] Received:', message.type);
+      debugLog('[Scribe:Background] Received:', message.type);
 
       if (globalThis.GIF_RECORDING_MESSAGE_TYPES?.includes(message.type)) {
         return await globalThis.gifRecordingManager.handleMessage(message, sender);
@@ -1333,7 +1338,7 @@ function messageHandler(message, sender, sendResponse) {
       return response;
     }
   })().then(result => {
-    console.log('[Scribe:Background] Sending response:', result);
+    debugLog('[Scribe:Background] Sending response:', result);
     sendResponse(result);
   }).catch(error => {
     console.error('[Scribe:Background] Response error:', error);
@@ -1470,14 +1475,14 @@ if (chrome.tabs.onRemoved?.addListener && !chrome.runtime.scribeTabRemovedListen
  */
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
-    console.log('[Scribe:Background] SmartPages installed');
+    debugLog('[Scribe:Background] SmartPages installed');
     // Could open setup page or show welcome notification
     showNotification(
       'SmartPages',
       '安装成功！点击扩展图标开始录制您的操作流程。'
     );
   } else if (details.reason === 'update') {
-    console.log('[Scribe:Background] SmartPages updated to', chrome.runtime.getManifest().version);
+    debugLog('[Scribe:Background] SmartPages updated to', chrome.runtime.getManifest().version);
   }
 });
 
@@ -1494,7 +1499,7 @@ chrome.notifications.onClicked.addListener((notificationId) => {
  * Service worker activation (MV3 best practice)
  */
 self.addEventListener('activate', (event) => {
-  console.log('[Scribe:Background] Service worker activated');
+  debugLog('[Scribe:Background] Service worker activated');
   // Claim clients to ensure control immediately
   event.waitUntil(self.clients.claim());
 });

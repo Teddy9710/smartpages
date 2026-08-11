@@ -3,6 +3,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const testDir = __dirname;
+const testTimeoutMs = Number(process.env.SMARTPAGES_TEST_TIMEOUT_MS || 10000);
 const testFiles = fs.readdirSync(testDir)
   .filter(file => file.endsWith('.test.js'))
   .sort();
@@ -17,8 +18,13 @@ for (const file of testFiles) {
   console.log(`Running ${relativePath}`);
   const result = spawnSync(process.execPath, [relativePath], {
     cwd: path.join(testDir, '..'),
-    stdio: 'inherit'
+    stdio: 'inherit',
+    timeout: testTimeoutMs
   });
+  if (result.error?.code === 'ETIMEDOUT') {
+    console.error(`Timed out after ${testTimeoutMs}ms: ${relativePath}`);
+    process.exit(1);
+  }
   if (result.status !== 0) {
     process.exit(result.status || 1);
   }

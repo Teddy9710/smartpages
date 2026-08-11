@@ -3,6 +3,25 @@
 
   const fail = (code, message) => ({ ok: false, code, message });
   const normalize = value => String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  let executionGeneration = 0;
+  let activeWait = null;
+
+  function cancelActiveExecution() {
+    executionGeneration += 1;
+    if (activeWait) {
+      global.clearTimeout?.(activeWait.timerId);
+      const resolve = activeWait.resolve;
+      activeWait = null;
+      resolve();
+    }
+    global.document.querySelectorAll?.('[data-smartpages-highlight]').forEach(element => {
+      element.removeAttribute?.('data-smartpages-highlight');
+      if (element.style) {
+        element.style.outline = '';
+        element.style.outlineOffset = '';
+      }
+    });
+  }
 
   function isVisible(element) {
     if (!element) return false;
@@ -143,6 +162,9 @@
   }
 
   async function executeStep(step, context = {}) {
+    const generation = executionGeneration;
+    const isCancelled = () => generation !== executionGeneration;
+    if (isCancelled()) return fail('CANCELLED', 'Workflow execution was cancelled.');
     if (!originAllowed(global.location.href, context.allowedOrigins)) {
       return fail('ORIGIN_NOT_ALLOWED', 'Current page origin is not allowed.');
     }
@@ -181,7 +203,15 @@
     }
     if (step.action === 'wait') {
       const ms = Number(input.ms);
-      await new Promise(resolve => global.setTimeout(resolve, Math.min(Math.max(Number.isFinite(ms) ? ms : 0, 0), 10000)));
+      await new Promise(resolve => {
+        const waitState = { generation, timerId: null, resolve };
+        activeWait = waitState;
+        waitState.timerId = global.setTimeout(() => {
+          if (activeWait === waitState) activeWait = null;
+          resolve();
+        }, Math.min(Math.max(Number.isFinite(ms) ? ms : 0, 0), 10000));
+      });
+      if (isCancelled()) return fail('CANCELLED', 'Workflow execution was cancelled.');
     }
     if (step.action === 'navigate') {
       const navigationUrl = resolveValue(input.url, context.variables);
@@ -215,6 +245,11 @@
       global.chrome.runtime.onMessage.removeListener(global.smartPagesWorkflowReplayListener);
     }
     global.smartPagesWorkflowReplayListener = function (message, _sender, sendResponse) {
+      if (message?.type === 'WORKFLOW_CANCEL') {
+        cancelActiveExecution();
+        sendResponse({ ok: true, code: 'CANCELLED' });
+        return false;
+      }
       if (message?.type === 'WORKFLOW_CHECK_CONDITION') {
         const allowed = originAllowed(global.location.href, message.allowedOrigins);
         sendResponse(allowed && checkCondition(message.condition)
