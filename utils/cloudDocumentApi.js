@@ -8,6 +8,7 @@
   'use strict';
 
   const CLOUD_CONFIG_KEY = 'cloudStorageConfig';
+  const CLOUD_PROVIDER_CONFIGS_KEY = 'cloudStorageProviderConfigs';
   const CLOUD_SESSION_KEY = 'cloudStorageSession';
   const LOCAL_DRAFT_KEY = 'generatedDocumentDraft';
   const LOCAL_DIRECTORY_DB = 'smartpages-local-documents';
@@ -224,6 +225,7 @@
       this.fetch = options.fetch || globalScope.fetch?.bind(globalScope);
       this.now = options.now || (() => Date.now());
       this.randomUUID = options.randomUUID || (() => globalScope.crypto.randomUUID());
+      this.imageCompressor = options.imageCompressor || (dataUrl => this._compressImageDataUrl(dataUrl));
       this.assetUrlMap = new Map();
       if (!this.fetch) throw new CloudDocumentError('Fetch API is unavailable', 'FETCH_UNAVAILABLE');
     }
@@ -364,6 +366,10 @@
       return this._hydrateAssets(this._dehydrateKnownAssets(content), context);
     }
 
+    dehydrateAssets(content) {
+      return this._dehydrateKnownAssets(content);
+    }
+
     async listDocumentVersions(documentId) {
       const context = await this._authorizedContext();
       const safeId = encodeURIComponent(String(documentId || ''));
@@ -391,24 +397,29 @@
     async saveDocument(input) {
       const context = await this._authorizedContext();
       const documentId = input?.id || this.randomUUID();
-      const cloudContent = await this._uploadEmbeddedAssets(String(input?.content || ''), documentId, context);
-      const response = await this.fetch(`${context.config.url}/rest/v1/rpc/save_generated_document`, {
-        method: 'POST',
-        headers: this._headers(context.config, context.session.accessToken),
-        body: JSON.stringify({
-          p_id: documentId,
-          p_title: String(input?.title || 'SmartPages document').slice(0, 200),
-          p_format: ['markdown', 'html', 'text'].includes(input?.format) ? input.format : 'markdown',
-          p_content: cloudContent,
-          p_expected_revision: input?.id ? Math.max(1, Number(input.revision) || 1) : null,
-          p_event: input?.event === 'generated' ? 'generated' : 'cloud_save'
-        })
-      });
-
+      const uploadedPaths = [];
       let result;
       try {
+        const cloudContent = await this._uploadEmbeddedAssets(
+          String(input?.content || ''), documentId, context, uploadedPaths
+        );
+        const response = await this.fetch(`${context.config.url}/rest/v1/rpc/save_generated_document`, {
+          method: 'POST',
+          headers: this._headers(context.config, context.session.accessToken),
+          body: JSON.stringify({
+            p_id: documentId,
+            p_title: String(input?.title || 'SmartPages document').slice(0, 200),
+            p_format: ['markdown', 'html', 'text'].includes(input?.format) ? input.format : 'markdown',
+            p_content: cloudContent,
+            p_expected_revision: input?.id ? Math.max(1, Number(input.revision) || 1) : null,
+            p_event: input?.event === 'generated' ? 'generated' : 'cloud_save'
+          })
+        });
         result = await this._readResponse(response);
       } catch (error) {
+        await this._removeAssets(uploadedPaths, context).catch(cleanupError => {
+          console.warn('[SmartPages:Cloud] Failed to roll back uploaded assets:', cleanupError);
+        });
         if (error.code === '40001' || error.message === 'VERSION_CONFLICT') {
           throw new CloudDocumentError('This document changed in another session. Reload it before saving.', 'VERSION_CONFLICT', 409);
         }
@@ -442,6 +453,10 @@
 
     async deleteDocument(id) {
       const context = await this._authorizedContext();
+      const assetPaths = await this._listDocumentAssets(id, context).catch(error => {
+        console.warn('[SmartPages:Cloud] Failed to list document assets before deletion:', error);
+        return [];
+      });
       const response = await this.fetch(
         `${context.config.url}/rest/v1/cloud_documents?id=eq.${encodeURIComponent(String(id || ''))}&document_type=eq.generated`,
         {
@@ -450,14 +465,18 @@
         }
       );
       await this._readResponse(response, true);
+      await this._removeAssets(assetPaths, context).catch(error => {
+        console.warn('[SmartPages:Cloud] Document deleted but asset cleanup failed:', error);
+      });
       return true;
     }
 
-    async _uploadEmbeddedAssets(content, documentId, context) {
+    async _uploadEmbeddedAssets(content, documentId, context, uploadedPaths = []) {
       let result = this._dehydrateKnownAssets(content);
       const matches = [...new Set(result.match(/data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=]+/gi) || [])];
       for (const dataUrl of matches) {
-        const match = dataUrl.match(/^data:image\/([a-z0-9.+-]+);base64,(.+)$/i);
+        const preparedDataUrl = await this.imageCompressor(dataUrl).catch(() => dataUrl);
+        const match = preparedDataUrl.match(/^data:image\/([a-z0-9.+-]+);base64,(.+)$/i);
         if (!match) continue;
         const extension = this._safeImageExtension(match[1]);
         const assetId = this.randomUUID();
@@ -476,9 +495,84 @@
           }
         );
         await this._readResponse(response, true);
+        uploadedPaths.push(path);
         result = result.split(dataUrl).join(`smartpages-asset://${path}`);
       }
       return result;
+    }
+
+    async _compressImageDataUrl(dataUrl) {
+      const source = String(dataUrl || '');
+      const match = source.match(/^data:image\/([a-z0-9.+-]+);base64,(.+)$/i);
+      if (!match || match[1].toLowerCase() === 'gif') return source;
+      const originalBytes = this._decodeBase64(match[2]);
+      if (originalBytes.byteLength < 512 * 1024 || !globalScope.createImageBitmap) return source;
+
+      const originalBlob = new Blob([originalBytes], { type: `image/${match[1]}` });
+      const bitmap = await globalScope.createImageBitmap(originalBlob);
+      try {
+        const scale = Math.min(1, 1920 / Math.max(bitmap.width, bitmap.height));
+        const width = Math.max(1, Math.round(bitmap.width * scale));
+        const height = Math.max(1, Math.round(bitmap.height * scale));
+        let compressedBlob;
+        if (globalScope.OffscreenCanvas) {
+          const canvas = new globalScope.OffscreenCanvas(width, height);
+          canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height);
+          compressedBlob = await canvas.convertToBlob({ type: 'image/webp', quality: 0.82 });
+        } else if (globalScope.document?.createElement) {
+          const canvas = globalScope.document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height);
+          compressedBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.82));
+        }
+        if (!compressedBlob || compressedBlob.size >= originalBlob.size * 0.9) return source;
+        const compressedBytes = new Uint8Array(await compressedBlob.arrayBuffer());
+        let binary = '';
+        for (let index = 0; index < compressedBytes.length; index += 0x8000) {
+          binary += String.fromCharCode(...compressedBytes.subarray(index, index + 0x8000));
+        }
+        return `data:image/webp;base64,${globalScope.btoa(binary)}`;
+      } finally {
+        bitmap.close?.();
+      }
+    }
+
+    async _listDocumentAssets(documentId, context) {
+      const prefix = `${context.session.user.id}/${String(documentId || '')}`;
+      const paths = [];
+      for (let offset = 0; ; offset += 1000) {
+        const response = await this.fetch(
+          `${context.config.url}/storage/v1/object/list/${encodeURIComponent(context.config.bucket)}`,
+          {
+            method: 'POST',
+            headers: this._headers(context.config, context.session.accessToken),
+            body: JSON.stringify({ prefix, limit: 1000, offset, sortBy: { column: 'name', order: 'asc' } })
+          }
+        );
+        const rows = await this._readResponse(response);
+        for (const row of rows || []) {
+          if (!row?.name || row.id === null) continue;
+          paths.push(row.name.startsWith(`${prefix}/`) ? row.name : `${prefix}/${row.name}`);
+        }
+        if (!rows || rows.length < 1000) break;
+      }
+      return paths;
+    }
+
+    async _removeAssets(paths, context) {
+      const uniquePaths = [...new Set((paths || []).filter(Boolean))];
+      for (let index = 0; index < uniquePaths.length; index += 1000) {
+        const response = await this.fetch(
+          `${context.config.url}/storage/v1/object/${encodeURIComponent(context.config.bucket)}`,
+          {
+            method: 'DELETE',
+            headers: this._headers(context.config, context.session.accessToken),
+            body: JSON.stringify({ prefixes: uniquePaths.slice(index, index + 1000) })
+          }
+        );
+        await this._readResponse(response, true);
+      }
     }
 
     async _hydrateAssets(content, context) {
@@ -589,15 +683,371 @@
     }
   }
 
+  class CloudBaseDocumentProvider extends SupabaseCloudDocumentProvider {
+    constructor(options = {}) {
+      super(options);
+      this.cloudbase = options.cloudbase || globalScope.cloudbase;
+      this.app = null;
+      this.appSignature = '';
+    }
+
+    async getConfig() {
+      const value = await this.storage.get(CLOUD_CONFIG_KEY);
+      return CloudBaseDocumentProvider.normalizeConfig(value || {});
+    }
+
+    async saveConfig(config) {
+      const value = CloudBaseDocumentProvider.normalizeConfig(config);
+      if (!value.envId || !value.accessKey) {
+        throw new CloudDocumentError('CloudBase environment ID and Publishable Key are required', 'CONFIG_REQUIRED');
+      }
+      await this.storage.set(CLOUD_CONFIG_KEY, value);
+      this.app = null;
+      this.appSignature = '';
+      return value;
+    }
+
+    async isConfigured() {
+      const config = await this.getConfig();
+      return Boolean(config.envId && config.accessKey);
+    }
+
+    static normalizeConfig(config) {
+      const envId = String(config?.envId || '').trim();
+      return {
+        provider: 'cloudbase',
+        envId: /^[a-zA-Z0-9-]+$/.test(envId) ? envId : '',
+        accessKey: String(config?.accessKey || '').trim(),
+        region: ['ap-shanghai', 'ap-guangzhou'].includes(config?.region) ? config.region : 'ap-shanghai',
+        bucket: String(config?.bucket || DEFAULT_BUCKET).trim() || DEFAULT_BUCKET
+      };
+    }
+
+    async signUp(email, password) {
+      const auth = (await this._getApp()).auth();
+      try {
+        const request = auth.signUpWithEmailAndPassword
+          ? auth.signUpWithEmailAndPassword(email, password)
+          : auth.signUp({ email, password });
+        await this._unwrap(request);
+        return await this.getSession() || { pendingConfirmation: true, user: { email } };
+      } catch (error) {
+        throw this._cloudBaseError(error, 'SIGN_UP_FAILED');
+      }
+    }
+
+    async signIn(email, password) {
+      const auth = (await this._getApp()).auth();
+      try {
+        await this._unwrap(auth.signIn({ username: email, password }));
+        const session = await this.getSession();
+        if (!session) throw new CloudDocumentError('Authentication did not return a session', 'AUTH_SESSION_MISSING');
+        return session;
+      } catch (error) {
+        throw this._cloudBaseError(error, 'SIGN_IN_FAILED');
+      }
+    }
+
+    async signOut() {
+      const auth = (await this._getApp()).auth();
+      await auth.signOut().catch(() => null);
+      return true;
+    }
+
+    async getSession() {
+      const auth = (await this._getApp()).auth();
+      try {
+        const rawSession = await this._unwrap(auth.getSession());
+        let user = rawSession?.user || rawSession?.session?.user || auth.currentUser || null;
+        if (!user && auth.getCurrentUser) user = await auth.getCurrentUser().catch(() => null);
+        const id = user?.id || user?.uid || user?.sub || '';
+        if (!id) return null;
+        return {
+          accessToken: rawSession?.access_token || rawSession?.accessToken || rawSession?.session?.access_token || '',
+          refreshToken: rawSession?.refresh_token || rawSession?.refreshToken || rawSession?.session?.refresh_token || '',
+          expiresAt: rawSession?.expires_at || rawSession?.expiresAt || rawSession?.session?.expires_at || 0,
+          user: { ...user, id, email: user.email || user.username || '' }
+        };
+      } catch (_error) {
+        return null;
+      }
+    }
+
+    async listDocuments(search = '') {
+      const context = await this._authorizedContext();
+      let query = context.app.rdb().from('cloud_documents')
+        .select('id,title,format,revision,created_at,updated_at')
+        .eq('document_type', 'generated')
+        .order('updated_at', { ascending: false });
+      const searchText = String(search || '').trim().replace(/[%_,*()]/g, '');
+      if (searchText) query = query.ilike('title', `%${searchText}%`);
+      return this._data(await query);
+    }
+
+    async getDocument(id) {
+      const context = await this._authorizedContext();
+      const rows = this._data(await context.app.rdb().from('cloud_documents')
+        .select('*').eq('id', String(id || '')).eq('document_type', 'generated').limit(1));
+      if (!rows?.length) throw new CloudDocumentError('Cloud document was not found', 'NOT_FOUND', 404);
+      const document = rows[0];
+      document.content = await this._hydrateAssets(document.content, context);
+      return document;
+    }
+
+    async listDocumentVersions(documentId) {
+      const context = await this._authorizedContext();
+      return this._data(await context.app.rdb().from('cloud_document_versions')
+        .select('id,document_id,title,format,revision,event,created_at')
+        .eq('document_id', String(documentId || ''))
+        .order('revision', { ascending: false }));
+    }
+
+    async getDocumentVersion(versionId) {
+      const context = await this._authorizedContext();
+      const rows = this._data(await context.app.rdb().from('cloud_document_versions')
+        .select('*').eq('id', versionId).limit(1));
+      if (!rows?.length) throw new CloudDocumentError('Cloud document version was not found', 'NOT_FOUND', 404);
+      const version = rows[0];
+      version.content = await this._hydrateAssets(version.content, context);
+      return version;
+    }
+
+    async saveDocument(input) {
+      const context = await this._authorizedContext();
+      const documentId = input?.id || this.randomUUID();
+      const uploadedPaths = [];
+      let result;
+      try {
+        const cloudContent = await this._uploadEmbeddedAssets(
+          String(input?.content || ''), documentId, context, uploadedPaths
+        );
+        result = this._data(await context.app.rdb().rpc('save_generated_document', {
+          p_id: documentId,
+          p_title: String(input?.title || 'SmartPages document').slice(0, 200),
+          p_format: ['markdown', 'html', 'text'].includes(input?.format) ? input.format : 'markdown',
+          p_content: cloudContent,
+          p_expected_revision: input?.id ? Math.max(1, Number(input.revision) || 1) : null,
+          p_event: input?.event === 'generated' ? 'generated' : 'cloud_save'
+        }));
+      } catch (error) {
+        await this._removeAssets(uploadedPaths, context).catch(cleanupError => {
+          console.warn('[SmartPages:CloudBase] Failed to roll back uploaded assets:', cleanupError);
+        });
+        if (/VERSION_CONFLICT|40001/.test(`${error.code || ''} ${error.message || ''}`)) {
+          throw new CloudDocumentError('This document changed in another session. Reload it before saving.', 'VERSION_CONFLICT', 409);
+        }
+        throw error;
+      }
+      const saved = Array.isArray(result) ? result[0] : result;
+      if (!saved?.id) throw new CloudDocumentError('CloudBase schema is missing. Run cloudbase/schema.sql.', 'HISTORY_SCHEMA_REQUIRED');
+      try {
+        saved.content = await this._hydrateAssets(saved.content, context);
+      } catch (error) {
+        saved.content = String(input?.content || '');
+        saved.assetWarning = error.message;
+      }
+      return saved;
+    }
+
+    async deleteDocument(id) {
+      const context = await this._authorizedContext();
+      const assetPaths = await this._listDocumentAssets(id, context).catch(error => {
+        console.warn('[SmartPages:CloudBase] Failed to list document assets before deletion:', error);
+        return [];
+      });
+      this._data(await context.app.rdb().from('cloud_documents').delete()
+        .eq('id', String(id || '')).eq('document_type', 'generated'));
+      await this._removeAssets(assetPaths, context).catch(error => {
+        console.warn('[SmartPages:CloudBase] Document deleted but asset cleanup failed:', error);
+      });
+      return true;
+    }
+
+    async _uploadEmbeddedAssets(content, documentId, context, uploadedPaths = []) {
+      let result = this._dehydrateKnownAssets(content);
+      const matches = [...new Set(result.match(/data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=]+/gi) || [])];
+      const bucket = context.app.storage.from(context.config.bucket);
+      for (const dataUrl of matches) {
+        const preparedDataUrl = await this.imageCompressor(dataUrl).catch(() => dataUrl);
+        const match = preparedDataUrl.match(/^data:image\/([a-z0-9.+-]+);base64,(.+)$/i);
+        if (!match) continue;
+        const extension = this._safeImageExtension(match[1]);
+        const path = `${context.session.user.id}/${documentId}/${this.randomUUID()}.${extension}`;
+        const upload = await bucket.upload(path, this._decodeBase64(match[2]), {
+          contentType: `image/${match[1]}`,
+          upsert: false
+        });
+        this._data(upload);
+        uploadedPaths.push(path);
+        result = result.split(dataUrl).join(`smartpages-asset://${path}`);
+      }
+      return result;
+    }
+
+    async _listDocumentAssets(documentId, context) {
+      const prefix = `${context.session.user.id}/${String(documentId || '')}`;
+      const bucket = context.app.storage.from(context.config.bucket);
+      const paths = [];
+      let cursor;
+      do {
+        const page = this._data(await bucket.list(prefix, {
+          limit: 500,
+          cursor,
+          withDelimiter: false,
+          sortBy: { column: 'name', order: 'asc' }
+        }));
+        for (const item of page?.objects || []) {
+          const name = item?.name || item?.path;
+          if (!name) continue;
+          paths.push(name.startsWith(`${prefix}/`) ? name : `${prefix}/${name}`);
+        }
+        cursor = page?.hasNext ? page.nextCursor : null;
+      } while (cursor);
+      return paths;
+    }
+
+    async _removeAssets(paths, context) {
+      const uniquePaths = [...new Set((paths || []).filter(Boolean))];
+      if (!uniquePaths.length) return;
+      const bucket = context.app.storage.from(context.config.bucket);
+      for (let index = 0; index < uniquePaths.length; index += 100) {
+        this._data(await bucket.remove(uniquePaths.slice(index, index + 100)));
+      }
+    }
+
+    async _hydrateAssets(content, context) {
+      let result = String(content || '');
+      const markers = [...new Set(result.match(/smartpages-asset:\/\/[A-Za-z0-9._%/-]+/g) || [])];
+      const bucket = context.app.storage.from(context.config.bucket);
+      for (const marker of markers) {
+        const path = marker.slice('smartpages-asset://'.length);
+        const signed = this._data(await bucket.createSignedUrl(path, 3600));
+        const signedUrl = signed?.fullSignedURL || signed?.signedURL || signed?.signedUrl;
+        if (!signedUrl) continue;
+        this.assetUrlMap.set(signedUrl, marker);
+        result = result.split(marker).join(signedUrl);
+      }
+      return result;
+    }
+
+    async _authorizedContext() {
+      const config = await this._requireConfig();
+      const app = await this._getApp(config);
+      const session = await this.getSession();
+      if (!session?.user?.id) throw new CloudDocumentError('Please sign in to CloudBase first', 'AUTH_REQUIRED', 401);
+      return { config, app, session };
+    }
+
+    async _requireConfig() {
+      const config = await this.getConfig();
+      if (!config.envId || !config.accessKey) {
+        throw new CloudDocumentError('Configure Tencent CloudBase in Settings first', 'CONFIG_REQUIRED');
+      }
+      return config;
+    }
+
+    async _getApp(existingConfig = null) {
+      const config = existingConfig || await this._requireConfig();
+      this.cloudbase = this.cloudbase || globalScope.cloudbase;
+      if (!this.cloudbase?.init) throw new CloudDocumentError('CloudBase SDK is unavailable. Rebuild the extension.', 'SDK_UNAVAILABLE');
+      const signature = `${config.envId}|${config.region}|${config.accessKey}`;
+      if (!this.app || this.appSignature !== signature) {
+        this.app = this.cloudbase.init({
+          env: config.envId,
+          region: config.region,
+          accessKey: config.accessKey,
+          persistence: 'local'
+        });
+        this.appSignature = signature;
+      }
+      return this.app;
+    }
+
+    _data(result) {
+      if (result?.error) throw this._cloudBaseError(result.error);
+      return result && Object.prototype.hasOwnProperty.call(result, 'data') ? result.data : result;
+    }
+
+    async _unwrap(promise) {
+      return this._data(await promise);
+    }
+
+    _cloudBaseError(error, fallbackCode = 'REQUEST_FAILED') {
+      if (error instanceof CloudDocumentError) return error;
+      const message = error?.message || error?.error_description || String(error || 'CloudBase request failed');
+      return new CloudDocumentError(message, error?.code || fallbackCode, error?.status || 0);
+    }
+  }
+
+  class CloudDocumentProvider {
+    constructor(options = {}) {
+      this.storage = options.storage || new ChromeLocalStore();
+      const shared = { ...options, storage: this.storage };
+      this.providers = {
+        supabase: new SupabaseCloudDocumentProvider(shared),
+        cloudbase: new CloudBaseDocumentProvider(shared)
+      };
+    }
+
+    async _current() {
+      const config = await this.storage.get(CLOUD_CONFIG_KEY) || {};
+      return config.provider === 'cloudbase' ? this.providers.cloudbase : this.providers.supabase;
+    }
+
+    async getConfig() { return (await this._current()).getConfig(); }
+    async getConfigForProvider(providerName) {
+      const name = providerName === 'cloudbase' ? 'cloudbase' : 'supabase';
+      const profiles = await this.storage.get(CLOUD_PROVIDER_CONFIGS_KEY) || {};
+      if (profiles[name]) {
+        return name === 'cloudbase'
+          ? CloudBaseDocumentProvider.normalizeConfig(profiles[name])
+          : SupabaseCloudDocumentProvider.normalizeConfig(profiles[name]);
+      }
+      const active = await this.storage.get(CLOUD_CONFIG_KEY) || {};
+      if ((active.provider || 'supabase') === name) {
+        return name === 'cloudbase'
+          ? CloudBaseDocumentProvider.normalizeConfig(active)
+          : SupabaseCloudDocumentProvider.normalizeConfig(active);
+      }
+      return name === 'cloudbase'
+        ? CloudBaseDocumentProvider.normalizeConfig({})
+        : SupabaseCloudDocumentProvider.normalizeConfig({});
+    }
+    async saveConfig(config) {
+      const name = config?.provider === 'cloudbase' ? 'cloudbase' : 'supabase';
+      const profiles = await this.storage.get(CLOUD_PROVIDER_CONFIGS_KEY) || {};
+      const active = await this.storage.get(CLOUD_CONFIG_KEY) || {};
+      const activeName = active.provider === 'cloudbase' ? 'cloudbase' : 'supabase';
+      if (!profiles[activeName]) profiles[activeName] = active;
+      const saved = await this.providers[name].saveConfig(config);
+      profiles[name] = saved;
+      await this.storage.set(CLOUD_PROVIDER_CONFIGS_KEY, profiles);
+      return saved;
+    }
+  }
+
+  for (const method of [
+    'isConfigured', 'signUp', 'signIn', 'signOut', 'getSession', 'listDocuments',
+    'getDocument', 'refreshAssetUrls', 'dehydrateAssets', 'listDocumentVersions', 'getDocumentVersion',
+    'saveDocument', 'saveVersionAsNew', 'deleteDocument'
+  ]) {
+    CloudDocumentProvider.prototype[method] = async function delegateCloudDocumentMethod(...args) {
+      return (await this._current())[method](...args);
+    };
+  }
+
   const exports = {
     CLOUD_CONFIG_KEY,
+    CLOUD_PROVIDER_CONFIGS_KEY,
     CLOUD_SESSION_KEY,
     LOCAL_DRAFT_KEY,
     CloudDocumentError,
     ChromeLocalStore,
     LocalDocumentDraftStore,
     LocalDirectoryDocumentStore,
-    SupabaseCloudDocumentProvider
+    SupabaseCloudDocumentProvider,
+    CloudBaseDocumentProvider,
+    CloudDocumentProvider
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = exports;

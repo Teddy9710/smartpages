@@ -33,9 +33,10 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     lib: {
-      entry: resolve(projectRoot, 'utils/codeUtils.js'),
-      formats: ['es'],
-      fileName: () => '_unused_entry.js',
+      entry: resolve(projectRoot, 'cloudbase/cloudbase-entry.js'),
+      name: 'SmartPagesCloudBaseSdk',
+      formats: ['iife'],
+      fileName: () => 'cloudbase-sdk.js',
     },
     copyPublicDir: false,
     minify: false,

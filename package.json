@@ -37,6 +37,7 @@
   },
   "homepage": "https://github.com/Teddy9710/smartpages#readme",
   "dependencies": {
+    "@cloudbase/js-sdk": "^3.8.0",
     "@modelcontextprotocol/sdk": "^1.17.0",
     "ws": "^8.18.0"
   },

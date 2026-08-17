@@ -522,7 +522,7 @@ ${bodyHtml}
     this.isGenerating = false;
     this.isOptimizing = false;
     this.documentApi = new DocumentApi();
-    this.cloudDocuments = new SupabaseCloudDocumentProvider();
+    this.cloudDocuments = new CloudDocumentProvider();
     this.localDrafts = new LocalDocumentDraftStore();
     this.localDocuments = new LocalDirectoryDocumentStore();
     this.localDocumentState = { fileName: null, dirty: true };
@@ -1212,12 +1212,12 @@ ${bodyHtml}
     }
     const cloudText = isEn ? {
       save: 'Save current document', library: 'History', unsaved: 'Unsaved', title: 'Generated Document History',
-      config: 'Configure the Supabase Project URL and anon key in Settings first.', settings: 'Open Settings',
+      config: 'Configure Supabase or Tencent CloudBase in Settings first.', settings: 'Open Settings',
       authHelp: 'Sign in to view generated-document history and versions. Reference uploads stay separate.', email: 'Email', password: 'Password',
       signIn: 'Sign In', signUp: 'Sign Up', refresh: 'Refresh', signOut: 'Sign Out'
     } : {
       save: '保存当前文档', library: '生成历史', unsaved: '未保存', title: '生成文档历史',
-      config: '请先在设置页配置 Supabase Project URL 和 anon key。', settings: '打开设置',
+      config: '请先在设置页配置 Supabase 或腾讯云 CloudBase。', settings: '打开设置',
       authHelp: '登录后可查看生成文档的历史和版本；参考文档不会显示在这里。', email: '邮箱', password: '密码',
       signIn: '登录', signUp: '注册', refresh: '刷新', signOut: '退出'
     };
@@ -3166,9 +3166,12 @@ ${markdown}`;
   // ========================================================================
 
   async _saveLocalDraft() {
-    const content = document.getElementById('markdown-editor')?.value || '';
+    let content = document.getElementById('markdown-editor')?.value || '';
     if (!content.trim()) return;
     try {
+      if (this.cloudDocumentState.id) {
+        content = await this.cloudDocuments.dehydrateAssets(content);
+      }
       await this.localDrafts.save({
         id: this.cloudDocumentState.id,
         revision: this.cloudDocumentState.revision,
@@ -3186,7 +3189,7 @@ ${markdown}`;
       const draft = await this.localDrafts.load();
       if (!draft?.content?.trim()) return;
       let restoredContent = draft.content;
-      if (draft.id && /\/storage\/v1\/object\/sign\//.test(restoredContent)) {
+      if (draft.id && (/smartpages-asset:\/\//.test(restoredContent) || /\/storage\/v1\/object\/sign\//.test(restoredContent))) {
         restoredContent = await this.cloudDocuments.refreshAssetUrls(restoredContent).catch(() => restoredContent);
       }
       this.showEditor();
@@ -3503,8 +3506,8 @@ ${markdown}`;
   async signUpForCloud() {
     if (this.isCloudAuthenticating) return;
     const credentials = this._getCloudCredentials();
-    if (!credentials.email || credentials.password.length < 6) {
-      this._setCloudDialogStatus(this.language === 'en-US' ? 'Enter an email and a password of at least 6 characters.' : '请输入邮箱和至少 6 位密码。', 'error');
+    if (!credentials.email || credentials.password.length < 8) {
+      this._setCloudDialogStatus(this.language === 'en-US' ? 'Enter an email and a password of at least 8 characters.' : '请输入邮箱和至少 8 位密码。', 'error');
       return;
     }
     this._setCloudAuthBusy(true);

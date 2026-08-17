@@ -138,6 +138,7 @@ SmartPages can also export machine-readable `.smartpages.json` workflows, replay
 - [Example documents](docs/examples/README.md)
 - [Quick start](QUICKSTART.md)
 - [Supabase cloud storage](docs/cloud-storage-supabase.md)
+- [Tencent CloudBase storage for mainland China](docs/cloud-storage-cloudbase.md)
 - [Advanced workflows and Agent Bridge](docs/advanced-workflows.md)
 - [Testing guide](TESTING.md)
 - [Troubleshooting](TROUBLESHOOTING.md)

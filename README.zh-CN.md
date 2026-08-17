@@ -138,6 +138,7 @@ SmartPages 还可以导出机器可读的 `.smartpages.json` 工作流，在安�
 - [示例文档](docs/examples/README.md)
 - [快速上手](QUICKSTART.md)
 - [Supabase 云存储](docs/cloud-storage-supabase.md)
+- [腾讯云 CloudBase 云存储（中国大陆）](docs/cloud-storage-cloudbase.md)
 - [高级工作流与 Agent Bridge](docs/advanced-workflows.zh-CN.md)
 - [测试指南](TESTING.md)
 - [故障排查](TROUBLESHOOTING.md)

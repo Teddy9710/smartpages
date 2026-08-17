@@ -264,8 +264,16 @@
       </section>
 
       <aside class="section" id="cloud-settings">
-        <h2>云端文档（Supabase）</h2>
-        <p class="section-desc">使用 Supabase 免费版保存生成的文档和截图。anon key 可以用于客户端，但请勿填写 service_role key。</p>
+        <h2>云端文档</h2>
+        <p class="section-desc">可选择 Supabase，或使用中国大陆访问更稳定的腾讯云 CloudBase。只填写客户端公开密钥，不要填写服务端 SecretKey。</p>
+        <div class="form-group">
+          <label for="cloud-provider">云服务商</label>
+          <select id="cloud-provider" class="input">
+            <option value="supabase">Supabase</option>
+            <option value="cloudbase">腾讯云 CloudBase（国内）</option>
+          </select>
+        </div>
+        <div id="supabase-cloud-fields">
         <div class="form-group">
           <label for="supabase-url">Project URL</label>
           <input type="url" id="supabase-url" class="input" placeholder="https://your-project.supabase.co">
@@ -279,6 +287,30 @@
         <div class="form-group">
           <label for="supabase-bucket">Storage Bucket</label>
           <input type="text" id="supabase-bucket" class="input" value="smartpages-assets" readonly>
+        </div>
+        </div>
+        <div id="cloudbase-cloud-fields" class="hidden">
+          <div class="form-group">
+            <label for="cloudbase-env-id">CloudBase 环境 ID</label>
+            <input type="text" id="cloudbase-env-id" class="input" placeholder="your-env-id">
+            <p class="help-text">云开发平台 → 环境 → 环境总览</p>
+          </div>
+          <div class="form-group">
+            <label for="cloudbase-access-key">Publishable Key</label>
+            <input type="password" id="cloudbase-access-key" class="input" autocomplete="off">
+            <p class="help-text">云开发平台 → API Key；不要填写腾讯云 SecretId 或 SecretKey。</p>
+          </div>
+          <div class="form-group">
+            <label for="cloudbase-region">地域</label>
+            <select id="cloudbase-region" class="input">
+              <option value="ap-shanghai">上海</option>
+              <option value="ap-guangzhou">广州</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="cloudbase-bucket">Storage Bucket</label>
+            <input type="text" id="cloudbase-bucket" class="input" value="smartpages-assets" readonly>
+          </div>
         </div>
         <div class="form-actions">
           <button id="btn-save-cloud-settings" class="btn btn-primary" type="button">保存云端配置</button>
@@ -370,6 +402,7 @@
   <script src="../utils/documentUpload.js"></script>
   <script src="../utils/documentApi.js"></script>
   <script src="../utils/docUIUtils.js"></script>
+  <script src="../cloudbase-sdk.js"></script>
   <script src="../utils/cloudDocumentApi.js"></script>
   <script src="settings.js"></script>
 </body>

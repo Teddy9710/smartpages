@@ -21,11 +21,11 @@ SmartPages 使用 Supabase Auth、Postgres 和私有 Storage 保存生成的文�
 ## 数据和安全
 
 - 文档当前内容保存在 `public.cloud_documents`，不可变版本快照保存在 `public.cloud_document_versions`。
-- Base64 截图会上传到私有 `smartpages-assets` bucket，正文仅保存资产路径。
+- Base64 截图会上传到私有 `smartpages-assets` bucket，正文仅保存资产路径；超过 512 KB 的静态图片会在明显缩小时转为 WebP。
 - Row Level Security 和 Storage Policies 将数据限制到当前登录用户。
 - 登录会话保存在扩展的 `chrome.storage.local` 中。
 - 编辑器内容同时保留一份本地草稿，云端失败不会清空当前文档。
 
 ## 免费额度注意事项
 
-截图通常比正文占用更多空间。Supabase 免费版包含 1 GB Storage；建议在正式发布前增加图片压缩、用量提示和资产清理功能。
+截图通常比正文占用更多空间。SmartPages 会压缩较大的静态截图，并在删除文档或保存失败时清理对应资产；仍建议在 Supabase 控制台设置用量告警。

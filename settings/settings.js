@@ -127,7 +127,7 @@ class SettingsManager {
       documentExamples: {}
     };
     this.api = new DocumentApi();
-    this.cloudDocuments = new SupabaseCloudDocumentProvider();
+    this.cloudDocuments = new CloudDocumentProvider();
     this.providerProfiles = {};
     this.activeProviderId = 'custom';
     this.docUI = new DocUIHelper({
@@ -167,6 +167,7 @@ class SettingsManager {
     this._bindButton('btn-agent-bridge-test', () => this.testAgentBridgeConnection());
     this._bindButton('btn-toggle-key', () => this._toggleApiKeyVisibility());
     this._bindButton('btn-save-cloud-settings', () => this.saveCloudConfig());
+    document.getElementById('cloud-provider')?.addEventListener('change', () => this._toggleCloudProviderFields());
     this._bindButton('btn-clear-recording-cache', () => this.clearRecordingCache());
 
     const apiProviderSelect = document.getElementById('api-provider');
@@ -490,17 +491,46 @@ class SettingsManager {
 
   async _populateCloudConfig() {
     const config = await this.cloudDocuments.getConfig().catch(() => ({}));
+    const [supabaseConfig, cloudBaseConfig] = await Promise.all([
+      this.cloudDocuments.getConfigForProvider('supabase').catch(() => ({})),
+      this.cloudDocuments.getConfigForProvider('cloudbase').catch(() => ({}))
+    ]);
+    const provider = document.getElementById('cloud-provider');
+    if (provider) provider.value = config.provider === 'cloudbase' ? 'cloudbase' : 'supabase';
     const url = document.getElementById('supabase-url');
     const anonKey = document.getElementById('supabase-anon-key');
     const bucket = document.getElementById('supabase-bucket');
-    if (url) url.value = config.url || '';
-    if (anonKey) anonKey.value = config.anonKey || '';
-    if (bucket) bucket.value = config.bucket || 'smartpages-assets';
+    if (url) url.value = supabaseConfig.url || '';
+    if (anonKey) anonKey.value = supabaseConfig.anonKey || '';
+    if (bucket) bucket.value = supabaseConfig.bucket || 'smartpages-assets';
+    const envId = document.getElementById('cloudbase-env-id');
+    const accessKey = document.getElementById('cloudbase-access-key');
+    const region = document.getElementById('cloudbase-region');
+    const cloudbaseBucket = document.getElementById('cloudbase-bucket');
+    if (envId) envId.value = cloudBaseConfig.envId || '';
+    if (accessKey) accessKey.value = cloudBaseConfig.accessKey || '';
+    if (region) region.value = cloudBaseConfig.region || 'ap-shanghai';
+    if (cloudbaseBucket) cloudbaseBucket.value = cloudBaseConfig.bucket || 'smartpages-assets';
+    this._toggleCloudProviderFields();
+  }
+
+  _toggleCloudProviderFields() {
+    const isCloudBase = document.getElementById('cloud-provider')?.value === 'cloudbase';
+    document.getElementById('supabase-cloud-fields')?.classList.toggle('hidden', isCloudBase);
+    document.getElementById('cloudbase-cloud-fields')?.classList.toggle('hidden', !isCloudBase);
   }
 
   async saveCloudConfig() {
     const result = document.getElementById('cloud-settings-result');
-    const config = {
+    const provider = document.getElementById('cloud-provider')?.value === 'cloudbase' ? 'cloudbase' : 'supabase';
+    const config = provider === 'cloudbase' ? {
+      provider,
+      envId: document.getElementById('cloudbase-env-id')?.value?.trim() || '',
+      accessKey: document.getElementById('cloudbase-access-key')?.value?.trim() || '',
+      region: document.getElementById('cloudbase-region')?.value || 'ap-shanghai',
+      bucket: document.getElementById('cloudbase-bucket')?.value?.trim() || 'smartpages-assets'
+    } : {
+      provider,
       url: document.getElementById('supabase-url')?.value?.trim() || '',
       anonKey: document.getElementById('supabase-anon-key')?.value?.trim() || '',
       bucket: document.getElementById('supabase-bucket')?.value?.trim() || 'smartpages-assets'
@@ -512,15 +542,18 @@ class SettingsManager {
       result.classList.remove('hidden');
     };
     try {
-      const granted = await this._requestApiHostPermission(config.url);
+      const permissionUrl = provider === 'cloudbase'
+        ? `https://${config.envId}.api.tcloudbasegateway.com`
+        : config.url;
+      const granted = await this._requestApiHostPermission(permissionUrl);
       if (!granted) {
-        showResult('需要允许扩展访问 Supabase 项目域名。', 'error');
+        showResult(`需要允许扩展访问${provider === 'cloudbase' ? '腾讯云 CloudBase' : ' Supabase'} 服务域名。`, 'error');
         return;
       }
       const savedConfig = await this.cloudDocuments.saveConfig(config);
       const urlInput = document.getElementById('supabase-url');
-      if (urlInput) urlInput.value = savedConfig.url;
-      showResult('云端配置已保存。请在侧边栏登录并保存文档。', 'success');
+      if (urlInput && savedConfig.url) urlInput.value = savedConfig.url;
+      showResult(`${provider === 'cloudbase' ? '腾讯云 CloudBase' : 'Supabase'} 配置已保存。请在侧边栏登录并保存文档。`, 'success');
     } catch (error) {
       showResult(`保存失败：${error.message}`, 'error');
     }
