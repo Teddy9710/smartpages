@@ -366,7 +366,7 @@ class RecordingManager {
         try {
           await chrome.scripting.executeScript({
             target: { tabId },
-            files: ['content/recorder.js']
+            files: ['content/recorder-selector.js', 'content/recorder.js']
           });
         } catch (mainFrameError) {
           if (this._isAllFramesInjectionBlocked(mainFrameError)) {

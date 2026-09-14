@@ -22,6 +22,7 @@
   'use strict';
 
   const debugLog = () => {};
+  const { generateSelector } = globalThis.SmartPagesRecorderSelector || {};
 
   // Import common utilities (content scripts can import from utils)
   // Note: In content scripts, we need to use the full URL or rely on
@@ -184,138 +185,6 @@
     } finally {
       isFlushingStepQueue = false;
     }
-  }
-
-  // ==========================================================================
-  // SELECTOR GENERATION
-  // ==========================================================================
-
-  function escapeSelectorPart(value) {
-    const text = String(value ?? '');
-    if (window.CSS?.escape) return window.CSS.escape(text);
-
-    let escaped = '';
-    for (let index = 0; index < text.length; index += 1) {
-      const char = text[index];
-      const code = char.charCodeAt(0);
-      const isLeadingDigit = index === 0 && code >= 48 && code <= 57;
-      const isSecondDigitAfterDash = index === 1 && text[0] === '-' && code >= 48 && code <= 57;
-
-      if (code === 0) escaped += '\uFFFD';
-      else if (isLeadingDigit || isSecondDigitAfterDash) escaped += `\\${code.toString(16)} `;
-      else if (code >= 128 || char === '-' || char === '_' || /[A-Za-z0-9]/.test(char)) escaped += char;
-      else escaped += `\\${char}`;
-    }
-    return escaped;
-  }
-
-  function datasetKeyToAttributeName(key) {
-    return `data-${String(key).replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}`;
-  }
-
-  /**
-   * Generates a CSS selector for an element
-   * Optimized to generate short, unique selectors
-   * @param {Element} element - Target element
-   * @returns {string} CSS selector
-   */
-  function generateSelector(element) {
-    if (!element) return '';
-
-    // Try ID first (shortest and most specific)
-    if (element.id) {
-      const selector = `#${escapeSelectorPart(element.id)}`;
-      if (isUniqueSelector(selector)) return selector;
-    }
-
-    // Try data attributes (common in modern frameworks)
-    if (element.dataset) {
-      for (const [key, value] of Object.entries(element.dataset)) {
-        if (value && value.length < 50) {
-          const attributeName = datasetKeyToAttributeName(key);
-          const selector = `[${attributeName}="${escapeSelectorPart(value)}"]`;
-          if (isUniqueSelector(selector)) {
-            return selector;
-          }
-        }
-      }
-    }
-
-    // Try class name (if unique enough)
-    if (element.className && typeof element.className === 'string') {
-      const classes = element.className.split(/\s+/).filter(c => c && c.length < 20);
-      if (classes.length > 0 && classes.length < 5) {
-        const selector = element.tagName.toLowerCase() + '.' + classes.map(escapeSelectorPart).join('.');
-        if (isUniqueSelector(selector)) {
-          return selector;
-        }
-      }
-    }
-
-    // Build path as fallback
-    return buildSelectorPath(element);
-  }
-
-  /**
-   * Checks if a selector is unique in the document
-   * @param {string} selector - CSS selector
-   * @returns {boolean} True if selector matches exactly one element
-   */
-  function isUniqueSelector(selector) {
-    try {
-      return document.querySelectorAll(selector).length === 1;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /**
-   * Builds a selector path from element to document
-   * @param {Element} element - Target element
-   * @returns {string} Selector path
-   */
-  function buildSelectorPath(element) {
-    const path = [];
-    let current = element;
-
-    while (current && current !== document.body && path.length < SELECTOR_MAX_DEPTH) {
-      let selector = current.tagName.toLowerCase();
-
-      // Add ID if present
-      if (current.id) {
-        const idSelector = `#${escapeSelectorPart(current.id)}`;
-        if (isUniqueSelector(idSelector)) {
-          path.unshift(idSelector);
-          break;
-        }
-      }
-
-      // Add classes (limited)
-      if (current.className && typeof current.className === 'string') {
-        const classes = current.className.split(/\s+/)
-          .filter(c => c && c.length < 20)
-          .slice(0, 3)
-          .map(escapeSelectorPart)
-          .join('.');
-        if (classes) {
-          selector += '.' + classes;
-        }
-      }
-
-      // Add nth-child for uniqueness
-      if (current.parentElement) {
-        const siblings = Array.from(current.parentElement.children);
-        const index = siblings.indexOf(current);
-        if (index >= 0) {
-          selector += `:nth-child(${index + 1})`;
-        }
-      }
-
-      path.unshift(selector);
-      current = current.parentElement;
-    }
-
-    return path.join(' > ');
   }
 
   // ==========================================================================

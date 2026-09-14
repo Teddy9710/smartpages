@@ -21,6 +21,7 @@ const filesToCheck = [
   'background/document-handlers.js',
   'background/workflow-run-manager.js',
   'content/recorder.js',
+  'content/recorder-selector.js',
   'popup/popup.js',
   'sidepanel/sidepanel.js',
   'sidepanel/sidepanel-documents.js',
