@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.html'), 'utf8');
-const source = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.js'), 'utf8');
+const source = require('./sidepanel-test-source')();
 
 const toolbar = html.slice(html.indexOf('<div class="editor-toolbar">'), html.indexOf('<section id="workflow-run-panel"'));
 const menuStart = toolbar.indexOf('<div id="toolbar-more-menu"');

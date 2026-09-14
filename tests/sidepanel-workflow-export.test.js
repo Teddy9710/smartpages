@@ -7,7 +7,7 @@ const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'sidepanel', 'sidepanel.html'), 'utf8');
 const schemaSource = fs.readFileSync(path.join(root, 'workflow', 'schema.js'), 'utf8');
 const converterSource = fs.readFileSync(path.join(root, 'workflow', 'converter.js'), 'utf8');
-const sidepanelSource = fs.readFileSync(path.join(root, 'sidepanel', 'sidepanel.js'), 'utf8');
+const sidepanelSource = require('./sidepanel-test-source')();
 
 const schemaIndex = html.indexOf('../workflow/schema.js');
 const converterIndex = html.indexOf('../workflow/converter.js');

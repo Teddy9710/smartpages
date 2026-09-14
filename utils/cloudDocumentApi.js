@@ -9,12 +9,41 @@
 
   const CLOUD_CONFIG_KEY = 'cloudStorageConfig';
   const CLOUD_PROVIDER_CONFIGS_KEY = 'cloudStorageProviderConfigs';
-  const CLOUD_SESSION_KEY = 'cloudStorageSession';
+  const CLOUD_SESSION_KEY = 'cloudStorageSession:supabase';
   const LOCAL_DRAFT_KEY = 'generatedDocumentDraft';
   const LOCAL_DIRECTORY_DB = 'smartpages-local-documents';
   const LOCAL_DIRECTORY_STORE = 'settings';
   const LOCAL_DIRECTORY_HANDLE_KEY = 'directoryHandle';
   const DEFAULT_BUCKET = 'smartpages-assets';
+  let cloudBaseSdkPromise = null;
+
+  function loadCloudBaseSdk() {
+    if (globalScope.cloudbase?.init) return Promise.resolve(globalScope.cloudbase);
+    if (!cloudBaseSdkPromise) {
+      cloudBaseSdkPromise = new Promise((resolve, reject) => {
+        if (!globalScope.document || !globalScope.chrome?.runtime?.getURL) {
+          reject(new CloudDocumentError('CloudBase SDK is unavailable in this context', 'SDK_UNAVAILABLE'));
+          return;
+        }
+        const script = globalScope.document.createElement('script');
+        script.src = globalScope.chrome.runtime.getURL('cloudbase-sdk.js');
+        script.onload = () => {
+          script.remove();
+          if (globalScope.cloudbase?.init) resolve(globalScope.cloudbase);
+          else reject(new CloudDocumentError('CloudBase SDK failed to initialize', 'SDK_UNAVAILABLE'));
+        };
+        script.onerror = () => {
+          script.remove();
+          reject(new CloudDocumentError('CloudBase SDK could not be loaded. Rebuild the extension.', 'SDK_UNAVAILABLE'));
+        };
+        globalScope.document.head.appendChild(script);
+      }).catch(error => {
+        cloudBaseSdkPromise = null;
+        throw error;
+      });
+    }
+    return cloudBaseSdkPromise;
+  }
 
   class CloudDocumentError extends Error {
     constructor(message, code = 'CLOUD_ERROR', status = 0) {
@@ -26,9 +55,18 @@
   }
 
   class ChromeLocalStore {
+    _area(key) {
+      if (key === CLOUD_SESSION_KEY) {
+        if (!chrome.storage.session) throw new CloudDocumentError('Session storage is unavailable', 'SESSION_STORAGE_UNAVAILABLE');
+        return chrome.storage.session;
+      }
+      return chrome.storage.local;
+    }
+
     async get(key) {
+      if (key === CLOUD_SESSION_KEY) await chrome.storage.local.remove('cloudStorageSession');
       const result = await new Promise((resolve, reject) => {
-        chrome.storage.local.get([key], value => {
+        this._area(key).get([key], value => {
           if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
           else resolve(value || {});
         });
@@ -38,7 +76,7 @@
 
     async set(key, value) {
       await new Promise((resolve, reject) => {
-        chrome.storage.local.set({ [key]: value }, () => {
+        this._area(key).set({ [key]: value }, () => {
           if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
           else resolve();
         });
@@ -47,7 +85,7 @@
 
     async remove(key) {
       await new Promise((resolve, reject) => {
-        chrome.storage.local.remove(key, () => {
+        this._area(key).remove(key, () => {
           if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
           else resolve();
         });
@@ -239,6 +277,10 @@
       const value = SupabaseCloudDocumentProvider.normalizeConfig(config);
       if (!value.url || !value.anonKey) {
         throw new CloudDocumentError('Supabase URL and anon key are required', 'CONFIG_REQUIRED');
+      }
+      const previous = await this.getConfig();
+      if (previous.url !== value.url || previous.anonKey !== value.anonKey) {
+        await this.storage.remove(CLOUD_SESSION_KEY);
       }
       await this.storage.set(CLOUD_CONFIG_KEY, value);
       return value;
@@ -714,11 +756,15 @@
 
     static normalizeConfig(config) {
       const envId = String(config?.envId || '').trim();
+      const region = String(config?.region || 'ap-shanghai').trim();
+      if (!/^[a-z]{2}-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(region)) {
+        throw new CloudDocumentError('Invalid CloudBase region', 'CONFIG_INVALID');
+      }
       return {
         provider: 'cloudbase',
         envId: /^[a-zA-Z0-9-]+$/.test(envId) ? envId : '',
         accessKey: String(config?.accessKey || '').trim(),
-        region: ['ap-shanghai', 'ap-guangzhou'].includes(config?.region) ? config.region : 'ap-shanghai',
+        region,
         bucket: String(config?.bucket || DEFAULT_BUCKET).trim() || DEFAULT_BUCKET
       };
     }
@@ -759,7 +805,7 @@
       try {
         const rawSession = await this._unwrap(auth.getSession());
         let user = rawSession?.user || rawSession?.session?.user || auth.currentUser || null;
-        if (!user && auth.getCurrentUser) user = await auth.getCurrentUser().catch(() => null);
+        if (!user && auth.getCurrentUser) user = await auth.getCurrentUser();
         const id = user?.id || user?.uid || user?.sub || '';
         if (!id) return null;
         return {
@@ -768,8 +814,8 @@
           expiresAt: rawSession?.expires_at || rawSession?.expiresAt || rawSession?.session?.expires_at || 0,
           user: { ...user, id, email: user.email || user.username || '' }
         };
-      } catch (_error) {
-        return null;
+      } catch (error) {
+        throw this._cloudBaseError(error, 'SESSION_FAILED');
       }
     }
 
@@ -948,7 +994,7 @@
 
     async _getApp(existingConfig = null) {
       const config = existingConfig || await this._requireConfig();
-      this.cloudbase = this.cloudbase || globalScope.cloudbase;
+      this.cloudbase = this.cloudbase || globalScope.cloudbase || await loadCloudBaseSdk();
       if (!this.cloudbase?.init) throw new CloudDocumentError('CloudBase SDK is unavailable. Rebuild the extension.', 'SDK_UNAVAILABLE');
       const signature = `${config.envId}|${config.region}|${config.accessKey}`;
       if (!this.app || this.appSignature !== signature) {
@@ -956,7 +1002,7 @@
           env: config.envId,
           region: config.region,
           accessKey: config.accessKey,
-          persistence: 'local'
+          persistence: 'session'
         });
         this.appSignature = signature;
       }
@@ -1018,7 +1064,10 @@
       const profiles = await this.storage.get(CLOUD_PROVIDER_CONFIGS_KEY) || {};
       const active = await this.storage.get(CLOUD_CONFIG_KEY) || {};
       const activeName = active.provider === 'cloudbase' ? 'cloudbase' : 'supabase';
-      if (!profiles[activeName]) profiles[activeName] = active;
+      const hasActiveConfig = activeName === 'cloudbase'
+        ? Boolean(active.envId && active.accessKey)
+        : Boolean(active.url && active.anonKey);
+      if (!profiles[activeName] && hasActiveConfig) profiles[activeName] = active;
       const saved = await this.providers[name].saveConfig(config);
       profiles[name] = saved;
       await this.storage.set(CLOUD_PROVIDER_CONFIGS_KEY, profiles);

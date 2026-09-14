@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.js'), 'utf8');
+const source = require('./sidepanel-test-source')();
 let sanitizerCalls = 0;
 
 assert.doesNotMatch(source, /host\.innerHTML\s*=/);

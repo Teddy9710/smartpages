@@ -6,7 +6,7 @@ const { loadBrowserScript } = require('./workflow-test-helpers');
 
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'sidepanel', 'sidepanel.html'), 'utf8');
-const source = fs.readFileSync(path.join(root, 'sidepanel', 'sidepanel.js'), 'utf8');
+const source = require('./sidepanel-test-source')();
 const workflowSchema = loadBrowserScript('workflow/schema.js', 'SmartPagesWorkflowSchema');
 const workflowConverter = loadBrowserScript('workflow/converter.js', 'SmartPagesWorkflowConverter', {
   SmartPagesWorkflowSchema: workflowSchema,

@@ -187,6 +187,8 @@ class PopupManager {
     this.isStartingGif = true;
     this._updateGifState({ state: 'recording', elapsedSeconds: 0 });
     try {
+      const granted = await chrome.permissions.request({ permissions: ['tabCapture'] });
+      if (!granted) throw new Error('需要允许标签页录制权限才能录制 GIF');
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       const response = await sendMessage({ type: 'START_GIF_RECORDING', tabId: tab?.id });
       if (response?.error) throw new Error(response.error);

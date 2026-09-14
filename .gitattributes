@@ -1,0 +1,2 @@
+# Large promotional images are distributed through Git LFS.
+assets/*.png filter=lfs diff=lfs merge=lfs -text

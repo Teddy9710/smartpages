@@ -49,6 +49,10 @@
       if (this.state !== 'idle') return { error: 'GIF 录制已在进行中' };
       if (!tabId) return { error: '找不到当前标签页' };
 
+      if (!await chrome.permissions.contains({ permissions: ['tabCapture'] })) {
+        return { error: '请点击扩展中的录制 GIF 按钮并允许标签页录制权限' };
+      }
+
       const tab = await chrome.tabs.get(tabId);
       if (!/^https?:/i.test(tab.url || '')) {
         return { error: '只能在普通网页中录制 GIF' };

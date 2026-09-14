@@ -4,7 +4,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 function loadSidePanelManager() {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.js'), 'utf8');
+  const source = require('./sidepanel-test-source')();
   const sandbox = {
     console,
     DocumentApi: class {},
@@ -109,7 +109,7 @@ function assertRect(actual, expected) {
 }
 
 {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.js'), 'utf8');
+  const source = require('./sidepanel-test-source')();
   const html = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.html'), 'utf8');
   assert.match(html, /id="btn-restore-original-image"/);
   assert.match(html, /id="btn-undo-image-edit"/);

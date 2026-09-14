@@ -17,6 +17,11 @@
     "prefer-const": "warn",
     "no-var": "warn"
   },
+  "overrides": [{
+    "files": ["background/**/*.js", "content/**/*.js", "popup/**/*.js", "sidepanel/**/*.js", "settings/**/*.js", "utils/**/*.js", "gif-recording/**/*.js"],
+    "excludedFiles": ["utils/logger.js"],
+    "rules": { "no-console": ["error", { "allow": ["warn", "error"] }] }
+  }],
   "globals": {
     "chrome": "readonly"
   }

@@ -302,10 +302,8 @@
           </div>
           <div class="form-group">
             <label for="cloudbase-region">地域</label>
-            <select id="cloudbase-region" class="input">
-              <option value="ap-shanghai">上海</option>
-              <option value="ap-guangzhou">广州</option>
-            </select>
+            <input id="cloudbase-region" class="input" type="text" value="ap-shanghai" placeholder="例如 ap-shanghai" aria-describedby="cloudbase-region-help">
+            <p id="cloudbase-region-help" class="description">填写 CloudBase 环境所在地域的标识，与控制台保持一致。</p>
           </div>
           <div class="form-group">
             <label for="cloudbase-bucket">Storage Bucket</label>
@@ -402,7 +400,6 @@
   <script src="../utils/documentUpload.js"></script>
   <script src="../utils/documentApi.js"></script>
   <script src="../utils/docUIUtils.js"></script>
-  <script src="../cloudbase-sdk.js"></script>
   <script src="../utils/cloudDocumentApi.js"></script>
   <script src="settings.js"></script>
 </body>

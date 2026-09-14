@@ -1,0 +1,24 @@
+name: Release extension
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
+      - name: Check tag matches manifest
+        run: node -e 'if (process.env.GITHUB_REF_NAME !== "v" + require("./manifest.json").version) process.exit(1)'
+      - run: python3 scripts/package-extension.py
+      - name: Upload release archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "smartpages-${GITHUB_REF_NAME}.zip" --verify-tag --generate-notes

@@ -98,6 +98,7 @@ const API_TEST_TIMEOUT = 15000;
 const DEBUG = false;
 
 function debugLog(...args) {
+  // eslint-disable-next-line no-console -- disabled unless a development build enables DEBUG.
   if (DEBUG) console['debug'](...args);
 }
 

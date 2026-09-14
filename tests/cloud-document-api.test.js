@@ -28,6 +28,11 @@ function jsonResponse(data, status = 200) {
 }
 
 (async () => {
+  const emptyProfileStorage = new MemoryStore();
+  const freshFacade = new CloudDocumentProvider({ storage: emptyProfileStorage });
+  await freshFacade.saveConfig({ provider: 'cloudbase', envId: 'test-env', accessKey: 'public-key' });
+  assert.equal((await emptyProfileStorage.get(CLOUD_PROVIDER_CONFIGS_KEY)).supabase, undefined);
+
   const storage = new MemoryStore();
   const draftStore = new LocalDocumentDraftStore({ storage, now: () => 1234 });
   await draftStore.save({ title: 'Draft', content: '# Draft', format: 'markdown' });
@@ -330,6 +335,19 @@ function jsonResponse(data, status = 200) {
   });
   assert.equal((await cloudBaseProvider.getConfig()).provider, 'cloudbase');
   assert.equal((await cloudBaseProvider.getSession()).user.id, 'cn-user-1');
+  assert.equal(CloudBaseDocumentProvider.normalizeConfig({ region: 'ap-beijing' }).region, 'ap-beijing');
+  assert.equal(CloudBaseDocumentProvider.normalizeConfig({ region: 'ap-hongkong' }).region, 'ap-hongkong');
+  assert.throws(() => CloudBaseDocumentProvider.normalizeConfig({ region: 'not a region' }), { code: 'CONFIG_INVALID' });
+  const sessionFailureProvider = new CloudBaseDocumentProvider({
+    storage: cloudBaseStorage,
+    cloudbase: { init: () => ({ auth: () => ({ getSession: async () => { throw new Error('network unavailable'); } }) }) }
+  });
+  await assert.rejects(sessionFailureProvider.getSession(), { code: 'SESSION_FAILED', message: 'network unavailable' });
+  const noSessionProvider = new CloudBaseDocumentProvider({
+    storage: cloudBaseStorage,
+    cloudbase: { init: () => ({ auth: () => ({ getSession: async () => null }) }) }
+  });
+  assert.equal(await noSessionProvider.getSession(), null);
   const cloudBaseSaved = await cloudBaseProvider.saveDocument({
     title: '国内云文档',
     format: 'markdown',

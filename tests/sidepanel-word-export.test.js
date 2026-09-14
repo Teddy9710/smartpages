@@ -4,7 +4,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 function loadSidePanelManager() {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.js'), 'utf8');
+  const source = require('./sidepanel-test-source')();
   const sandbox = {
     console,
     DocumentApi: class {},

@@ -7,6 +7,8 @@ const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'manifest
 assert.equal(manifest.web_accessible_resources, undefined);
 assert.equal(manifest.content_scripts, undefined);
 assert.equal(manifest.host_permissions, undefined);
+assert.equal(manifest.permissions.includes('tabCapture'), false);
+assert.ok(manifest.optional_permissions.includes('tabCapture'));
 assert.deepEqual(manifest.optional_host_permissions, ['http://*/*', 'https://*/*']);
 assert.match(
   manifest.content_security_policy.extension_pages,

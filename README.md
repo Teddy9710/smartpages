@@ -77,6 +77,9 @@ npm install
 npm run build
 ```
 
+Promotional images use Git LFS (`git lfs install`, then `git lfs pull`). For packaged
+downloads and release instructions, see [repository maintenance](docs/repository-maintenance.md).
+
 ### 2. Load it in Chrome or Edge
 
 1. Open `chrome://extensions/` or `edge://extensions/`.

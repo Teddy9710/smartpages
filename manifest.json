@@ -10,10 +10,10 @@
     "downloads",
     "scripting",
     "sidePanel",
-    "activeTab"
-    ,"tabCapture"
-    ,"offscreen"
+    "activeTab",
+    "offscreen"
   ],
+  "optional_permissions": ["tabCapture"],
   "optional_host_permissions": [
     "http://*/*",
     "https://*/*"

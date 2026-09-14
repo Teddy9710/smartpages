@@ -39,7 +39,7 @@
   "dependencies": {
     "@cloudbase/js-sdk": "^3.8.0",
     "@modelcontextprotocol/sdk": "^1.17.0",
-    "ws": "^8.18.0"
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@remotion/cli": "^4.0.469",

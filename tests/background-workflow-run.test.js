@@ -59,7 +59,7 @@ function loadBackground(sharedStore = {}) {
     if (scripts.includes('../workflow/schema.js')) vm.runInNewContext(schema, sandbox);
     if (scripts.includes('agent-bridge-client.js')) vm.runInNewContext(agentBridge, sandbox);
   };
-  const source = fs.readFileSync(path.join(__dirname, '..', 'background', 'background.js'), 'utf8');
+  const source = require('./background-test-source')();
   vm.runInNewContext(source, sandbox);
   return { sandbox, Manager: sandbox.WorkflowRunManager, manager: sandbox.workflowRunManager, listeners, messages, injections };
 }

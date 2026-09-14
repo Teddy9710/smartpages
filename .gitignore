@@ -104,3 +104,4 @@ _msg.txt
 video/out/
 *.crx
 *.pem
+/smartpages-v*.zip

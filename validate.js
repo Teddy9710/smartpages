@@ -17,9 +17,18 @@ const log = createLogger({
 
 const filesToCheck = [
   'background/background.js',
+  'background/recording-manager.js',
+  'background/document-handlers.js',
+  'background/workflow-run-manager.js',
   'content/recorder.js',
   'popup/popup.js',
   'sidepanel/sidepanel.js',
+  'sidepanel/sidepanel-documents.js',
+  'sidepanel/sidepanel-editing.js',
+  'sidepanel/sidepanel-exports.js',
+  'sidepanel/sidepanel-generation.js',
+  'sidepanel/sidepanel-steps.js',
+  'sidepanel/sidepanel-workflow.js',
   'settings/settings.js'
 ];
 
