@@ -46,6 +46,26 @@ function loadSidePanelManager() {
 
 const SidePanelManager = loadSidePanelManager();
 
+// The visibility setting belongs to the screenshot selected by the merge.
+for (const [current, next, expectedScreenshot, expectedVisibility] of [
+  [{ screenshot: 'visible' }, { screenshot: 'hidden', includeScreenshot: false }, 'hidden', false],
+  [{ screenshot: 'hidden', includeScreenshot: false }, {}, 'hidden', false],
+  [{ screenshot: 'hidden', includeScreenshot: false }, { screenshot: 'visible' }, 'visible', undefined],
+  [{ screenshot: 'visible' }, { includeScreenshot: false }, 'visible', undefined]
+]) {
+  const manager = Object.create(SidePanelManager.prototype);
+  manager.language = 'en-US';
+  manager._renderStepEditor = () => {};
+  manager.session = { steps: [{ type: 'click', ...current }, { type: 'click', ...next }] };
+  manager._mergeStepWithNext(0);
+  assert.equal(manager.session.steps[0].screenshot, expectedScreenshot);
+  assert.equal(manager.session.steps[0].includeScreenshot, expectedVisibility);
+  if (expectedVisibility === false) {
+    assert.equal(manager._getModelScreenshotInputs({ multimodalEnabled: true }).length, 0);
+    assert.equal(manager._injectScreenshots('[Screenshot 1]', 'markdown'), '[Screenshot 1]');
+  }
+}
+
 {
   const manager = Object.create(SidePanelManager.prototype);
   manager.language = 'en-US';

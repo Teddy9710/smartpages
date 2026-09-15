@@ -203,6 +203,7 @@
     const next = steps[index + 1] || {};
     const currentAction = this._getStepEditableAction(current).trim();
     const nextAction = this._getStepEditableAction(next).trim();
+    const screenshotSource = next.screenshot ? next : current;
     const action = [currentAction, nextAction].filter(Boolean).join('\n→ ');
     steps.splice(index, 2, {
       ...current,
@@ -213,8 +214,8 @@
       rawSelector: next.rawSelector || current.rawSelector,
       x: Number.isFinite(next.x) ? next.x : current.x,
       y: Number.isFinite(next.y) ? next.y : current.y,
-      screenshot: next.screenshot || current.screenshot,
-      includeScreenshot: next.includeScreenshot === false && current.includeScreenshot === false ? false : undefined,
+      screenshot: screenshotSource.screenshot,
+      includeScreenshot: screenshotSource.includeScreenshot,
       important: Boolean(current.important || next.important),
       mergedCount: (current.mergedCount || 1) + (next.mergedCount || 1),
       mergedTypes: [...(current.mergedTypes || [current.type]).filter(Boolean), ...(next.mergedTypes || [next.type]).filter(Boolean)]

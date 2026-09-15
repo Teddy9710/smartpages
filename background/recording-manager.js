@@ -357,7 +357,7 @@ class RecordingManager {
     try {
       await chrome.scripting.executeScript({
         target: { tabId, allFrames: true },
-        files: ['content/recorder.js']
+        files: ['content/recorder-selector.js', 'content/recorder.js']
       });
     } catch (error) {
       const message = error?.message || '';
@@ -454,13 +454,20 @@ class RecordingManager {
    * @param {number} stepIndex - Index of the step
    */
   async _enqueueScreenshotCapture(stepIndex) {
-    const captureTask = this._screenshotCaptureQueue.then(() => this._captureScreenshotForStep(stepIndex));
+    const session = this.currentSession;
+    const tabId = this.tabId;
+    const captureTask = this._screenshotCaptureQueue.then(() => this._captureScreenshotForStep(stepIndex, session, tabId));
     this._screenshotCaptureQueue = captureTask.catch(() => {});
     return captureTask;
   }
 
-  async _captureScreenshotForStep(stepIndex) {
+  async _captureScreenshotForStep(stepIndex, session = this.currentSession, tabId = this.tabId) {
+    const step = session?.steps?.[stepIndex];
+    const isCurrentCapture = () => this.currentSession === session && this.tabId === tabId &&
+      session?.steps?.[stepIndex] === step && Boolean(step);
+    const canCapture = () => isCurrentCapture() && this.state === RecordingState.RECORDING;
     try {
+      if (!canCapture()) return;
       // Check storage space before capturing
       const usage = await chrome.storage.local.getBytesInUse();
       if (usage > STORAGE_WARNING_THRESHOLD) {
@@ -469,13 +476,14 @@ class RecordingManager {
         return;
       }
 
-      if (this.state === RecordingState.RECORDING && this.tabId) {
-        const rawScreenshot = await this._captureVisibleTabWithQuotaRetry();
+      if (canCapture() && tabId != null) {
+        const rawScreenshot = await this._captureVisibleTabWithQuotaRetry(tabId, canCapture);
+        if (!rawScreenshot || !isCurrentCapture()) return;
         const screenshot = await this._compressScreenshot(rawScreenshot);
 
         // Only assign if step still exists (prevents race conditions)
-        if (this.currentSession?.steps?.[stepIndex]) {
-          this.currentSession.steps[stepIndex].screenshot = screenshot;
+        if (isCurrentCapture()) {
+          step.screenshot = screenshot;
           await this._persistState();
         }
       }
@@ -485,20 +493,23 @@ class RecordingManager {
     }
   }
 
-  async _captureVisibleTabWithQuotaRetry() {
+  async _captureVisibleTabWithQuotaRetry(tabId = this.tabId, canCapture = () => true) {
     let lastError = null;
     for (let attempt = 0; attempt <= SCREENSHOT_CAPTURE_QUOTA_RETRY_LIMIT; attempt += 1) {
       await this._waitForScreenshotQuota();
+      if (!canCapture()) return null;
       this._lastScreenshotCaptureAt = Date.now();
       try {
-        await this._hideRecordingIndicatorForScreenshot();
+        await this._hideRecordingIndicatorForScreenshot(tabId);
         try {
-          const tab = await chrome.tabs.get(this.tabId);
+          const tab = await chrome.tabs.get(tabId);
+          // captureVisibleTab captures the active tab, not an arbitrary tab ID.
+          if (!canCapture() || !tab?.active) return null;
           return await chrome.tabs.captureVisibleTab(tab?.windowId ?? null, {
             format: 'png'
           });
         } finally {
-          await this._restoreRecordingIndicatorAfterScreenshot();
+          await this._restoreRecordingIndicatorAfterScreenshot(tabId);
         }
       } catch (error) {
         lastError = error;
@@ -511,18 +522,18 @@ class RecordingManager {
     throw lastError;
   }
 
-  async _hideRecordingIndicatorForScreenshot() {
-    await this._sendRecordingIndicatorMessage('HIDE_RECORDING_INDICATOR');
+  async _hideRecordingIndicatorForScreenshot(tabId = this.tabId) {
+    await this._sendRecordingIndicatorMessage('HIDE_RECORDING_INDICATOR', tabId);
   }
 
-  async _restoreRecordingIndicatorAfterScreenshot() {
-    await this._sendRecordingIndicatorMessage('RESTORE_RECORDING_INDICATOR');
+  async _restoreRecordingIndicatorAfterScreenshot(tabId = this.tabId) {
+    await this._sendRecordingIndicatorMessage('RESTORE_RECORDING_INDICATOR', tabId);
   }
 
-  async _sendRecordingIndicatorMessage(type) {
-    if (!this.tabId) return;
+  async _sendRecordingIndicatorMessage(type, tabId = this.tabId) {
+    if (tabId == null) return;
     try {
-      await chrome.tabs.sendMessage(this.tabId, { type });
+      await chrome.tabs.sendMessage(tabId, { type });
     } catch (error) {
       console.warn('[Scribe:Background] Failed to update recording indicator:', error);
     }

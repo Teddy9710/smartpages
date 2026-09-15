@@ -35,7 +35,7 @@ function loadRecordingManager() {
       },
       tabs: {
         onUpdated: { addListener: () => {} },
-        get: () => Promise.resolve({ url: 'https://example.com', windowId: 42 }),
+        get: () => Promise.resolve({ url: 'https://example.com', windowId: 42, active: true }),
         captureVisibleTab: () => Promise.resolve('data:image/png;base64,test'),
         sendMessage: () => Promise.reject(new Error('Receiving end does not exist'))
       },
@@ -205,6 +205,61 @@ const { RecordingManager, sandbox } = loadRecordingManager();
   ]);
   assert.equal(screenshotManager.currentSession.steps[0].screenshot, 'data:image/png;base64,screenshot');
 
+  // Queued work from a discarded session must not capture for a new session.
+  screenshotEvents.length = 0;
+  const staleTask = screenshotManager._enqueueScreenshotCapture(0);
+  screenshotManager.currentSession = { sessionId: 'new-session', steps: [{ type: 'click' }] };
+  await staleTask;
+  assert.equal(screenshotEvents.length, 0);
+  assert.equal(screenshotManager.currentSession.steps[0].screenshot, undefined);
+
+  // A session can change while compression is pending.
+  let finishCompression;
+  let compressionStarted;
+  const started = new Promise(resolve => { compressionStarted = resolve; });
+  screenshotManager._waitForScreenshotQuota = async () => {};
+  screenshotManager._compressScreenshot = () => {
+    compressionStarted();
+    return new Promise(resolve => { finishCompression = resolve; });
+  };
+  const inFlight = screenshotManager._enqueueScreenshotCapture(0);
+  await started;
+  screenshotManager.currentSession = { sessionId: 'replacement', steps: [{ type: 'click' }] };
+  finishCompression('old-screenshot');
+  await inFlight;
+  assert.equal(screenshotManager.currentSession.steps[0].screenshot, undefined);
+
+  // Changing session during the quota wait cancels the browser capture.
+  screenshotEvents.length = 0;
+  screenshotManager._waitForScreenshotQuota = async () => {
+    screenshotManager.currentSession = { sessionId: 'during-wait', steps: [{ type: 'click' }] };
+  };
+  await screenshotManager._enqueueScreenshotCapture(0);
+  assert.equal(screenshotEvents.length, 0);
+
+  // Never capture a different active tab in the recording window.
+  screenshotManager._waitForScreenshotQuota = async () => {};
+  const originalGetTab = sandbox.chrome.tabs.get;
+  sandbox.chrome.tabs.get = async () => ({ windowId: 42, active: false });
+  await screenshotManager._enqueueScreenshotCapture(0);
+  assert.equal(screenshotEvents.some(event => event.type === 'CAPTURE_VISIBLE_TAB'), false);
+  assert.equal(screenshotManager.currentSession.steps[0].screenshot, undefined);
+  sandbox.chrome.tabs.get = originalGetTab;
+
+  // Restore the indicator on the captured tab even if the session switches.
+  screenshotEvents.length = 0;
+  const originalCapture = sandbox.chrome.tabs.captureVisibleTab;
+  sandbox.chrome.tabs.captureVisibleTab = async () => {
+    screenshotManager.tabId = 99;
+    return 'old-screenshot';
+  };
+  await screenshotManager._enqueueScreenshotCapture(0);
+  assert.deepEqual(screenshotEvents, [
+    { tabId: 9, type: 'HIDE_RECORDING_INDICATOR' },
+    { tabId: 9, type: 'RESTORE_RECORDING_INDICATOR' }
+  ]);
+  sandbox.chrome.tabs.captureVisibleTab = originalCapture;
+
   const edgeBlockedManager = new RecordingManager();
   const injectionTargets = [];
   edgeBlockedManager.state = 'idle';
@@ -214,6 +269,7 @@ const { RecordingManager, sandbox } = loadRecordingManager();
   edgeBlockedManager._hydrate = true;
 
   sandbox.chrome.scripting.executeScript = async (details) => {
+    assert.deepEqual(Array.from(details.files), ['content/recorder-selector.js', 'content/recorder.js']);
     injectionTargets.push(details.target);
     return [];
   };
