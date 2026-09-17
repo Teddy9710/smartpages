@@ -6,9 +6,10 @@
 ## 实现的功能
 
 ### 1. 文档上传模块 (utils/documentUpload.js)
-- 支持PDF、DOCX、TXT格式文档上传
+- 支持 PDF、DOCX、TXT、Markdown、HTML、HTM、RTF 格式文档上传
 - 文件格式验证
-- 文档内容读取和解析（基础框架，需集成具体解析库）
+- PDF 使用 PDF.js 在扩展本地提取逐页文本
+- DOCX 使用 fflate 解包 WordprocessingML 并在扩展本地提取正文
 - 本地存储管理
 
 ### 2. 文档API接口 (utils/documentApi.js)
@@ -50,17 +51,17 @@
 ## 技术细节
 
 ### 权限变更
-- 添加了 `unlimitedStorage` 权限以支持大量文档存储
-- 更新了 `web_accessible_resources` 以包含文档资源
+- 不新增外部主机权限；解析器作为扩展本地资源随构建产物一起发布
+- 单个参考文档限制为 5MB，保存前只提取文字内容
 
 ### 存储结构
 - 文档信息存储在 `chrome.storage.local` 的 `documents` 键下
 - 文档关联信息存储在 `documentCodeLinks` 键下
 
 ### 文件格式支持
-- **PDF**: 需要集成PDF.js库进行完整解析
-- **DOCX**: 需要集成docx库进行完整解析
-- **TXT**: 已支持纯文本解析
+- **PDF**: 已支持文本型 PDF；扫描版 PDF 暂不提供 OCR
+- **DOCX**: 已支持正文文本提取；图片和复杂排版不会作为参考文本保存
+- **TXT / MD / HTML / HTM / RTF**: 已支持文本读取
 
 ## 扩展性
 该功能设计具有良好的扩展性：
@@ -69,11 +70,10 @@
 - 可集成云存储服务替代本地存储
 
 ## 待完善的功能
-1. PDF解析需要集成PDF.js库
-2. DOCX解析需要集成docx库
-3. 可以添加文档预览缩略图
-4. 可以添加文档分类功能
-5. 可以添加文档分享功能
+1. 扫描版 PDF OCR
+2. 文档预览缩略图
+3. 文档分类
+4. 文档分享
 
 ## 使用方法
 1. 在设置页面或侧边栏点击文档管理

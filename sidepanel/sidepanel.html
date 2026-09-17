@@ -34,8 +34,8 @@
             <div class="upload-content">
               <span class="upload-icon" aria-hidden="true"></span>
               <p>拖拽文件到这里或点击选择文件</p>
-              <p class="upload-help">支持格式: TXT, MD, HTML, RTF</p>
-              <input type="file" id="sidepanel-document-file" accept=".txt,.md,.html,.htm,.rtf" style="display: none;">
+              <p class="upload-help">支持格式: TXT, MD, HTML, RTF, PDF, DOCX</p>
+              <input type="file" id="sidepanel-document-file" accept=".txt,.md,.html,.htm,.rtf,.pdf,.docx" style="display: none;">
               <button id="sidepanel-browse-btn" class="btn btn-outline">浏览文件</button>
             </div>
           </div>
@@ -369,6 +369,7 @@
 
   <script src="../libs/marked.min.js"></script>
   <script src="../utils/common.js"></script>
+  <script src="../utils/documentParsers.js"></script>
   <script src="../utils/documentUpload.js"></script>
   <script src="../utils/documentApi.js"></script>
   <script src="../utils/docUIUtils.js"></script>

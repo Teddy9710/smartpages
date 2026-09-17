@@ -30,7 +30,7 @@ class DocumentUploadManager {
   }
 
   constructor() {
-    this.supportedFormats = ['txt', 'md', 'html', 'rtf'];
+    this.supportedFormats = ['txt', 'md', 'html', 'htm', 'rtf', 'pdf', 'docx'];
     this.uploadQueue = [];
     this.isUploading = false;
   }

@@ -22,6 +22,11 @@ const copyTargets = [
   { src: 'content/*', dest: 'content', rename: { stripBase: 1 } },
   { src: 'utils/*', dest: 'utils', rename: { stripBase: 1 } },
   { src: 'gif-recording/*', dest: 'gif-recording', rename: { stripBase: 1 } },
+  { src: 'node_modules/fflate/esm/browser.js', dest: 'libs/fflate', rename: { stripBase: 3 } },
+  { src: 'node_modules/pdfjs-dist/build/pdf.min.mjs', dest: 'libs/pdfjs', rename: { stripBase: 3 } },
+  { src: 'node_modules/pdfjs-dist/build/pdf.worker.min.mjs', dest: 'libs/pdfjs', rename: { stripBase: 3 } },
+  { src: 'node_modules/pdfjs-dist/cmaps/*', dest: 'libs/pdfjs/cmaps', rename: { stripBase: 3 } },
+  { src: 'node_modules/pdfjs-dist/standard_fonts/*', dest: 'libs/pdfjs/standard_fonts', rename: { stripBase: 3 } },
 ].filter(target => existsSync(resolve(projectRoot, target.src.replace(/\/\*$/, ''))));
 
 /**

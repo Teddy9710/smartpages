@@ -18,7 +18,7 @@
           <div class="upload-icon" aria-hidden="true"></div>
           <p id="drop-title">拖拽文件到此处或点击选择文件</p>
           <p id="file-types" class="file-types">支持格式: TXT, MD, HTML, RTF</p>
-          <input type="file" id="file-input" multiple accept=".txt,.md,.html,.rtf">
+          <input type="file" id="file-input" multiple accept=".txt,.md,.html,.htm,.rtf,.pdf,.docx">
         </div>
       </div>
 
@@ -83,6 +83,8 @@
   </div>
 
   <script src="../utils/common.js"></script>
+  <script src="../utils/documentParsers.js"></script>
+  <script src="../utils/documentUpload.js"></script>
   <script src="upload-manager.js"></script>
   <script src="upload-panel.js"></script>
 </body>

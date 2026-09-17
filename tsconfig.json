@@ -17,5 +17,5 @@
     "typeRoots": ["./node_modules/@types", "./@types"]
   },
   "include": ["**/*.js", "@types/**/*.d.ts"],
-  "exclude": ["node_modules", "dist", "skills/**/__pycache__"]
+  "exclude": ["node_modules", "dist", "tmp", "skills/**/__pycache__"]
 }

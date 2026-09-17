@@ -125,7 +125,7 @@ const docs = await system.searchDocuments('query');
 ## 安全考虑
 
 - 所有文档存储在本地，不会上传到外部服务器
-- 使用Chrome Storage API进行加密存储
+- 使用 Chrome Storage API 本地存储；参考文档只保存提取后的文字内容
 - 文件类型验证防止恶意文件上传
 - 适当的数据清理和过期机制
 

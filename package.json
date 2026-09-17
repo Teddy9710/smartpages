@@ -39,6 +39,8 @@
   "dependencies": {
     "@cloudbase/js-sdk": "^3.8.0",
     "@modelcontextprotocol/sdk": "^1.17.0",
+    "fflate": "^0.8.3",
+    "pdfjs-dist": "^6.3.289",
     "ws": "^8.21.3"
   },
   "devDependencies": {

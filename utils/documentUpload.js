@@ -5,7 +5,7 @@
 
 class DocumentUploader {
   constructor() {
-    this.supportedFormats = ['txt', 'md', 'html', 'htm', 'rtf'];
+    this.supportedFormats = ['txt', 'md', 'html', 'htm', 'rtf', 'pdf', 'docx'];
     this.uploadDir = 'docs';
     this.storageKey = 'documents';
     this._docIndex = new Map();
@@ -49,64 +49,57 @@ class DocumentUploader {
    * 读取文件内容（用于简单文本预览）
    */
   async readFileContent(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-
-      reader.onload = (e) => resolve(e.target.result);
-      reader.onerror = (error) => reject(error);
-
-      if (file.type.startsWith('text/') ||
-          file.name.toLowerCase().endsWith('.txt') ||
-          file.name.toLowerCase().endsWith('.md') ||
-          file.name.toLowerCase().endsWith('.html') ||
-          file.name.toLowerCase().endsWith('.htm') ||
-          file.name.toLowerCase().endsWith('.rtf')) {
-        reader.readAsText(file);
-      } else {
-        reader.readAsDataURL(file);
-      }
-    });
+    const extension = this._getExtension(file.name);
+    if (extension === 'pdf' || extension === 'docx') {
+      const parsed = await DocumentParsers.extractDocumentText(await this._readAsArrayBuffer(file), extension);
+      return parsed.content;
+    }
+    return this._readAsText(file);
   }
 
   /**
    * 读取文档内容（用于解析和存储）
    */
   async readDocumentContent(file) {
+    const extension = this._getExtension(file.name);
+    try {
+      const parsed = extension === 'pdf' || extension === 'docx'
+        ? await DocumentParsers.extractDocumentText(await this._readAsArrayBuffer(file), extension)
+        : { content: await this._readAsText(file), warnings: [] };
+      return {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        content: parsed.content,
+        parserWarnings: parsed.warnings || [],
+        uploadTime: new Date().toISOString()
+      };
+    } catch (error) {
+      throw new Error('解析文档失败: ' + error.message);
+    }
+  }
+
+  _getExtension(filename) {
+    return String(filename || '').toLowerCase().split('.').pop();
+  }
+
+  async _readAsText(file) {
+    if (typeof file.text === 'function') return file.text();
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-
-      reader.onload = (e) => {
-        const result = e.target.result;
-        const ext = file.name.toLowerCase().split('.').pop();
-
-        try {
-          let content = '';
-
-          content = result;
-
-          resolve({
-            name: file.name,
-            size: file.size,
-            type: file.type,
-            content: content,
-            uploadTime: new Date().toISOString()
-          });
-        } catch (error) {
-          reject(new Error('解析文档失败: ' + error.message));
-        }
-      };
-
+      reader.onload = event => resolve(event.target.result);
       reader.onerror = () => reject(new Error('读取文件失败'));
+      reader.readAsText(file);
+    });
+  }
 
-      if (file.type.startsWith('text/') || file.name.toLowerCase().endsWith('.txt') ||
-          file.name.toLowerCase().endsWith('.md') ||
-          file.name.toLowerCase().endsWith('.html') ||
-          file.name.toLowerCase().endsWith('.htm') ||
-          file.name.toLowerCase().endsWith('.rtf')) {
-        reader.readAsText(file);
-      } else {
-        reader.readAsArrayBuffer(file);
-      }
+  async _readAsArrayBuffer(file) {
+    if (typeof file.arrayBuffer === 'function') return file.arrayBuffer();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = event => resolve(event.target.result);
+      reader.onerror = () => reject(new Error('读取文件失败'));
+      reader.readAsArrayBuffer(file);
     });
   }
 

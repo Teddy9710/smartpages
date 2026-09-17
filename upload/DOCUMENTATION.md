@@ -131,9 +131,12 @@ const sessions = await associator.getSessionsForDocument(documentId);
 ## 性能和安全
 
 - 文件上传采用异步处理，不会阻塞UI
-- 支持大文件分块上传（待实现）
+- 单个参考文档最大 5MB；本地只保存提取后的文本
+- PDF 和 DOCX 均在扩展本地解析，不会发送到额外的解析服务
+- PDF 支持包含文本层的文档；扫描版 PDF 暂不支持 OCR
+- DOCX 提取正文文本，图片和复杂排版不会保留
 - GitHub上传使用Personal Access Token进行身份验证
-- 本地存储使用Chrome Storage API加密存储
+- 本地存储使用 Chrome Storage API
 
 ## 错误处理
 
@@ -149,7 +152,7 @@ const sessions = await associator.getSessionsForDocument(documentId);
 上传功能支持以下配置：
 
 - 支持的文件格式列表
-- 上传大小限制
+- 上传大小限制（当前固定为 5MB）
 - GitHub仓库默认设置
 - 自动关联规则
 
