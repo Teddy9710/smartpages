@@ -130,6 +130,9 @@ class SettingsManager {
     this.cloudDocuments = new CloudDocumentProvider();
     this.providerProfiles = {};
     this.activeProviderId = 'custom';
+    this.customGenerationTemplates = [];
+    this.defaultGenerationTemplateId = '';
+    this.activeGenerationTemplateId = '';
     this.docUI = new DocUIHelper({
       api: this.api,
       source: '',
@@ -150,6 +153,7 @@ class SettingsManager {
     if (!this.providerProfiles[this.activeProviderId] && this.config.apiKey) {
       this.providerProfiles[this.activeProviderId] = this._profileFromConfig(this.config);
     }
+    await this._loadGenerationTemplates();
     this._bindEvents();
     this._initDocumentManagement();
     this._populateForm();
@@ -169,6 +173,22 @@ class SettingsManager {
     this._bindButton('btn-save-cloud-settings', () => this.saveCloudConfig());
     document.getElementById('cloud-provider')?.addEventListener('change', () => this._toggleCloudProviderFields());
     this._bindButton('btn-clear-recording-cache', () => this.clearRecordingCache());
+    this._bindButton('btn-template-apply', () => this.applySelectedGenerationTemplate());
+    this._bindButton('btn-template-save-new', () => this.saveCurrentAsGenerationTemplate());
+    this._bindButton('btn-template-duplicate', () => this.duplicateSelectedGenerationTemplate());
+    this._bindButton('btn-template-rename', () => this.renameSelectedGenerationTemplate());
+    this._bindButton('btn-template-delete', () => this.deleteSelectedGenerationTemplate());
+    this._bindButton('btn-template-default', () => this.setSelectedGenerationTemplateAsDefault());
+
+    const templateSelect = document.getElementById('generation-template-select');
+    if (templateSelect) {
+      const handler = () => {
+        this.activeGenerationTemplateId = templateSelect.value;
+        this._syncGenerationTemplateActions();
+      };
+      templateSelect.addEventListener('change', handler);
+      this.cleanupFunctions.push(() => templateSelect.removeEventListener('change', handler));
+    }
 
     const apiProviderSelect = document.getElementById('api-provider');
     if (apiProviderSelect) {
@@ -336,6 +356,7 @@ class SettingsManager {
     if (customPromptInput) customPromptInput.value = this.config.customPrompt || DEFAULT_PROMPT_TEMPLATE;
     if (styleGuideInput) styleGuideInput.value = this.config.styleGuide || '';
     this._populateDocumentExamples(this.config.documentExamples || {});
+    this._renderGenerationTemplates();
     this._syncKeyHelp();
     this._syncPromptModeVisibility();
     this._applyLanguage();
@@ -362,6 +383,244 @@ class SettingsManager {
         .map(([type, element]) => [type, element?.value.trim() || ''])
         .filter(([, value]) => value)
     );
+  }
+
+  async _loadGenerationTemplates() {
+    const api = globalThis.GenerationTemplates;
+    if (!api) return;
+    const result = await storagePromise('local', 'get', [
+      api.GENERATION_TEMPLATES_STORAGE_KEY,
+      api.DEFAULT_GENERATION_TEMPLATE_STORAGE_KEY,
+      api.ACTIVE_GENERATION_TEMPLATE_STORAGE_KEY
+    ]);
+    this.customGenerationTemplates = api.normalizeCustomGenerationTemplates(
+      result[api.GENERATION_TEMPLATES_STORAGE_KEY]
+    );
+    const library = api.getGenerationTemplateLibrary(this.customGenerationTemplates);
+    const availableIds = new Set(library.map(template => template.id));
+    this.defaultGenerationTemplateId = availableIds.has(result[api.DEFAULT_GENERATION_TEMPLATE_STORAGE_KEY])
+      ? result[api.DEFAULT_GENERATION_TEMPLATE_STORAGE_KEY]
+      : '';
+    this.activeGenerationTemplateId = availableIds.has(result[api.ACTIVE_GENERATION_TEMPLATE_STORAGE_KEY])
+      ? result[api.ACTIVE_GENERATION_TEMPLATE_STORAGE_KEY]
+      : (this.defaultGenerationTemplateId || library[0]?.id || '');
+  }
+
+  _getGenerationTemplateLibrary() {
+    return globalThis.GenerationTemplates?.getGenerationTemplateLibrary(this.customGenerationTemplates) || [];
+  }
+
+  _getSelectedGenerationTemplate() {
+    const selectedId = document.getElementById('generation-template-select')?.value || this.activeGenerationTemplateId;
+    return this._getGenerationTemplateLibrary().find(template => template.id === selectedId) || null;
+  }
+
+  _renderGenerationTemplates() {
+    const select = document.getElementById('generation-template-select');
+    if (!select) return;
+    const isEn = (this.config.appLanguage || DEFAULT_APP_LANGUAGE) === 'en-US';
+    const library = this._getGenerationTemplateLibrary();
+    const selectedId = library.some(template => template.id === this.activeGenerationTemplateId)
+      ? this.activeGenerationTemplateId
+      : (this.defaultGenerationTemplateId || library[0]?.id || '');
+    select.replaceChildren(...library.map(template => {
+      const name = template.builtIn && isEn ? template.nameEn : template.name;
+      const suffix = template.id === this.defaultGenerationTemplateId
+        ? (isEn ? ' (Default)' : '（默认）')
+        : '';
+      return createElement('option', { value: template.id, textContent: `${name}${suffix}` });
+    }));
+    select.value = selectedId;
+    this.activeGenerationTemplateId = selectedId;
+    this._syncGenerationTemplateActions();
+  }
+
+  _syncGenerationTemplateActions() {
+    const template = this._getSelectedGenerationTemplate();
+    const rename = document.getElementById('btn-template-rename');
+    const remove = document.getElementById('btn-template-delete');
+    const defaultButton = document.getElementById('btn-template-default');
+    const badge = document.getElementById('template-default-badge');
+    if (rename) rename.disabled = !template || template.builtIn;
+    if (remove) remove.disabled = !template || template.builtIn;
+    if (defaultButton) defaultButton.disabled = !template || template.id === this.defaultGenerationTemplateId;
+    badge?.classList.toggle('hidden', !template || template.id !== this.defaultGenerationTemplateId);
+  }
+
+  _collectGenerationTemplateSettings() {
+    return globalThis.GenerationTemplates.normalizeGenerationTemplateSettings({
+      promptMode: document.getElementById('prompt-mode')?.value,
+      promptAppend: document.getElementById('prompt-append')?.value,
+      customPrompt: document.getElementById('custom-prompt')?.value,
+      styleGuide: document.getElementById('style-guide')?.value,
+      outputFormat: document.getElementById('output-format')?.value,
+      documentExamples: this._collectDocumentExamples()
+    });
+  }
+
+  _applyGenerationTemplateToForm(template) {
+    if (!template) return;
+    const settings = globalThis.GenerationTemplates.normalizeGenerationTemplateSettings(template.settings);
+    const setValue = (id, value) => {
+      const element = document.getElementById(id);
+      if (element) element.value = value;
+    };
+    setValue('prompt-mode', settings.promptMode);
+    setValue('prompt-append', settings.promptAppend);
+    setValue('custom-prompt', settings.customPrompt || DEFAULT_PROMPT_TEMPLATE);
+    setValue('style-guide', settings.styleGuide);
+    setValue('output-format', settings.outputFormat);
+    this._populateDocumentExamples(settings.documentExamples);
+    this._syncPromptModeVisibility();
+  }
+
+  _templateText(zh, en) {
+    return (this.config.appLanguage || DEFAULT_APP_LANGUAGE) === 'en-US' ? en : zh;
+  }
+
+  _setTemplateStatus(message, type = '') {
+    const status = document.getElementById('template-library-status');
+    if (!status) return;
+    status.textContent = message;
+    status.dataset.type = type;
+  }
+
+  async _persistGenerationTemplateLibrary() {
+    const api = globalThis.GenerationTemplates;
+    await storagePromise('local', 'set', {
+      [api.GENERATION_TEMPLATES_STORAGE_KEY]: this.customGenerationTemplates,
+      [api.DEFAULT_GENERATION_TEMPLATE_STORAGE_KEY]: this.defaultGenerationTemplateId,
+      [api.ACTIVE_GENERATION_TEMPLATE_STORAGE_KEY]: this.activeGenerationTemplateId
+    });
+  }
+
+  async applySelectedGenerationTemplate() {
+    const template = this._getSelectedGenerationTemplate();
+    if (!template) return;
+    this.activeGenerationTemplateId = template.id;
+    this._applyGenerationTemplateToForm(template);
+    await this._persistGenerationTemplateLibrary();
+    this._setTemplateStatus(
+      this._templateText('模板已应用到表单，请点击“保存配置”使其生效。', 'Template applied to the form. Click Save Settings to use it.'),
+      'success'
+    );
+    this._syncGenerationTemplateActions();
+  }
+
+  async saveCurrentAsGenerationTemplate() {
+    const name = globalThis.prompt(this._templateText('请输入新模板名称', 'Enter a name for the new template'));
+    if (name === null) return;
+    try {
+      const library = this._getGenerationTemplateLibrary();
+      const template = globalThis.GenerationTemplates.createGenerationTemplate(
+        name,
+        this._collectGenerationTemplateSettings(),
+        library
+      );
+      this.customGenerationTemplates.push(template);
+      this.activeGenerationTemplateId = template.id;
+      await this._persistGenerationTemplateLibrary();
+      this._renderGenerationTemplates();
+      this._setTemplateStatus(this._templateText('新模板已保存。', 'New template saved.'), 'success');
+    } catch (error) {
+      this._setTemplateStatus(this._localizeGenerationTemplateError(error), 'error');
+    }
+  }
+
+  async duplicateSelectedGenerationTemplate() {
+    const source = this._getSelectedGenerationTemplate();
+    if (!source) return;
+    const sourceName = source.builtIn && (this.config.appLanguage || DEFAULT_APP_LANGUAGE) === 'en-US'
+      ? source.nameEn
+      : source.name;
+    const name = globalThis.prompt(
+      this._templateText('请输入副本名称', 'Enter a name for the copy'),
+      this._templateText(`${sourceName} 副本`, `${sourceName} Copy`)
+    );
+    if (name === null) return;
+    try {
+      const template = globalThis.GenerationTemplates.duplicateGenerationTemplate(
+        source,
+        name,
+        this._getGenerationTemplateLibrary()
+      );
+      this.customGenerationTemplates.push(template);
+      this.activeGenerationTemplateId = template.id;
+      await this._persistGenerationTemplateLibrary();
+      this._renderGenerationTemplates();
+      this._setTemplateStatus(this._templateText('模板副本已创建。', 'Template copy created.'), 'success');
+    } catch (error) {
+      this._setTemplateStatus(this._localizeGenerationTemplateError(error), 'error');
+    }
+  }
+
+  async renameSelectedGenerationTemplate() {
+    const current = this._getSelectedGenerationTemplate();
+    if (!current || current.builtIn) return;
+    const name = globalThis.prompt(this._templateText('请输入新的模板名称', 'Enter a new template name'), current.name);
+    if (name === null) return;
+    try {
+      const renamed = globalThis.GenerationTemplates.renameGenerationTemplate(
+        current,
+        name,
+        this._getGenerationTemplateLibrary()
+      );
+      this.customGenerationTemplates = this.customGenerationTemplates.map(template => (
+        template.id === current.id ? renamed : template
+      ));
+      await this._persistGenerationTemplateLibrary();
+      this._renderGenerationTemplates();
+      this._setTemplateStatus(this._templateText('模板已重命名。', 'Template renamed.'), 'success');
+    } catch (error) {
+      this._setTemplateStatus(this._localizeGenerationTemplateError(error), 'error');
+    }
+  }
+
+  async deleteSelectedGenerationTemplate() {
+    const template = this._getSelectedGenerationTemplate();
+    if (!template || template.builtIn) return;
+    const confirmed = globalThis.confirm(this._templateText(`确定删除模板“${template.name}”吗？`, `Delete template “${template.name}”?`));
+    if (!confirmed) return;
+    this.customGenerationTemplates = this.customGenerationTemplates.filter(item => item.id !== template.id);
+    if (this.defaultGenerationTemplateId === template.id) this.defaultGenerationTemplateId = '';
+    this.activeGenerationTemplateId = this.defaultGenerationTemplateId || 'builtin-user-guide';
+    await this._persistGenerationTemplateLibrary();
+    this._renderGenerationTemplates();
+    this._setTemplateStatus(this._templateText('模板已删除。', 'Template deleted.'), 'success');
+  }
+
+  async setSelectedGenerationTemplateAsDefault() {
+    const template = this._getSelectedGenerationTemplate();
+    if (!template) return;
+    this.defaultGenerationTemplateId = template.id;
+    this.activeGenerationTemplateId = template.id;
+    this._applyGenerationTemplateToForm(template);
+    const settings = this._collectGenerationTemplateSettings();
+    await storagePromise('local', 'set', {
+      promptMode: settings.promptMode,
+      promptAppend: settings.promptAppend,
+      customPrompt: settings.customPrompt || DEFAULT_PROMPT_TEMPLATE,
+      styleGuide: settings.styleGuide,
+      outputFormat: settings.outputFormat,
+      documentExamples: settings.documentExamples
+    });
+    await this._persistGenerationTemplateLibrary();
+    Object.assign(this.config, settings);
+    this._renderGenerationTemplates();
+    this._setTemplateStatus(this._templateText('默认模板已设置并立即生效。', 'Default template set and applied.'), 'success');
+  }
+
+  _localizeGenerationTemplateError(error) {
+    const message = String(error?.message || error);
+    if ((this.config.appLanguage || DEFAULT_APP_LANGUAGE) === 'en-US') return message;
+    const translations = {
+      'Template name is required': '请输入模板名称。',
+      'Template name must be 60 characters or fewer': '模板名称不能超过 60 个字符。',
+      'A template with this name already exists': '已经存在同名模板。',
+      'Built-in templates cannot be renamed': '内置模板不能重命名。',
+      'Template not found': '未找到模板。'
+    };
+    return translations[message] || message;
   }
 
   _getReferenceDocumentActions() {
@@ -889,6 +1148,15 @@ class SettingsManager {
       exampleBugReport: 'Bug Report Example',
       examplePlaceholder: 'Paste an example document. Markdown and HTML are supported.',
       examplesHelp: 'Generation uses the example matching the current document type first. Examples teach structure, tone, layout, and granularity without copying facts.',
+      templateTitle: 'Generation Templates',
+      templateHelp: 'Save and switch prompts, style guides, examples, and output format. Templates never include API keys or model settings.',
+      templateDefaultBadge: 'Default Template',
+      templateApply: 'Apply',
+      templateSaveNew: 'Save as New',
+      templateDuplicate: 'Duplicate',
+      templateRename: 'Rename',
+      templateDelete: 'Delete',
+      templateSetDefault: 'Set as Default',
       uploadedDocsTitle: 'Uploaded Reference Documents',
       docsLoading: 'Loading documents...',
       storageNav: 'Storage & Cache',
@@ -921,6 +1189,15 @@ class SettingsManager {
       exampleBugReport: '问题报告示例',
       examplePlaceholder: '粘贴一份示例文档，支持 Markdown 或 HTML。',
       examplesHelp: '生成时会优先使用当前文档类型对应的示例；示例只用于学习结构、语气、版式层级和颗粒度，不会照抄事实内容。',
+      templateTitle: '生成模板',
+      templateHelp: '保存并切换提示词、风格指南、示例文档和输出格式。模板不会包含 API Key 或模型配置。',
+      templateDefaultBadge: '默认模板',
+      templateApply: '应用',
+      templateSaveNew: '保存为新模板',
+      templateDuplicate: '复制',
+      templateRename: '重命名',
+      templateDelete: '删除',
+      templateSetDefault: '设为默认',
       uploadedDocsTitle: '已上传的参考文档',
       docsLoading: '正在加载文档列表...',
       storageNav: '存储与缓存',
@@ -988,6 +1265,16 @@ class SettingsManager {
     set('label[for="example-bug-report"]', text.exampleBugReport);
     document.querySelectorAll('.example-textarea').forEach(el => { el.placeholder = text.examplePlaceholder; });
     set('.example-grid + .help-text', text.examplesHelp);
+    set('#template-library-title', text.templateTitle);
+    set('.template-library-heading .help-text', text.templateHelp);
+    set('#template-default-badge', text.templateDefaultBadge);
+    setButton('#btn-template-apply', text.templateApply);
+    setButton('#btn-template-save-new', text.templateSaveNew);
+    setButton('#btn-template-duplicate', text.templateDuplicate);
+    setButton('#btn-template-rename', text.templateRename);
+    setButton('#btn-template-delete', text.templateDelete);
+    setButton('#btn-template-default', text.templateSetDefault);
+    this._renderGenerationTemplates();
     setButton('#btn-test', text.test);
     setButton('#btn-save', text.save);
     set('.section:nth-of-type(2) h2', text.docsHeading);

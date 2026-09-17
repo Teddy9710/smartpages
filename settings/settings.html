@@ -137,6 +137,26 @@
         </div>
         </div>
 
+        <div class="template-library" aria-labelledby="template-library-title">
+          <div class="template-library-heading">
+            <div>
+              <h3 id="template-library-title">生成模板</h3>
+              <p class="help-text">保存并切换提示词、风格指南、示例文档和输出格式。模板不会包含 API Key 或模型配置。</p>
+            </div>
+            <span id="template-default-badge" class="template-default-badge hidden">默认模板</span>
+          </div>
+          <div class="template-library-controls">
+            <select id="generation-template-select" class="input" aria-label="生成模板"></select>
+            <button id="btn-template-apply" class="btn btn-primary btn-small" type="button">应用</button>
+            <button id="btn-template-save-new" class="btn btn-secondary btn-small" type="button">保存为新模板</button>
+            <button id="btn-template-duplicate" class="btn btn-secondary btn-small" type="button">复制</button>
+            <button id="btn-template-rename" class="btn btn-secondary btn-small" type="button">重命名</button>
+            <button id="btn-template-delete" class="btn btn-danger btn-small" type="button">删除</button>
+            <button id="btn-template-default" class="btn btn-outline btn-small" type="button">设为默认</button>
+          </div>
+          <p id="template-library-status" class="help-text" aria-live="polite"></p>
+        </div>
+
         <div class="form-group-switch" id="multimodal-setting">
           <label class="switch-label">
             <input type="checkbox" id="multimodal-enabled">
@@ -401,6 +421,7 @@
   <script src="../utils/documentApi.js"></script>
   <script src="../utils/docUIUtils.js"></script>
   <script src="../utils/cloudDocumentApi.js"></script>
+  <script src="../utils/generationTemplates.js"></script>
   <script src="settings.js"></script>
 </body>
 </html>

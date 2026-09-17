@@ -110,6 +110,7 @@ body {
 .btn-danger { border-color: #fecaca; background: #fff; color: #b91c1c; }
 .btn-danger:hover { border-color: #fca5a5; background: #fef2f2; }
 .btn-small { min-height: 36px; padding: 7px 10px; font-size: 12px; }
+.btn:disabled { cursor: not-allowed; opacity: .5; box-shadow: none; }
 
 .storage-action-row {
   display: flex;
@@ -142,6 +143,16 @@ body {
 .example-card { padding: 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
 .example-card label { margin-bottom: 8px; }
 .example-textarea { min-height: 142px; background: #fff; }
+
+.template-library { margin: 4px 0 20px; padding: 16px; border: 1px solid #cfe0fb; border-radius: 11px; background: #f7faff; }
+.template-library-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 13px; }
+.template-library-heading h3 { margin: 0; color: #27436f; font-size: 15px; }
+.template-library-heading .help-text { margin-top: 3px; }
+.template-library-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.template-library-controls .input { min-width: 220px; flex: 1 1 260px; }
+.template-default-badge { flex: 0 0 auto; padding: 4px 9px; border: 1px solid #b8cff7; border-radius: 999px; color: #2358ae; background: #eaf2ff; font-size: 11px; font-weight: 700; }
+#template-library-status[data-type="success"] { color: #087647; }
+#template-library-status[data-type="error"] { color: #b42318; }
 
 .upload-area { padding: 30px 20px; border: 1.5px dashed #b7c7da; border-radius: 11px; background: var(--surface-soft); cursor: pointer; transition: .16s ease; }
 .upload-area:hover, .upload-area.dragover { border-color: var(--blue); background: var(--blue-soft); }
