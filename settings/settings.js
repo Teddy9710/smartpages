@@ -1041,10 +1041,18 @@ class SettingsManager {
       if (response.ok) this._showTestResult(isEn ? '✅ Connection successful. API settings are valid.' : '✅ 连接成功！API配置有效', 'success');
       else {
         const errorData = await response.json().catch(() => ({}));
-        this._showTestResult((isEn ? 'Connection failed: ' : '连接失败：') + (errorData.error?.message || response.statusText || (isEn ? 'Unknown error' : '未知错误')), 'error');
+        this._showTestResult(formatUserFacingError({
+          message: errorData.error?.message || response.statusText,
+          code: 'API_ERROR',
+          status: response.status
+        }, this.config.appLanguage, isEn ? 'Could not connect. Check the API settings and try again.' : '连接失败，请检查 API 配置后重试。'), 'error');
       }
     } catch (error) {
-      this._showTestResult((isEn ? 'Connection failed: ' : '连接失败：') + ((error.name === 'AbortError') ? (isEn ? 'Connection timed out. Check your network or API URL.' : '连接超时，请检查网络连接或API地址') : error.message), 'error');
+      this._showTestResult(formatUserFacingError(
+        error,
+        this.config.appLanguage,
+        isEn ? 'Could not connect. Check the API settings and try again.' : '连接失败，请检查 API 配置后重试。'
+      ), 'error');
     } finally {
       testBtn.disabled = false;
       testBtn.replaceChildren(...originalContent);

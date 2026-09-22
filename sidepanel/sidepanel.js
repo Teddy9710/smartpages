@@ -409,7 +409,7 @@ class SidePanelManager {
       emptyDesc: 'Start recording from the current tab, then generate a document here.',
       start: 'Start Recording',
       errorTitle: 'Something went wrong',
-      retry: 'Retry',
+      retry: 'Back and review',
       optimizeTitle: 'AI Optimize',
       optimizePlaceholder: 'Tell AI how to improve this document...',
       cancel: 'Cancel',
@@ -458,7 +458,7 @@ class SidePanelManager {
       emptyDesc: '从当前标签页开始录制，然后在这里生成文档。',
       start: '开始录制',
       errorTitle: '出现问题',
-      retry: '重试',
+      retry: '返回检查',
       optimizeTitle: 'AI 优化',
       optimizePlaceholder: '告诉 AI 你想如何改进这份文档...',
       cancel: '取消',
@@ -1109,7 +1109,9 @@ class SidePanelManager {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new ExtensionError(`API调用失败: ${errorData.error?.message || response.statusText}`, 'API_ERROR');
+        const apiError = new ExtensionError(`API调用失败: ${errorData.error?.message || response.statusText}`, 'API_ERROR');
+        apiError.status = response.status;
+        throw apiError;
       }
 
       const data = await response.json();
@@ -1393,13 +1395,7 @@ ${markdown}`;
   }
 
   _formatUserFacingError(error, fallback) {
-    if (error?.code === 'EXTENSION_CONTEXT_INVALIDATED') {
-      return '扩展上下文已失效，请刷新当前页面后重试。';
-    }
-    if (error?.code === 'NETWORK_ERROR') {
-      return error.message || '网络请求失败，请检查模型 API 地址、网络代理或服务商跨域设置。';
-    }
-    return error?.message || fallback;
+    return formatUserFacingError(error, this.language, fallback);
   }
 
   cleanup() {

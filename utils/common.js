@@ -515,6 +515,75 @@ function validateUrl(urlString, allowedProtocols = ['https:', 'http:']) {
   }
 }
 
+/**
+ * Converts technical/runtime errors into concise, actionable UI copy.
+ * Detailed provider errors should stay in the console instead of being shown
+ * verbatim because they can be cryptic and may contain request details.
+ *
+ * @param {Error|Object|string} error - Error or response-like value
+ * @param {string} [language='zh-CN'] - UI language
+ * @param {string} [fallback=''] - Context-specific fallback message
+ * @returns {string} User-facing message
+ */
+function formatUserFacingError(error, language = DEFAULT_APP_LANGUAGE, fallback = '') {
+  const isEn = language === 'en-US';
+  const rawMessage = String(error?.message || error || '').trim();
+  const normalized = rawMessage.toLowerCase();
+  const code = String(error?.code || '').toUpperCase();
+  const status = Number(error?.status || normalized.match(/\b(4\d\d|5\d\d)\b/)?.[1] || 0);
+  const t = (zh, en) => isEn ? en : zh;
+
+  if (code === 'EXTENSION_CONTEXT_INVALIDATED' || normalized.includes('extension context invalidated')) {
+    return t('扩展刚刚更新或重新加载了。请刷新当前网页后再试。', 'The extension was updated or reloaded. Refresh the current page and try again.');
+  }
+  if (code === 'CONFIG_ERROR' || code === 'API_KEY_MISSING' || normalized.includes('api key is required')) {
+    return t('还没有配置 API 密钥。请先打开“设置”完成模型配置。', 'No API key is configured. Open Settings and finish the model setup first.');
+  }
+  if (code === 'EMPTY_STEPS') {
+    return t('没有可用于生成文档的录制步骤。请先录制至少一个操作。', 'There are no recorded steps to generate from. Record at least one action first.');
+  }
+  if (code === 'EMPTY_RESPONSE') {
+    return t('模型没有返回可用内容。请重试；若仍失败，可在设置中更换模型。', 'The model returned no usable content. Try again, or choose another model in Settings if it keeps happening.');
+  }
+  if (code === 'REQUEST_TIMEOUT' || error?.name === 'AbortError' || normalized.includes('timeout') || normalized.includes('timed out') || normalized.includes('超时')) {
+    return t('等待模型响应超时。请检查网络连接，稍后再试。', 'The model took too long to respond. Check your connection and try again shortly.');
+  }
+  if (code === 'NETWORK_ERROR' || normalized.includes('failed to fetch') || normalized.includes('networkerror') || normalized.includes('cors')) {
+    return t('暂时无法连接模型服务。请检查网络和 API 地址，然后重试。', 'Could not reach the model service. Check your connection and API URL, then try again.');
+  }
+  if (code === 'INSECURE_URL' || normalized.includes('base url is not a valid') || normalized.includes('url格式错误') || normalized.includes('url协议错误')) {
+    return t('API 地址格式不正确。请在“设置”中检查地址后重试。', 'The API URL is not valid. Check it in Settings and try again.');
+  }
+  if (status === 401 || normalized.includes('unauthorized') || normalized.includes('authentication') || normalized.includes('invalid api key') || normalized.includes('incorrect api key')) {
+    return t('API 密钥无效或已过期。请在“设置”中更新密钥后重试。', 'The API key is invalid or expired. Update it in Settings and try again.');
+  }
+  if (status === 403 || normalized.includes('forbidden')) {
+    return t('当前 API 密钥没有访问权限。请检查服务商权限或更换密钥。', 'This API key does not have permission. Check the provider permissions or use another key.');
+  }
+  if (status === 404 || normalized.includes('model_not_found') || normalized.includes('model not found')) {
+    return t('找不到当前模型或接口地址。请在“设置”中检查模型名称和 API 地址。', 'The model or endpoint could not be found. Check the model name and API URL in Settings.');
+  }
+  if (status === 429 || normalized.includes('rate limit') || normalized.includes('too many requests') || normalized.includes('insufficient_quota') || normalized.includes('quota')) {
+    return t('模型服务当前请求较多或额度不足。请稍后重试，并检查账户额度。', 'The model service is busy or the account has insufficient quota. Try later and check the account quota.');
+  }
+  if (status >= 500 && status <= 599) {
+    return t('模型服务暂时不可用。请稍后重试。', 'The model service is temporarily unavailable. Try again shortly.');
+  }
+  if (code === 'MESSAGE_NO_RESPONSE' || code === 'MESSAGE_ERROR') {
+    return t('扩展暂时没有响应。请重新打开扩展；若仍失败，请刷新当前网页。', 'The extension is not responding. Reopen it, or refresh the current page if the issue continues.');
+  }
+  if (code === 'STORAGE_ERROR' || code === 'STORAGE_UNAVAILABLE') {
+    return t('内容暂时无法保存。请检查浏览器存储空间后重试。', 'The content could not be saved. Check browser storage space and try again.');
+  }
+
+  // Recording errors produced by the background service already contain a
+  // concrete recovery action and are safe to keep.
+  if (/请|无法在系统页面|普通网页|刷新|录制/.test(rawMessage) && !/api调用失败|network|chrome\.|background|invalid/i.test(rawMessage)) {
+    return rawMessage;
+  }
+  return fallback || t('操作没有完成。请稍后重试。', 'The action could not be completed. Try again shortly.');
+}
+
 function isLoopbackUrl(urlString) {
   try {
     const { hostname } = new URL(urlString);
@@ -893,6 +962,7 @@ async function loadConfig() {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     ExtensionError,
+    formatUserFacingError,
     debugLog,
     safeExecute,
     storagePromise,

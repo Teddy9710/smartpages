@@ -445,11 +445,15 @@ class PopupManager {
         await this._refreshState();
         window.close();
       } else {
-        this._showError(response?.error || this._t('startFailed'));
+        this._showError(formatUserFacingError(
+          { message: response?.error, code: response?.code || 'RECORDING_ERROR' },
+          this.language,
+          this._t('startFailedRetry')
+        ));
       }
     } catch (error) {
       console.error('[Scribe:Popup] Failed to start recording:', error);
-      this._showError(this._t('startFailedRetry'));
+      this._showError(formatUserFacingError(error, this.language, this._t('startFailedRetry')));
     } finally {
       this.isStartingRecording = false;
     }
@@ -489,12 +493,16 @@ class PopupManager {
         await this._delay(100);
         await this._refreshState();
       } else {
-        this._showError(response?.error || this._t('stopFailed'));
+        this._showError(formatUserFacingError(
+          { message: response?.error, code: response?.code || 'RECORDING_ERROR' },
+          this.language,
+          this._t('stopFailedRetry')
+        ));
         await this._refreshState();
       }
     } catch (error) {
       console.error('[Scribe:Popup] Failed to stop recording:', error);
-      this._showError(this._t('stopFailedRetry'));
+      this._showError(formatUserFacingError(error, this.language, this._t('stopFailedRetry')));
       await this._refreshState();
     } finally {
       this.isStoppingRecording = false;
@@ -532,12 +540,16 @@ class PopupManager {
       if (response?.success) {
         await this._refreshState();
       } else {
-        this._showError(response?.error || this._t('pauseFailed'));
+        this._showError(formatUserFacingError(
+          { message: response?.error, code: response?.code || 'RECORDING_ERROR' },
+          this.language,
+          this._t('pauseFailedRetry')
+        ));
         await this._refreshState();
       }
     } catch (error) {
       console.error('[Scribe:Popup] Failed to pause recording:', error);
-      this._showError(this._t('pauseFailedRetry'));
+      this._showError(formatUserFacingError(error, this.language, this._t('pauseFailedRetry')));
       await this._refreshState();
     } finally {
       this.isPausingRecording = false;
@@ -570,12 +582,16 @@ class PopupManager {
       if (response?.success) {
         await this._refreshState();
       } else {
-        this._showError(response?.error || this._t('resumeFailed'));
+        this._showError(formatUserFacingError(
+          { message: response?.error, code: response?.code || 'RECORDING_ERROR' },
+          this.language,
+          this._t('resumeFailedRetry')
+        ));
         await this._refreshState();
       }
     } catch (error) {
       console.error('[Scribe:Popup] Failed to resume recording:', error);
-      this._showError(this._t('resumeFailedRetry'));
+      this._showError(formatUserFacingError(error, this.language, this._t('resumeFailedRetry')));
       await this._refreshState();
     } finally {
       this.isResumingRecording = false;
@@ -628,8 +644,8 @@ class PopupManager {
       pauseFailedRetry: isEn ? 'Failed to pause recording. Please try again.' : '暂停录制失败，请重试',
       resumeFailed: isEn ? 'Failed to resume recording' : '继续录制失败',
       resumeFailedRetry: isEn ? 'Failed to resume recording. Please try again.' : '继续录制失败，请重试',
-      openEditorFailed: isEn ? 'Unable to open editor' : '无法打开编辑器',
-      resetFailedRetry: isEn ? 'Reset failed. Please try again.' : '重置失败，请重试'
+      openEditorFailed: isEn ? 'Could not open the editor. Reopen the extension and try again.' : '暂时无法打开编辑器。请重新打开扩展后再试。',
+      resetFailedRetry: isEn ? 'Could not start a new recording. Please try again.' : '暂时无法新建录制，请重试。'
     };
     return messages[key] || key;
   }

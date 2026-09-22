@@ -40,7 +40,9 @@
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new ExtensionError(`API调用失败: ${errorData.error?.message || response.statusText}`, 'API_ERROR');
+        const apiError = new ExtensionError(`API调用失败: ${errorData.error?.message || response.statusText}`, 'API_ERROR');
+        apiError.status = response.status;
+        throw apiError;
       }
 
       const data = await response.json();
