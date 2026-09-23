@@ -702,6 +702,18 @@ function buildModelApiRequest(config = {}, prompt, options = {}) {
     };
   }
 
+  const requestBody = {
+    model,
+    messages: [{ role: 'user', content: userContent }],
+    max_tokens: maxTokens
+  };
+  // Current Kimi and MiniMax reasoning models either fix the sampling
+  // temperature or recommend omitting it. Sending SmartPages' generic 0.7
+  // default makes otherwise valid domestic presets fail validation.
+  if (!['kimi', 'minimax'].includes(config.activeProviderId)) {
+    requestBody.temperature = temperature;
+  }
+
   return {
     url: `${baseUrl}/chat/completions`,
     fetchOptions: {
@@ -710,12 +722,7 @@ function buildModelApiRequest(config = {}, prompt, options = {}) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: userContent }],
-        temperature,
-        max_tokens: maxTokens
-      })
+      body: JSON.stringify(requestBody)
     }
   };
 }

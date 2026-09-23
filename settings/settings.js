@@ -42,31 +42,38 @@ const ApiProviders = {
     supportsVision: true
   },
   glm: {
-    label: 'GLM / Z.AI',
-    baseUrl: 'https://api.z.ai/api/paas/v4',
-    modelName: 'glm-4.5',
-    keyUrl: 'https://z.ai/manage-apikey/apikey-list',
+    label: 'GLM / 智谱 AI',
+    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    internationalBaseUrl: 'https://api.z.ai/api/paas/v4',
+    modelName: 'glm-4.7-flash',
+    keyUrl: 'https://bigmodel.cn/usercenter/proj-mgmt/apikeys',
+    internationalKeyUrl: 'https://z.ai/manage-apikey/apikey-list',
     apiFormat: 'openai'
   },
   deepseek: {
     label: 'DeepSeek',
     baseUrl: 'https://api.deepseek.com/v1',
-    modelName: 'deepseek-chat',
+    internationalBaseUrl: 'https://api.deepseek.com/v1',
+    modelName: 'deepseek-flash',
     keyUrl: 'https://platform.deepseek.com/api_keys',
     apiFormat: 'openai'
   },
   minimax: {
     label: 'MiniMax',
-    baseUrl: 'https://api.minimax.io/v1',
-    modelName: 'MiniMax-M1',
-    keyUrl: 'https://platform.minimaxi.com/user-center/basic-information/interface-key',
+    baseUrl: 'https://api.minimax.cn/v1',
+    internationalBaseUrl: 'https://api.minimax.io/v1',
+    modelName: 'MiniMax-M3',
+    keyUrl: 'https://platform.minimax.cn/user-center/basic-information/interface-key',
+    internationalKeyUrl: 'https://platform.minimax.io/',
     apiFormat: 'openai'
   },
   kimi: {
     label: 'Kimi / Moonshot',
-    baseUrl: 'https://api.moonshot.ai/v1',
-    modelName: 'moonshot-v1-8k',
-    keyUrl: 'https://platform.moonshot.ai/console/api-keys',
+    baseUrl: 'https://api.moonshot.cn/v1',
+    internationalBaseUrl: 'https://api.moonshot.ai/v1',
+    modelName: 'kimi-k3',
+    keyUrl: 'https://platform.kimi.com/console/api-keys',
+    internationalKeyUrl: 'https://platform.moonshot.ai/console/api-keys',
     apiFormat: 'openai'
   },
   openrouter: {
@@ -80,15 +87,19 @@ const ApiProviders = {
   siliconflow: {
     label: 'SiliconFlow',
     baseUrl: 'https://api.siliconflow.cn/v1',
+    internationalBaseUrl: 'https://api.siliconflow.com/v1',
     modelName: 'deepseek-ai/DeepSeek-V3',
     keyUrl: 'https://cloud.siliconflow.cn/account/ak',
+    internationalKeyUrl: 'https://cloud.siliconflow.com/account/ak',
     apiFormat: 'openai'
   },
   dashscope: {
     label: '阿里云百炼 DashScope',
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    internationalBaseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
     modelName: 'qwen-plus',
     keyUrl: 'https://bailian.console.aliyun.com/?apiKey=1',
+    internationalKeyUrl: 'https://modelstudio.console.alibabacloud.com/',
     apiFormat: 'openai'
   },
   custom: {
@@ -200,8 +211,12 @@ class SettingsManager {
     const appLanguageSelect = document.getElementById('app-language');
     if (appLanguageSelect) {
       const handler = () => {
-        this.config.appLanguage = appLanguageSelect.value || DEFAULT_APP_LANGUAGE;
+        const previousLanguage = this._getAppLanguage();
+        const nextLanguage = this._getAppLanguage(appLanguageSelect.value);
+        this._switchApiRegion(previousLanguage, nextLanguage);
+        this.config.appLanguage = nextLanguage;
         this._applyLanguage();
+        this._syncKeyHelp();
       };
       appLanguageSelect.addEventListener('change', handler);
       this.cleanupFunctions.push(() => appLanguageSelect.removeEventListener('change', handler));
@@ -294,15 +309,16 @@ class SettingsManager {
 
   _populateProviderProfile(providerId, profile) {
     const provider = ApiProviders[providerId] || ApiProviders.custom;
-    const resolved = profile || {
+    const resolved = profile ? { ...profile } : {
       apiKey: '',
-      baseUrl: provider.baseUrl || '',
+      baseUrl: this._getProviderBaseUrl(providerId),
       modelName: provider.modelName || '',
       apiFormat: provider.apiFormat || DEFAULT_API_FORMAT,
       maxTokens: DEFAULT_MAX_TOKENS,
       maxInputTokens: DEFAULT_MAX_INPUT_TOKENS,
       multimodalEnabled: provider.supportsVision === true
     };
+    resolved.baseUrl = this._resolveRegionalBaseUrl(providerId, resolved.baseUrl);
     const apiKeyInput = document.getElementById('api-key');
     const baseUrlInput = document.getElementById('base-url');
     const modelNameInput = document.getElementById('model-name');
@@ -343,7 +359,12 @@ class SettingsManager {
     }
     if (appLanguageSelect) appLanguageSelect.value = this.config.appLanguage || DEFAULT_APP_LANGUAGE;
     if (apiProviderSelect) apiProviderSelect.value = this.activeProviderId;
-    if (baseUrlInput) baseUrlInput.value = this.config.baseUrl || '';
+    const resolvedBaseUrl = this._resolveRegionalBaseUrl(this.activeProviderId, this.config.baseUrl);
+    this.config.baseUrl = resolvedBaseUrl;
+    if (this.providerProfiles[this.activeProviderId]) {
+      this.providerProfiles[this.activeProviderId].baseUrl = resolvedBaseUrl;
+    }
+    if (baseUrlInput) baseUrlInput.value = resolvedBaseUrl;
     if (modelNameInput) modelNameInput.value = this.config.modelName;
     if (smartDescCheckbox) smartDescCheckbox.checked = this.config.smartDescription;
     if (maxTokensInput) maxTokensInput.value = this.config.maxTokens || DEFAULT_MAX_TOKENS;
@@ -663,6 +684,49 @@ class SettingsManager {
     return messages[key] || key;
   }
 
+  _getAppLanguage(value = this.config?.appLanguage) {
+    return value === 'en-US' ? 'en-US' : 'zh-CN';
+  }
+
+  _getProviderBaseUrl(providerId, language = this._getAppLanguage()) {
+    const provider = ApiProviders[providerId] || ApiProviders.custom;
+    return language === 'en-US'
+      ? (provider.internationalBaseUrl || provider.baseUrl || '')
+      : (provider.baseUrl || '');
+  }
+
+  _getProviderKeyUrl(providerId, language = this._getAppLanguage()) {
+    const provider = ApiProviders[providerId] || ApiProviders.custom;
+    return language === 'en-US'
+      ? (provider.internationalKeyUrl || provider.keyUrl || '')
+      : (provider.keyUrl || '');
+  }
+
+  _resolveRegionalBaseUrl(providerId, value, language = this._getAppLanguage()) {
+    const provider = ApiProviders[providerId] || ApiProviders.custom;
+    const current = this._normalizeBaseUrl(value);
+    const knownRegionalUrls = [provider.baseUrl, provider.internationalBaseUrl]
+      .filter(Boolean)
+      .map(url => this._normalizeBaseUrl(url));
+    if (!current || knownRegionalUrls.includes(current)) {
+      return this._getProviderBaseUrl(providerId, language);
+    }
+    return String(value || '').trim();
+  }
+
+  _switchApiRegion(previousLanguage, nextLanguage) {
+    if (previousLanguage === nextLanguage) return;
+    const providerId = document.getElementById('api-provider')?.value || this.activeProviderId;
+    const baseUrlInput = document.getElementById('base-url');
+    const currentBaseUrl = baseUrlInput?.value.trim() || this.config.baseUrl || '';
+    const resolvedBaseUrl = this._resolveRegionalBaseUrl(providerId, currentBaseUrl, nextLanguage);
+    if (baseUrlInput) baseUrlInput.value = resolvedBaseUrl;
+    this.config.baseUrl = resolvedBaseUrl;
+    if (this.providerProfiles[providerId]) {
+      this.providerProfiles[providerId].baseUrl = resolvedBaseUrl;
+    }
+  }
+
   _applyApiProvider(providerId) {
     const provider = ApiProviders[providerId] || ApiProviders.custom;
     if (this.activeProviderId && this.activeProviderId !== providerId) {
@@ -691,7 +755,9 @@ class SettingsManager {
   _inferApiProvider(baseUrl) {
     const normalized = this._normalizeBaseUrl(baseUrl);
     const matched = Object.entries(ApiProviders).find(([id, provider]) => (
-      id !== 'custom' && this._normalizeBaseUrl(provider.baseUrl) === normalized
+      id !== 'custom' && [provider.baseUrl, provider.internationalBaseUrl]
+        .filter(Boolean)
+        .some(url => this._normalizeBaseUrl(url) === normalized)
     ));
     return matched?.[0] || 'custom';
   }
@@ -703,23 +769,27 @@ class SettingsManager {
   _syncKeyHelp(providerId = document.getElementById('api-provider')?.value || 'custom') {
     const help = document.getElementById('api-key-help');
     const provider = ApiProviders[providerId] || ApiProviders.custom;
+    const keyUrl = this._getProviderKeyUrl(providerId);
     if (!help) return;
 
     help.replaceChildren();
-    if (!provider.keyUrl) {
-      help.textContent = '自定义服务商请在对应平台创建 API Key，并确认接口兼容 /chat/completions。';
+    if (!keyUrl) {
+      help.textContent = this._getAppLanguage() === 'en-US'
+        ? 'Create an API key with your custom provider and confirm that it supports /chat/completions.'
+        : '自定义服务商请在对应平台创建 API Key，并确认接口兼容 /chat/completions。';
       return;
     }
 
+    const isEn = this._getAppLanguage() === 'en-US';
     help.append(
-      document.createTextNode(`当前选择 ${provider.label}，`),
+      document.createTextNode(isEn ? `${provider.label}: ` : `当前选择 ${provider.label}，`),
       createElement('a', {
-        href: provider.keyUrl,
+        href: keyUrl,
         target: '_blank',
         rel: 'noopener noreferrer',
-        textContent: '去获取 API Key'
+        textContent: isEn ? 'Get an API Key' : '去获取 API Key'
       }),
-      document.createTextNode('。')
+      document.createTextNode(isEn ? '.' : '。')
     );
   }
 
@@ -1029,7 +1099,7 @@ class SettingsManager {
 
     try {
       const request = buildModelApiRequest(
-        { apiKey, baseUrl, modelName, apiFormat, maxTokens: 5 },
+        { apiKey, baseUrl, modelName, apiFormat, maxTokens: 5, activeProviderId: apiProviderSelect?.value },
         'Hi',
         { maxTokens: 5, temperature: 0 }
       );

@@ -65,3 +65,15 @@ assert.equal(
   limitedContent.filter(part => part.type === 'image_url').length,
   MAX_MODEL_SCREENSHOTS
 );
+
+for (const activeProviderId of ['kimi', 'minimax']) {
+  const request = buildModelApiRequest({
+    apiKey: 'test-key',
+    baseUrl: 'https://api.example.com/v1',
+    apiFormat: 'openai',
+    activeProviderId,
+    modelName: activeProviderId === 'kimi' ? 'kimi-k3' : 'MiniMax-M3'
+  }, 'Hello');
+  const body = JSON.parse(request.fetchOptions.body);
+  assert.equal('temperature' in body, false, `${activeProviderId} should use the provider's fixed temperature`);
+}
