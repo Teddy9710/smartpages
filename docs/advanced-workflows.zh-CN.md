@@ -48,7 +48,7 @@ MCP Server 提供 `list_workflows`、`start_run`、`get_run_status` 和 `cancel_
 ## 首次接入检查清单
 
 1. 在 `chrome://extensions` 开启开发者模式，并加载项目的 `dist/` 目录，而不是源码根目录。
-2. 在 SmartPages 设置页保存模型 API Key。重载扩展后，本地配置仍会保留。
+2. 在 SmartPages 设置页输入模型 API Key。密钥仅在当前浏览器会话中保留；完全退出浏览器后需重新输入。
 3. 使用 `127.0.0.1`、Bridge 端口和 `bridge-token.json` 中的 token 配置扩展。
 4. 当扩展请求工作流目标站点的访问权限时予以允许。例如，本地演示页需要 `http://localhost/*`。
 5. 在安装了 SmartPages 扩展的桌面 Chrome 中打开工作流要求的起始页面。

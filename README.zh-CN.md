@@ -114,11 +114,11 @@ SmartPages 支持：
 - **OpenAI-compatible Chat Completions：**OpenAI、Gemini、GLM、DeepSeek、MiniMax、Kimi、OpenRouter、SiliconFlow、DashScope，以及自定义兼容服务。
 - **Anthropic Messages API：**通过 Anthropic 使用 Claude 模型。
 
-服务商、Base URL、模型和 API Key 均由你选择，对应服务的限制和费用也由你掌控。每个服务商会独立保存自己的连接配置，切换时自动恢复。
+服务商、Base URL、模型和 API Key 均由你选择，对应服务的限制和费用也由你掌控。每个服务商会独立保存自己的非敏感连接配置；API Key 仅在当前浏览器会话中保留。
 
 ## 默认保护隐私
 
-- API Key 保存在 Chrome Storage 中，不会写入仓库。
+- API Key 只保存在 Chrome 的会话存储中，不会写入磁盘或仓库；完全退出浏览器后需要重新输入。
 - 录制内容只在生成文档时发送到你配置的模型 API。
 - 只有显式启用“模型支持图片输入”后，步骤截图才会发送给多模态模型；已隐藏的截图不会发送，每次请求最多附带 12 张。
 - Supabase 同步默认关闭，只有完成配置、登录并主动保存后才会上传。

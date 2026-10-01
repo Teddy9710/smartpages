@@ -3,6 +3,7 @@ const {
   normalizeExtractedText,
   pageItemsToText,
   extractWordXmlText,
+  decodeXmlEntities,
   extractPdfText,
   extractDocxText
 } = require('../utils/documentParsers.js');
@@ -17,6 +18,7 @@ assert.equal(
   extractWordXmlText('<w:document><w:body><w:p><w:r><w:t>Hello &amp; world</w:t></w:r></w:p><w:p><w:r><w:t>Next</w:t><w:tab/><w:t>cell</w:t></w:r></w:p></w:body></w:document>'),
   'Hello & world\n\nNext\tcell'
 );
+assert.equal(decodeXmlEntities('valid: &#x1F642; invalid: &#x110000; surrogate: &#55296;'), 'valid: 🙂 invalid: � surrogate: �');
 
 (async () => {
   let destroyed = false;

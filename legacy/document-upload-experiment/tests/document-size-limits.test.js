@@ -19,17 +19,7 @@ function loadClass(file, exportName) {
 }
 
 (async () => {
-  const DocumentStorage = loadClass('legacy/document-management/document-storage.js', 'DocumentStorage');
-  const storage = new DocumentStorage();
-  let storageRead = false;
-  storage.readFileContent = async () => {
-    storageRead = true;
-    return 'data';
-  };
-  await assert.rejects(() => storage.saveDocument(largeFile), /5 MB|5MB|size/i);
-  assert.equal(storageRead, false);
-
-  const DocumentUploadManager = loadClass('upload/upload-manager.js', 'DocumentUploadManager');
+  const DocumentUploadManager = loadClass('upload-manager.js', 'DocumentUploadManager');
   const manager = new DocumentUploadManager();
   let base64Read = false;
   manager.readFileAsBase64 = async () => {

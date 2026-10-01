@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
+const writes = [];
 global.chrome = {
   runtime: { lastError: null },
   storage: {
@@ -30,7 +31,13 @@ global.chrome = {
             }
           }
         });
-      }
+      },
+      set(data, callback) { writes.push({ area: 'local', method: 'set', data }); callback(); },
+      remove(data, callback) { writes.push({ area: 'local', method: 'remove', data }); callback(); }
+    },
+    session: {
+      get(_keys, callback) { callback({}); },
+      set(data, callback) { writes.push({ area: 'session', method: 'set', data }); callback(); }
     }
   }
 };
@@ -50,12 +57,16 @@ const { loadConfig } = require(commonPath);
   assert.equal(config.maxInputTokens, 180000);
   assert.equal(config.multimodalEnabled, true);
   assert.equal(config.providerProfiles.openai.apiKey, 'openai-key');
+  assert.equal(writes.some(call => call.area === 'session' && call.data.providerApiKeys.openai === 'openai-key'), true);
+  const localMigration = writes.find(call => call.area === 'local' && call.method === 'set');
+  assert.equal(Object.hasOwn(localMigration.data.providerProfiles.openai, 'apiKey'), false);
+  assert.equal(writes.some(call => call.area === 'local' && call.method === 'remove' && call.data === 'apiKey'), true);
 
   const source = fs.readFileSync(path.join(__dirname, '..', 'settings', 'settings.js'), 'utf8');
   assert.match(source, /_captureProviderProfile\(this\.activeProviderId\)/);
   assert.match(source, /_populateProviderProfile\(providerId, this\.providerProfiles\[providerId\]\)/);
   assert.match(source, /activeProviderId: this\.config\.activeProviderId/);
-  assert.match(source, /providerProfiles: this\.config\.providerProfiles/);
+  assert.match(source, /providerProfiles: persistentProviderProfiles/);
 })().catch(error => {
   console.error(error);
   process.exit(1);

@@ -59,7 +59,7 @@ smartpages/
 │   ├── cli-interface.js     # 命令行接口
 │   ├── integration-test.js  # 集成测试
 │   └── index.js             # 系统主入口
-├── upload/                  # 上传功能模块
+├── legacy/document-upload-experiment/ # 未进入发布包的旧版上传与关联原型
 ├── settings/                # 设置界面（已更新）
 ├── utils/                   # 工具函数
 └── ...

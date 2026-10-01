@@ -3,8 +3,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const managerSource = fs.readFileSync(path.join(__dirname, '..', 'upload', 'upload-manager.js'), 'utf8');
-const panelSource = fs.readFileSync(path.join(__dirname, '..', 'upload', 'upload-panel.js'), 'utf8');
+const managerSource = fs.readFileSync(path.join(__dirname, '..', 'upload-manager.js'), 'utf8');
+const panelSource = fs.readFileSync(path.join(__dirname, '..', 'upload-panel.js'), 'utf8');
 const requests = [];
 const sandbox = {
   console: { log: () => {}, warn: () => {}, error: () => {} },

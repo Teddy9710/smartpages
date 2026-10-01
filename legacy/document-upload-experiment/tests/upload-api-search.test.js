@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'upload', 'api-handler.js'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '..', 'api-handler.js'), 'utf8');
 const sandbox = { console, URL, window: {} };
 sandbox.globalThis = sandbox;
 vm.runInNewContext(source, sandbox);

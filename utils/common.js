@@ -898,7 +898,7 @@ function extractFunctionName(code) {
 // ============================================================================
 
 /**
- * Loads persistent AI settings, including the API key.
+ * Loads persistent AI settings and session-only API secrets.
  * @async
  * @returns {Promise<{apiKey: string, baseUrl: string, modelName: string, smartDescription: boolean}>}
  */
@@ -922,10 +922,47 @@ async function loadConfig() {
     'providerProfiles',
     'activeProviderId'
   ]);
-  const providerProfiles = result.providerProfiles && typeof result.providerProfiles === 'object'
+  const sessionSecrets = await storagePromise('session', 'get', [
+    'apiKey',
+    'providerApiKeys'
+  ]).catch(() => ({}));
+  const storedProviderProfiles = result.providerProfiles && typeof result.providerProfiles === 'object'
     ? result.providerProfiles
     : {};
+  const persistentProviderProfiles = Object.fromEntries(
+    Object.entries(storedProviderProfiles).map(([id, profile]) => {
+      const safeProfile = { ...(profile || {}) };
+      delete safeProfile.apiKey;
+      return [id, safeProfile];
+    })
+  );
+  const legacyProviderApiKeys = Object.fromEntries(
+    Object.entries(storedProviderProfiles)
+      .filter(([, profile]) => typeof profile?.apiKey === 'string' && profile.apiKey)
+      .map(([id, profile]) => [id, profile.apiKey])
+  );
+  const providerApiKeys = {
+    ...legacyProviderApiKeys,
+    ...(sessionSecrets.providerApiKeys && typeof sessionSecrets.providerApiKeys === 'object'
+      ? sessionSecrets.providerApiKeys
+      : {})
+  };
+  const providerProfiles = Object.fromEntries(
+    Object.entries(persistentProviderProfiles).map(([id, profile]) => [id, {
+      ...profile,
+      apiKey: String(providerApiKeys[id] || '')
+    }])
+  );
   const activeProviderId = String(result.activeProviderId || '');
+  const legacyApiKey = String(result.apiKey || '');
+  const sessionApiKey = String(sessionSecrets.apiKey || '');
+  const activeFallbackApiKey = sessionApiKey || legacyApiKey;
+  if (activeProviderId && activeFallbackApiKey && !providerApiKeys[activeProviderId]) {
+    providerApiKeys[activeProviderId] = activeFallbackApiKey;
+    if (providerProfiles[activeProviderId]) {
+      providerProfiles[activeProviderId].apiKey = activeFallbackApiKey;
+    }
+  }
   const activeProfile = activeProviderId && providerProfiles[activeProviderId]
     ? providerProfiles[activeProviderId]
     : null;
@@ -938,8 +975,17 @@ async function loadConfig() {
     ? Math.min(Math.max(parsedMaxInputTokens, MIN_MAX_INPUT_TOKENS), MAX_MAX_INPUT_TOKENS)
     : DEFAULT_MAX_INPUT_TOKENS;
 
+  if ((legacyApiKey || Object.keys(legacyProviderApiKeys).length) && chrome?.storage?.session) {
+    await storagePromise('session', 'set', {
+      apiKey: sessionApiKey || activeProfile?.apiKey || legacyApiKey,
+      providerApiKeys
+    });
+    await storagePromise('local', 'set', { providerProfiles: persistentProviderProfiles });
+    await storagePromise('local', 'remove', 'apiKey');
+  }
+
   return {
-    apiKey: activeProfile?.apiKey || result.apiKey || '',
+    apiKey: activeProfile?.apiKey || sessionApiKey || legacyApiKey,
     baseUrl: activeProfile?.baseUrl || result.baseUrl || 'https://api.openai.com/v1',
     modelName: activeProfile?.modelName || result.modelName || 'gpt-3.5-turbo',
     smartDescription: result.smartDescription !== undefined ? result.smartDescription : true,

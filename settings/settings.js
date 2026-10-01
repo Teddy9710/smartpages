@@ -1027,8 +1027,23 @@ class SettingsManager {
     this.config.providerProfiles = this.providerProfiles;
 
     try {
-      await storagePromise('local', 'set', {
+      const providerApiKeys = Object.fromEntries(
+        Object.entries(this.config.providerProfiles)
+          .filter(([, profile]) => typeof profile?.apiKey === 'string' && profile.apiKey)
+          .map(([id, profile]) => [id, profile.apiKey])
+      );
+      const persistentProviderProfiles = Object.fromEntries(
+        Object.entries(this.config.providerProfiles).map(([id, profile]) => {
+          const safeProfile = { ...(profile || {}) };
+          delete safeProfile.apiKey;
+          return [id, safeProfile];
+        })
+      );
+      await storagePromise('session', 'set', {
         apiKey: this.config.apiKey,
+        providerApiKeys
+      });
+      await storagePromise('local', 'set', {
         baseUrl: this.config.baseUrl,
         modelName: this.config.modelName,
         apiFormat: this.config.apiFormat,
@@ -1044,8 +1059,9 @@ class SettingsManager {
         styleGuide: this.config.styleGuide,
         documentExamples: this.config.documentExamples,
         activeProviderId: this.config.activeProviderId,
-        providerProfiles: this.config.providerProfiles
+        providerProfiles: persistentProviderProfiles
       });
+      await storagePromise('local', 'remove', 'apiKey');
       const bridgeSaved = await this.saveAgentBridgeConfig();
       if (!bridgeSaved) return;
       if (apiKeyInput) { this.#apiKeyMemory = this.config.apiKey; apiKeyInput.value = maskApiKey(this.config.apiKey); }
@@ -1148,7 +1164,7 @@ class SettingsManager {
       apiDesc: 'Configure model API credentials for AI features',
       language: 'Interface Language',
       provider: 'Model Provider',
-      providerHelp: 'Each provider keeps its own API key, Base URL, model, and image setting. Switching providers restores the last saved configuration.',
+      providerHelp: 'Each provider keeps its own settings. API keys remain only for the current browser session and must be re-entered after the browser fully closes.',
       baseUrl: 'Base URL (optional)',
       baseHelp: 'Leave empty to use the default OpenAI API URL',
       model: 'Model Name',
@@ -1180,7 +1196,7 @@ class SettingsManager {
       apiDesc: '配置大模型 API 凭证以使用 AI 功能',
       language: '界面语言',
       provider: '模型服务商',
-      providerHelp: '每个服务商的 API Key、Base URL、模型和图片设置会独立保存；切换时自动恢复上次配置。',
+      providerHelp: '每个服务商的配置会独立保存；API Key 仅在当前浏览器会话中保留，完全退出浏览器后需重新输入。',
       baseUrl: 'Base URL（可选）',
       baseHelp: '留空使用默认的 OpenAI API 地址',
       model: '模型名称',

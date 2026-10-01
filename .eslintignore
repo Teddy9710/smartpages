@@ -1,6 +1,8 @@
 node_modules/
 dist/
 build/
+tmp/
+temp/
 *.log
 __pycache__/
 .claude/

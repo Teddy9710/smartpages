@@ -96,9 +96,17 @@ const DocumentParsers = (() => {
   }
 
   function decodeXmlEntities(value) {
+    const decodeCodePoint = (code, radix) => {
+      const value = Number.parseInt(code, radix);
+      if (!Number.isInteger(value) || value < 0 || value > 0x10FFFF ||
+          (value >= 0xD800 && value <= 0xDFFF)) {
+        return '\uFFFD';
+      }
+      return String.fromCodePoint(value);
+    };
     return String(value || '')
-      .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(Number.parseInt(code, 16)))
-      .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number.parseInt(code, 10)))
+      .replace(/&#x([0-9a-f]+);/gi, (_, code) => decodeCodePoint(code, 16))
+      .replace(/&#(\d+);/g, (_, code) => decodeCodePoint(code, 10))
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
       .replace(/&quot;/g, '"')

@@ -19,11 +19,9 @@
 - 文档删除功能
 - 文档搜索功能
 
-### 3. 文档关联机制 (utils/documentLinker.js)
-- 文档与代码的关联功能
-- 代码类型检测
-- 函数名提取
-- 关联数据管理
+### 3. 已归档的早期实验
+- 旧版独立上传页、GitHub 上传和文档关联原型已移动到 `legacy/document-upload-experiment/`
+- 这些文件不属于正式扩展构建；当前参考文档流程由设置页、侧边栏和 `utils/documentUpload.js` 提供
 
 ### 4. 设置界面文档管理 (settings/)
 - 新增文档上传区域
