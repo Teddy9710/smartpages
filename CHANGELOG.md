@@ -5,6 +5,14 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.3.1] - 2026-10-01
+
+### Added
+- 图片编辑器新增文字标注，支持调整字号、颜色和文字背景。
+
+### Fixed
+- 修复打开文档管理后无法返回刚生成文档页面的问题。
+
 ## [1.3.0] - 2026-08-04
 
 ### Added

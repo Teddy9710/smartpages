@@ -15,8 +15,47 @@
     return { x, y, width: size, height: size };
   }
 
+  static getAutoTextRect(point, image) {
+    const imageWidth = Math.max(0, image?.naturalWidth || 0);
+    const imageHeight = Math.max(0, image?.naturalHeight || 0);
+    if (!point || imageWidth <= 0 || imageHeight <= 0) {
+      return { x: 0, y: 0, width: 0, height: 0 };
+    }
+    const width = Math.min(imageWidth, Math.max(160, Math.round(imageWidth * 0.42)));
+    const height = Math.min(imageHeight, Math.max(64, Math.round(imageHeight * 0.14)));
+    return {
+      x: Math.min(Math.max(0, Math.round(point.x)), imageWidth - width),
+      y: Math.min(Math.max(0, Math.round(point.y)), imageHeight - height),
+      width,
+      height
+    };
+  }
+
+  static wrapCanvasText(ctx, text, maxWidth) {
+    const paragraphs = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+    const lines = [];
+    paragraphs.forEach(paragraph => {
+      if (!paragraph) {
+        lines.push('');
+        return;
+      }
+      let line = '';
+      Array.from(paragraph).forEach(character => {
+        const candidate = line + character;
+        if (line && ctx.measureText(candidate).width > maxWidth) {
+          lines.push(line.trimEnd());
+          line = character.trimStart();
+        } else {
+          line = candidate;
+        }
+      });
+      if (line || !lines.length) lines.push(line.trimEnd());
+    });
+    return lines;
+  }
+
   static normalizeImageEditMode(mode) {
-    return ['crop', 'box', 'number', 'blur'].includes(mode) ? mode : 'crop';
+    return ['crop', 'box', 'number', 'blur', 'text'].includes(mode) ? mode : 'crop';
   }
 
   static createImageEditHistory(snapshot) {
@@ -93,6 +132,8 @@
         canvasScale: 1
       };
       document.getElementById('image-crop-modal')?.classList.remove('hidden');
+      const textInput = document.getElementById('image-text-input');
+      if (textInput) textInput.value = '';
       this._ensureImageEditHistory(imageElement);
       this._updateImageHistoryControls();
       this.setImageEditMode('crop', { preserveSelection: true });
@@ -265,6 +306,8 @@
     document.getElementById('btn-image-mode-box')?.classList.toggle('active', nextMode === 'box');
     document.getElementById('btn-image-mode-number')?.classList.toggle('active', nextMode === 'number');
     document.getElementById('btn-image-mode-blur')?.classList.toggle('active', nextMode === 'blur');
+    document.getElementById('btn-image-mode-text')?.classList.toggle('active', nextMode === 'text');
+    document.getElementById('image-text-controls')?.classList.toggle('hidden', nextMode !== 'text');
     const applyButton = document.getElementById('btn-apply-image-crop');
     if (applyButton) {
       applyButton.textContent = this._getImageEditText(nextMode, 'Apply');
@@ -284,6 +327,11 @@
 
   applyImageCrop() {
     const { imageElement, sourceImage, rect, mode } = this.imageCropState;
+    const textOptions = mode === 'text' ? this._getImageTextOptions() : null;
+    if (mode === 'text' && !textOptions.text) {
+      this._setImageCropStatus(this._t('textRequired'));
+      return;
+    }
     if (!imageElement || !sourceImage || !rect || rect.width < 4 || rect.height < 4) {
       this._setImageCropStatus(this._getImageEditText(mode, 'SelectLarger'));
       return;
@@ -292,12 +340,14 @@
     try {
       const output = document.createElement('canvas');
       const ctx = output.getContext('2d');
-      if (['box', 'number', 'blur'].includes(mode)) {
+      if (['box', 'number', 'blur', 'text'].includes(mode)) {
         output.width = sourceImage.naturalWidth;
         output.height = sourceImage.naturalHeight;
         ctx.drawImage(sourceImage, 0, 0);
         if (mode === 'blur') {
           this._drawBlurArea(ctx, sourceImage, rect);
+        } else if (mode === 'text') {
+          this._drawTextAnnotation(ctx, rect, textOptions);
         } else if (mode === 'number') {
           const number = SidePanelManager.getNextAnnotationNumber(document.querySelectorAll('img[data-annotation-number]'));
           this._drawNumberedHighlight(ctx, rect, output.width, output.height, number);
@@ -342,8 +392,55 @@
 
   _getImageEditText(mode, suffix) {
     const normalized = SidePanelManager.normalizeImageEditMode(mode);
-    const prefix = normalized === 'number' ? 'number' : normalized === 'blur' ? 'blur' : normalized === 'box' ? 'box' : 'crop';
+    const prefix = normalized === 'number' ? 'number' : normalized === 'blur' ? 'blur' : normalized === 'box' ? 'box' : normalized === 'text' ? 'text' : 'crop';
     return this._t(`${prefix}${suffix}`);
+  }
+
+  _getImageTextOptions(scale = 1) {
+    const text = document.getElementById('image-text-input')?.value.trim() || '';
+    const rawSize = Number.parseInt(document.getElementById('image-text-size')?.value, 10);
+    const fontSize = Math.min(120, Math.max(12, Number.isFinite(rawSize) ? rawSize : 32)) * scale;
+    const rawColor = document.getElementById('image-text-color')?.value || '#ffffff';
+    const color = /^#[0-9a-f]{6}$/i.test(rawColor) ? rawColor : '#ffffff';
+    const background = document.getElementById('image-text-background')?.checked !== false;
+    return { text, fontSize, color, background };
+  }
+
+  _drawTextAnnotation(ctx, rect, options) {
+    const fontSize = Math.max(8, options.fontSize || 32);
+    const padding = Math.max(6, Math.round(fontSize * 0.38));
+    const lineHeight = Math.round(fontSize * 1.28);
+    const maxWidth = Math.max(1, rect.width - padding * 2);
+    ctx.save();
+    ctx.font = `700 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    const lines = SidePanelManager.wrapCanvasText(ctx, options.text, maxWidth);
+    const maxLines = Math.max(1, Math.floor((rect.height - padding * 2) / lineHeight));
+    const visibleLines = lines.slice(0, maxLines);
+    if (lines.length > maxLines && visibleLines.length) {
+      let last = visibleLines.at(-1);
+      while (last && ctx.measureText(`${last}…`).width > maxWidth) last = last.slice(0, -1);
+      visibleLines[visibleLines.length - 1] = `${last}…`;
+    }
+    const boxHeight = Math.min(rect.height, visibleLines.length * lineHeight + padding * 2);
+    if (options.background) {
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+      ctx.fillRect(rect.x, rect.y, rect.width, boxHeight);
+    }
+    ctx.fillStyle = options.color;
+    visibleLines.forEach((line, index) => {
+      const x = rect.x + padding;
+      const y = rect.y + padding + index * lineHeight;
+      if (!options.background) {
+        ctx.strokeStyle = 'rgba(15, 23, 42, 0.92)';
+        ctx.lineWidth = Math.max(2, Math.round(fontSize * 0.1));
+        ctx.lineJoin = 'round';
+        ctx.strokeText(line, x, y, maxWidth);
+      }
+      ctx.fillText(line, x, y, maxWidth);
+    });
+    ctx.restore();
   }
 
   _drawHighlightBox(ctx, rect, imageWidth, imageHeight, minLineWidth = 4) {
@@ -455,6 +552,21 @@
       return;
     }
 
+    if (this.imageCropState.mode === 'text') {
+      const options = this._getImageTextOptions(scale);
+      if (options.text) {
+        this._drawTextAnnotation(ctx, { x, y, width, height }, options);
+      } else {
+        ctx.save();
+        ctx.strokeStyle = '#2563eb';
+        ctx.setLineDash([6, 4]);
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 1, y + 1, Math.max(0, width - 2), Math.max(0, height - 2));
+        ctx.restore();
+      }
+      return;
+    }
+
     ctx.save();
     ctx.fillStyle = 'rgba(15, 23, 42, 0.42)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -492,8 +604,10 @@
     if (point && start) {
       const clickThreshold = 6 / (this.imageCropState.displayScale || 1);
       const movedDistance = Math.hypot(point.x - start.x, point.y - start.y);
-      if (['box', 'number'].includes(this.imageCropState.mode) && movedDistance <= clickThreshold) {
-        this.imageCropState.rect = SidePanelManager.getAutoHighlightRect(point, this.imageCropState.sourceImage);
+      if (['box', 'number', 'text'].includes(this.imageCropState.mode) && movedDistance <= clickThreshold) {
+        this.imageCropState.rect = this.imageCropState.mode === 'text'
+          ? SidePanelManager.getAutoTextRect(point, this.imageCropState.sourceImage)
+          : SidePanelManager.getAutoHighlightRect(point, this.imageCropState.sourceImage);
       } else {
         this.imageCropState.rect = this._normalizeImageCropRect(start, point);
       }

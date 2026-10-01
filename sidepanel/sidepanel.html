@@ -25,7 +25,9 @@
     <div id="documents-state" class="state-view hidden">
       <div class="panel-header">
         <h2>文档管理</h2>
-        <button id="btn-close-documents" class="btn-icon icon-close" title="关闭" aria-label="关闭"></button>
+        <button id="btn-close-documents" class="btn btn-secondary btn-small" type="button">
+          <span class="icon icon-back" aria-hidden="true"></span> 返回文档
+        </button>
       </div>
       <div class="documents-content">
         <div class="upload-section">
@@ -260,6 +262,25 @@
             <button id="btn-image-mode-box" class="image-edit-mode" type="button">Box</button>
             <button id="btn-image-mode-number" class="image-edit-mode" type="button">Number</button>
             <button id="btn-image-mode-blur" class="image-edit-mode" type="button">Blur</button>
+            <button id="btn-image-mode-text" class="image-edit-mode" type="button">Text</button>
+          </div>
+          <div id="image-text-controls" class="image-text-controls hidden">
+            <label class="image-text-field image-text-field--content" for="image-text-input">
+              <span id="image-text-label">Text</span>
+              <textarea id="image-text-input" class="input" rows="2" maxlength="240" placeholder="Enter annotation text"></textarea>
+            </label>
+            <label class="image-text-field" for="image-text-size">
+              <span id="image-text-size-label">Size</span>
+              <input id="image-text-size" class="input" type="number" min="12" max="120" step="1" value="32">
+            </label>
+            <label class="image-text-field" for="image-text-color">
+              <span id="image-text-color-label">Color</span>
+              <input id="image-text-color" class="image-text-color" type="color" value="#ffffff">
+            </label>
+            <label class="image-text-background" for="image-text-background">
+              <input id="image-text-background" type="checkbox" checked>
+              <span id="image-text-background-label">Background</span>
+            </label>
           </div>
           <div class="image-crop-stage">
             <canvas id="image-crop-canvas" class="image-crop-canvas"></canvas>

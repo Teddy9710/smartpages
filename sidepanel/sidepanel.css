@@ -862,6 +862,7 @@ body {
 
 .image-edit-toolbar {
   display: inline-flex;
+  flex-wrap: wrap;
   width: fit-content;
   padding: 3px;
   background: #eef2f7;
@@ -886,6 +887,63 @@ body {
   color: #0f172a;
   background: #fff;
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
+}
+
+.image-text-controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 92px 92px auto;
+  gap: 10px;
+  align-items: end;
+  padding: 10px;
+  background: #f8fafc;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+}
+
+.image-text-controls.hidden {
+  display: none;
+}
+
+.image-text-field {
+  display: grid;
+  gap: 5px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.image-text-field--content textarea {
+  min-height: 58px;
+  resize: vertical;
+}
+
+.image-text-color {
+  width: 100%;
+  min-height: 38px;
+  padding: 3px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.image-text-background {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  min-height: 38px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .image-text-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .image-text-field--content {
+    grid-column: 1 / -1;
+  }
 }
 
 .image-crop-stage {

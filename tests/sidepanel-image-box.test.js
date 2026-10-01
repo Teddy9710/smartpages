@@ -56,6 +56,41 @@ function assertRect(actual, expected) {
 }
 
 {
+  const rect = SidePanelManager.getAutoTextRect(
+    { x: 900, y: 480 },
+    { naturalWidth: 1000, naturalHeight: 500 }
+  );
+
+  assertRect(rect, { x: 580, y: 430, width: 420, height: 70 });
+}
+
+{
+  const lines = SidePanelManager.wrapCanvasText(
+    { measureText: value => ({ width: value.length * 10 }) },
+    'abcdef',
+    30
+  );
+  assert.deepEqual(JSON.parse(JSON.stringify(lines)), ['abc', 'def']);
+}
+
+{
+  const operations = [];
+  const ctx = {
+    save: () => operations.push('save'),
+    restore: () => operations.push('restore'),
+    measureText: value => ({ width: value.length * 10 }),
+    fillRect: (...args) => operations.push(['fillRect', ...args]),
+    fillText: (...args) => operations.push(['fillText', ...args]),
+    strokeText: (...args) => operations.push(['strokeText', ...args])
+  };
+  SidePanelManager.prototype._drawTextAnnotation.call({}, ctx, { x: 10, y: 20, width: 180, height: 80 }, {
+    text: '说明文字', fontSize: 24, color: '#ffffff', background: true
+  });
+  assert.equal(operations.some(item => Array.isArray(item) && item[0] === 'fillRect'), true);
+  assert.equal(operations.some(item => Array.isArray(item) && item[0] === 'fillText' && item[1] === '说明文字'), true);
+}
+
+{
   const rect = SidePanelManager.getAutoHighlightRect(
     { x: 20, y: 15 },
     { naturalWidth: 1000, naturalHeight: 500 }
@@ -78,6 +113,7 @@ function assertRect(actual, expected) {
   assert.equal(SidePanelManager.normalizeImageEditMode('box'), 'box');
   assert.equal(SidePanelManager.normalizeImageEditMode('number'), 'number');
   assert.equal(SidePanelManager.normalizeImageEditMode('blur'), 'blur');
+  assert.equal(SidePanelManager.normalizeImageEditMode('text'), 'text');
   assert.equal(SidePanelManager.normalizeImageEditMode('unknown'), 'crop');
 }
 
@@ -114,9 +150,12 @@ function assertRect(actual, expected) {
   assert.match(html, /id="btn-restore-original-image"/);
   assert.match(html, /id="btn-undo-image-edit"/);
   assert.match(html, /id="btn-redo-image-edit"/);
+  assert.match(html, /id="btn-image-mode-text"/);
+  assert.match(html, /id="image-text-input"/);
   assert.match(source, /restoreOriginalImage\(\)/);
   assert.match(source, /undoImageEdit\(\)/);
   assert.match(source, /redoImageEdit\(\)/);
+  assert.match(source, /_drawTextAnnotation\(/);
 }
 
 {

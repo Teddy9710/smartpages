@@ -42,6 +42,7 @@ class SidePanelManager {
 
   constructor() {
     this.currentState = StateViews.EMPTY;
+    this.stateBeforeDocuments = StateViews.EMPTY;
     this.session = null;
     this.config = null;
     this.originalBeforeOptimization = null;
@@ -154,6 +155,7 @@ class SidePanelManager {
     this._bindButton('btn-image-mode-box', () => this.setImageEditMode('box'));
     this._bindButton('btn-image-mode-number', () => this.setImageEditMode('number'));
     this._bindButton('btn-image-mode-blur', () => this.setImageEditMode('blur'));
+    this._bindButton('btn-image-mode-text', () => this.setImageEditMode('text'));
     this._bindButton('btn-upload-html-css', () => this._openHtmlCssFilePicker());
     this._bindToolbarMenuEvents();
     this._bindHtmlExportStyleEvents();
@@ -256,6 +258,7 @@ class SidePanelManager {
     const handlePointerUp = (event) => this._endImageCropDrag(event);
     const handleKeyDown = (event) => {
       if (!(event.ctrlKey || event.metaKey) || modal?.classList.contains('hidden')) return;
+      if (event.target?.matches?.('input, textarea, select, [contenteditable="true"]')) return;
       const key = String(event.key || '').toLowerCase();
       if (key === 'z') {
         event.preventDefault();
@@ -273,12 +276,27 @@ class SidePanelManager {
     canvas.addEventListener('pointercancel', handlePointerUp);
     document.addEventListener('keydown', handleKeyDown);
 
+    const textControls = ['image-text-input', 'image-text-size', 'image-text-color', 'image-text-background']
+      .map(id => document.getElementById(id))
+      .filter(Boolean);
+    const handleTextOptionChange = () => {
+      if (this.imageCropState.mode === 'text') this._drawImageCropCanvas();
+    };
+    textControls.forEach(control => {
+      control.addEventListener('input', handleTextOptionChange);
+      control.addEventListener('change', handleTextOptionChange);
+    });
+
     this.cleanupFunctions.push(() => {
       canvas.removeEventListener('pointerdown', handlePointerDown);
       canvas.removeEventListener('pointermove', handlePointerMove);
       canvas.removeEventListener('pointerup', handlePointerUp);
       canvas.removeEventListener('pointercancel', handlePointerUp);
       document.removeEventListener('keydown', handleKeyDown);
+      textControls.forEach(control => {
+        control.removeEventListener('input', handleTextOptionChange);
+        control.removeEventListener('change', handleTextOptionChange);
+      });
     });
   }
 
@@ -359,8 +377,19 @@ class SidePanelManager {
 
   showEditor() { this.setState(StateViews.EDITOR); }
 
-  showDocumentsPanel() { this.setState(StateViews.DOCUMENTS); this.docUI.loadDocumentsList(); }
-  hideDocumentsPanel() { this._showEmptyState(); }
+  showDocumentsPanel() {
+    if (this.currentState !== StateViews.DOCUMENTS) this.stateBeforeDocuments = this.currentState;
+    this.setState(StateViews.DOCUMENTS);
+    this.docUI.loadDocumentsList();
+  }
+
+  hideDocumentsPanel() {
+    const returnState = Object.values(StateViews).includes(this.stateBeforeDocuments) &&
+      this.stateBeforeDocuments !== StateViews.DOCUMENTS
+      ? this.stateBeforeDocuments
+      : StateViews.EMPTY;
+    this.setState(returnState);
+  }
 
   async _applyLanguage() {
     const config = await loadConfig().catch(() => ({ appLanguage: DEFAULT_APP_LANGUAGE }));
@@ -371,6 +400,7 @@ class SidePanelManager {
       title: 'Document Generator',
       subtitle: 'Turn browser workflows into docs',
       docsTitle: 'Reference Documents',
+      documentsBack: 'Back to document',
       uploadTitle: 'Upload reference documents',
       uploadHelp: 'Supported formats: TXT, MD, HTML, RTF, PDF, DOCX',
       browse: 'Browse Files',
@@ -420,6 +450,7 @@ class SidePanelManager {
       title: '文档生成器',
       subtitle: '将浏览器操作流程转换为文档',
       docsTitle: '参考文档',
+      documentsBack: '返回文档',
       uploadTitle: '上传参考文档',
       uploadHelp: '支持格式: TXT, MD, HTML, RTF, PDF, DOCX',
       browse: '浏览文件',
@@ -584,53 +615,81 @@ class SidePanelManager {
       boxMode: 'Box',
       numberMode: 'Number',
       blurMode: 'Blur',
+      textMode: 'Text',
       boxApply: 'Apply Box',
       numberApply: 'Apply Number',
       blurApply: 'Apply Blur',
+      textApply: 'Apply Text',
       boxHint: 'Click to auto-place a highlight box, or drag to choose an area.',
       numberHint: 'Click to auto-place a numbered marker, or drag to choose an area.',
       blurHint: 'Drag over sensitive information to blur it.',
+      textHint: 'Enter text, then click or drag on the image to place it.',
       boxSelectLarger: 'Choose a larger box area first.',
       numberSelectLarger: 'Choose a larger numbered area first.',
       blurSelectLarger: 'Choose a larger blur area first.',
+      textSelectLarger: 'Choose a text area first.',
       boxSelectLargerShort: 'Choose a larger box area.',
       numberSelectLargerShort: 'Choose a larger numbered area.',
       blurSelectLargerShort: 'Choose a larger blur area.',
+      textSelectLargerShort: 'Choose a text area.',
       boxSelected: 'Highlight box selected. Apply when ready.',
       numberSelected: 'Numbered marker selected. Apply when ready.',
       blurSelected: 'Blur area selected. Apply when ready.',
+      textSelected: 'Text position selected. Apply when ready.',
       boxFailed: 'Adding the highlight box failed. Try another image.',
       numberFailed: 'Adding the numbered marker failed. Try another image.',
       blurFailed: 'Blurring failed. Try another image.',
+      textFailed: 'Adding text failed. Try another image.',
       boxDone: 'Highlight box added.',
       numberDone: 'Numbered marker added.',
-      blurDone: 'Blur added.'
+      blurDone: 'Blur added.',
+      textDone: 'Text added.',
+      textRequired: 'Enter annotation text first.',
+      textLabel: 'Text',
+      textPlaceholder: 'Enter annotation text',
+      textSizeLabel: 'Size',
+      textColorLabel: 'Color',
+      textBackgroundLabel: 'Background'
     } : {
       cropMode: '裁剪',
       boxMode: '框选',
       numberMode: '编号',
       blurMode: '模糊',
+      textMode: '文字',
       boxApply: '应用框选',
       numberApply: '应用编号',
       blurApply: '应用模糊',
+      textApply: '添加文字',
       boxHint: '点击自动放置高亮框，或拖拽选择区域。',
       numberHint: '点击自动放置编号标注，或拖拽选择区域。',
       blurHint: '拖拽选择需要模糊遮盖的敏感信息区域。',
+      textHint: '输入文字后，在图片上点击或拖拽选择放置位置。',
       boxSelectLarger: '请先选择更大的框选区域。',
       numberSelectLarger: '请先选择更大的编号区域。',
       blurSelectLarger: '请先选择更大的模糊区域。',
+      textSelectLarger: '请先选择文字放置区域。',
       boxSelectLargerShort: '请选择更大的框选区域。',
       numberSelectLargerShort: '请选择更大的编号区域。',
       blurSelectLargerShort: '请选择更大的模糊区域。',
+      textSelectLargerShort: '请选择文字放置区域。',
       boxSelected: '已选择高亮框，确认后应用。',
       numberSelected: '已选择编号标注，确认后应用。',
       blurSelected: '已选择模糊区域，确认后应用。',
+      textSelected: '已选择文字位置，确认后应用。',
       boxFailed: '添加高亮框失败，请换一张图片重试。',
       numberFailed: '添加编号标注失败，请换一张图片重试。',
       blurFailed: '模糊处理失败，请换一张图片重试。',
+      textFailed: '添加文字失败，请换一张图片重试。',
       boxDone: '已添加高亮框。',
       numberDone: '已添加编号标注。',
-      blurDone: '已添加模糊遮盖。'
+      blurDone: '已添加模糊遮盖。',
+      textDone: '已添加文字。',
+      textRequired: '请先输入要添加的文字。',
+      textLabel: '文字内容',
+      textPlaceholder: '输入要标注的文字',
+      textSizeLabel: '字号',
+      textColorLabel: '颜色',
+      textBackgroundLabel: '深色背景'
     });
     this.uiText = text;
 
@@ -656,6 +715,7 @@ class SidePanelManager {
     const search = document.getElementById('sidepanel-search-documents');
     if (search) search.placeholder = text.search;
     setButton('#sidepanel-refresh-documents', text.refresh);
+    setButton('#btn-close-documents', text.documentsBack);
     set('#loading-text', text.loading);
     set('#description-state h2', text.descTitle);
     set('.custom-input label span', text.custom);
@@ -730,6 +790,13 @@ class SidePanelManager {
     setButton('#btn-image-mode-box', text.boxMode);
     setButton('#btn-image-mode-number', text.numberMode);
     setButton('#btn-image-mode-blur', text.blurMode);
+    setButton('#btn-image-mode-text', text.textMode);
+    set('#image-text-label', text.textLabel);
+    set('#image-text-size-label', text.textSizeLabel);
+    set('#image-text-color-label', text.textColorLabel);
+    set('#image-text-background-label', text.textBackgroundLabel);
+    const imageTextInput = document.getElementById('image-text-input');
+    if (imageTextInput) imageTextInput.placeholder = text.textPlaceholder;
     document.querySelector('.image-edit-toolbar')?.setAttribute('aria-label', text.imageEditModeLabel);
     const closeCrop = document.getElementById('btn-close-image-crop');
     if (closeCrop) {

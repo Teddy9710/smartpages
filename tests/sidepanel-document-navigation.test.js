@@ -9,6 +9,12 @@ assert.match(html, /id="btn-document-back"/);
 assert.match(source, /this\.documentNavigationStack = \[\]/);
 assert.match(source, /_pushCurrentDocumentForNavigation\(\)/);
 assert.match(source, /async returnToPreviousDocument\(\)/);
+assert.match(html, /id="btn-close-documents"[\s\S]*返回文档/);
+assert.match(source, /this\.stateBeforeDocuments = StateViews\.EMPTY/);
+const documentsNavigation = source.slice(source.indexOf('  showDocumentsPanel()'), source.indexOf('  async _applyLanguage()'));
+assert.match(documentsNavigation, /this\.stateBeforeDocuments = this\.currentState/);
+assert.match(documentsNavigation, /this\.setState\(returnState\)/);
+assert.doesNotMatch(documentsNavigation, /this\._showEmptyState\(\)/);
 
 const localOpen = source.slice(source.indexOf('  async openLocalDocument('), source.indexOf('  async deleteLocalDocument('));
 const cloudOpen = source.slice(source.indexOf('  async openCloudDocument('), source.indexOf('  async deleteCloudDocument('));

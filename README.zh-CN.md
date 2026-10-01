@@ -21,7 +21,7 @@
 
 <p align="center">
   <img alt="Chrome Extension MV3" src="https://img.shields.io/badge/Chrome%20Extension-MV3-2563eb">
-  <img alt="Version 1.3.0" src="https://img.shields.io/badge/version-1.3.0-7c3aed">
+  <img alt="Version 1.3.1" src="https://img.shields.io/badge/version-1.3.1-7c3aed">
   <img alt="License GPL v3" src="https://img.shields.io/badge/license-GPL%20v3-111827">
 </p>
 
@@ -103,7 +103,7 @@ npm run build
 - **记录真实操作：**捕获点击、输入、SPA 页面跳转、内嵌 frame 交互和步骤截图，并可随时暂停和继续。
 - **按目标生成：**内置用户指南、教程、测试用例和 Bug 报告等目标，也支持完全自定义提示词。
 - **控制文档输出：**应用风格指南和示例，选择 Markdown 或 HTML，并配置最大 Token。
-- **交付前继续编辑：**编辑渲染后的文档或 Markdown 源码，使用 AI 二次优化，并在需要时回退。
+- **交付前继续编辑：**编辑渲染后的文档或 Markdown 源码；可裁剪截图、添加框选、编号、模糊和文字标注，并使用 AI 二次优化。
 - **导出到不同场景：**复制或导出为 Markdown、HTML、纯文本、Word、ZIP、图片和 PDF。
 - **保留文档历史：**保存到授权的本地文件夹，也可选择配置 Supabase 云同步。
 
