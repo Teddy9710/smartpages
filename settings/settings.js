@@ -130,6 +130,7 @@ class SettingsManager {
       maxTokens: DEFAULT_MAX_TOKENS,
       maxInputTokens: DEFAULT_MAX_INPUT_TOKENS,
       multimodalEnabled: false,
+      pdfOcrEnabled: false,
       promptMode: DEFAULT_PROMPT_MODE,
       outputFormat: DEFAULT_OUTPUT_FORMAT,
       promptAppend: '',
@@ -254,6 +255,7 @@ class SettingsManager {
     const uploadArea = document.getElementById('upload-area');
     const refreshBtn = document.getElementById('refresh-documents');
     const searchInput = document.getElementById('search-documents');
+    const categoryFilter = document.getElementById('document-category-filter');
 
     if (browseBtn && fileInput) {
       browseBtn.addEventListener('click', () => fileInput.click());
@@ -267,6 +269,7 @@ class SettingsManager {
     }
     if (refreshBtn) refreshBtn.addEventListener('click', () => d.loadDocumentsList());
     if (searchInput) searchInput.addEventListener('input', debounce((e) => d.loadDocumentsList(e.target.value)));
+    if (categoryFilter) categoryFilter.addEventListener('change', (e) => d.setCategoryFilter(e.target.value));
   }
 
   // ========================================================================
@@ -346,6 +349,7 @@ class SettingsManager {
     const maxTokensInput = document.getElementById('max-tokens');
     const maxInputTokensInput = document.getElementById('max-input-tokens');
     const multimodalCheckbox = document.getElementById('multimodal-enabled');
+    const pdfOcrCheckbox = document.getElementById('pdf-ocr-enabled');
     const outputFormatSelect = document.getElementById('output-format');
     const promptModeSelect = document.getElementById('prompt-mode');
     const defaultPromptPreview = document.getElementById('default-prompt-preview');
@@ -370,6 +374,7 @@ class SettingsManager {
     if (maxTokensInput) maxTokensInput.value = this.config.maxTokens || DEFAULT_MAX_TOKENS;
     if (maxInputTokensInput) maxInputTokensInput.value = this.config.maxInputTokens || DEFAULT_MAX_INPUT_TOKENS;
     if (multimodalCheckbox) multimodalCheckbox.checked = this.config.multimodalEnabled === true;
+    if (pdfOcrCheckbox) pdfOcrCheckbox.checked = this.config.pdfOcrEnabled === true;
     if (outputFormatSelect) outputFormatSelect.value = this.config.outputFormat || DEFAULT_OUTPUT_FORMAT;
     if (promptModeSelect) promptModeSelect.value = this.config.promptMode || DEFAULT_PROMPT_MODE;
     if (defaultPromptPreview) defaultPromptPreview.value = DEFAULT_PROMPT_TEMPLATE;
@@ -962,6 +967,7 @@ class SettingsManager {
     const maxTokensInput = document.getElementById('max-tokens');
     const maxInputTokensInput = document.getElementById('max-input-tokens');
     const multimodalCheckbox = document.getElementById('multimodal-enabled');
+    const pdfOcrCheckbox = document.getElementById('pdf-ocr-enabled');
     const outputFormatSelect = document.getElementById('output-format');
     const promptModeSelect = document.getElementById('prompt-mode');
     const promptAppendInput = document.getElementById('prompt-append');
@@ -981,6 +987,12 @@ class SettingsManager {
     const maxInputTokens = this._parseMaxInputTokens(maxInputTokensInput?.value);
     if (!maxInputTokens) {
       this._showTestResult(isEn ? `Max Input Tokens must be between ${MIN_MAX_INPUT_TOKENS} and ${MAX_MAX_INPUT_TOKENS}` : `最大输入 Token 需要在 ${MIN_MAX_INPUT_TOKENS}-${MAX_MAX_INPUT_TOKENS} 之间`, 'error');
+      return;
+    }
+    if (pdfOcrCheckbox?.checked && !multimodalCheckbox?.checked) {
+      this._showTestResult(isEn
+        ? 'Scanned PDF OCR requires a model that supports image input.'
+        : '扫描版 PDF OCR 需要开启“模型支持图片输入”。', 'error');
       return;
     }
 
@@ -1014,6 +1026,7 @@ class SettingsManager {
       maxTokens,
       maxInputTokens,
       multimodalEnabled: multimodalCheckbox?.checked === true,
+      pdfOcrEnabled: pdfOcrCheckbox?.checked === true,
       outputFormat: outputFormatSelect?.value || DEFAULT_OUTPUT_FORMAT,
       promptMode,
       promptAppend: promptAppendInput?.value.trim() || '',
@@ -1052,6 +1065,7 @@ class SettingsManager {
         maxTokens: this.config.maxTokens,
         maxInputTokens: this.config.maxInputTokens,
         multimodalEnabled: this.config.multimodalEnabled,
+        pdfOcrEnabled: this.config.pdfOcrEnabled,
         outputFormat: this.config.outputFormat,
         promptMode: this.config.promptMode,
         promptAppend: this.config.promptAppend,
@@ -1173,6 +1187,8 @@ class SettingsManager {
       maxInputTokens: 'Max Input Tokens',
       multimodalTitle: 'Model supports image input',
       multimodalDesc: 'Send visible step screenshots to the model during generation and optimization (up to 12 per request).',
+      pdfOcrTitle: 'AI OCR for scanned PDFs',
+      pdfOcrDesc: 'When a PDF has no text layer, send up to 12 scanned pages to the active vision model for text recognition.',
       outputFormat: 'Default Output Format',
       promptMode: 'Prompt Mode',
       test: 'Test Connection',
@@ -1205,6 +1221,8 @@ class SettingsManager {
       maxInputTokens: '最大输入 Token',
       multimodalTitle: '模型支持图片输入',
       multimodalDesc: '生成和优化文档时，将未隐藏的步骤截图发送给模型参考（每次最多 12 张）。',
+      pdfOcrTitle: '扫描版 PDF AI OCR',
+      pdfOcrDesc: '仅当 PDF 没有文本层时，将扫描页发送给当前视觉模型识别；每份文档最多 12 页。',
       outputFormat: '默认输出格式',
       promptMode: '提示词模式',
       test: '测试连接',
@@ -1336,6 +1354,8 @@ class SettingsManager {
     set('label[for="max-input-tokens"]', text.maxInputTokens);
     set('#multimodal-setting .switch-title', text.multimodalTitle);
     set('#multimodal-setting .switch-desc', text.multimodalDesc);
+    set('#pdf-ocr-setting .switch-title', text.pdfOcrTitle);
+    set('#pdf-ocr-setting .switch-desc', text.pdfOcrDesc);
     set('label[for="output-format"]', text.outputFormat);
     const outputTextOption = document.querySelector('#output-format option[value="text"]');
     if (outputTextOption) outputTextOption.textContent = text.outputText;
@@ -1379,6 +1399,14 @@ class SettingsManager {
     set('#search-documents', text.search);
     const search = document.getElementById('search-documents');
     if (search) search.placeholder = text.search;
+    const categoryFilter = document.getElementById('document-category-filter');
+    if (categoryFilter) {
+      const allOption = categoryFilter.querySelector('option[value=""]');
+      const uncategorizedOption = categoryFilter.querySelector('option[value="__uncategorized__"]');
+      if (allOption) allOption.textContent = isEn ? 'All categories' : '全部分类';
+      if (uncategorizedOption) uncategorizedOption.textContent = isEn ? 'Uncategorized' : '未分类';
+      categoryFilter.setAttribute('aria-label', isEn ? 'Filter by category' : '按分类筛选');
+    }
     setButton('#refresh-documents', text.refresh);
     set('.documents-list-container h3', text.uploadedDocsTitle);
     set('.loading-placeholder', text.docsLoading);

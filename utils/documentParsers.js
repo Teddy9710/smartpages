@@ -4,6 +4,7 @@
  */
 
 const DocumentParsers = (() => {
+  const DEFAULT_MAX_OCR_PAGES = 12;
   let pdfjsPromise = null;
   let fflatePromise = null;
 
@@ -59,6 +60,62 @@ const DocumentParsers = (() => {
     return lines.join('\n');
   }
 
+  function parseOcrPageSections(value, expectedPageNumbers = []) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      return Object.fromEntries(
+        expectedPageNumbers
+          .map(pageNumber => [pageNumber, normalizeExtractedText(value[pageNumber] || value[String(pageNumber)] || '')])
+          .filter(([, text]) => Boolean(text))
+      );
+    }
+
+    const response = String(value || '').trim();
+    if (!response) return {};
+    const sections = {};
+    const pattern = /\[\[PAGE\s+(\d+)\]\]\s*([\s\S]*?)(?=\[\[PAGE\s+\d+\]\]|$)/gi;
+    let match;
+    while ((match = pattern.exec(response))) {
+      const pageNumber = Number.parseInt(match[1], 10);
+      const text = normalizeExtractedText(match[2]);
+      if (expectedPageNumbers.includes(pageNumber) && text) sections[pageNumber] = text;
+    }
+    if (!Object.keys(sections).length && expectedPageNumbers.length === 1) {
+      sections[expectedPageNumbers[0]] = normalizeExtractedText(response);
+    }
+    return sections;
+  }
+
+  async function renderPdfPageToDataUrl(page, dependencies = {}) {
+    if (typeof dependencies.renderPage === 'function') {
+      return dependencies.renderPage(page);
+    }
+    if (!page?.getViewport || !page?.render) {
+      throw new Error('当前 PDF 页面无法渲染，不能执行 OCR');
+    }
+
+    const baseViewport = page.getViewport({ scale: 1 });
+    const longestEdge = Math.max(baseViewport.width, baseViewport.height) || 1;
+    const scale = Math.max(1, Math.min(2.5, 1800 / longestEdge));
+    const viewport = page.getViewport({ scale });
+    const canvas = typeof dependencies.createCanvas === 'function'
+      ? dependencies.createCanvas()
+      : (typeof document !== 'undefined' ? document.createElement('canvas') : null);
+    if (!canvas) throw new Error('当前环境无法创建 OCR 图像');
+
+    canvas.width = Math.max(1, Math.ceil(viewport.width));
+    canvas.height = Math.max(1, Math.ceil(viewport.height));
+    const context = canvas.getContext?.('2d', { alpha: false });
+    if (!context) throw new Error('当前环境无法渲染 OCR 图像');
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    const renderTask = page.render({ canvasContext: context, viewport, background: '#ffffff' });
+    await (renderTask?.promise || renderTask);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+    canvas.width = 1;
+    canvas.height = 1;
+    return dataUrl;
+  }
+
   async function extractPdfText(arrayBuffer, dependencies = {}) {
     const pdfjs = dependencies.pdfjs || await loadPdfJs();
     const data = arrayBuffer instanceof Uint8Array ? arrayBuffer : new Uint8Array(arrayBuffer);
@@ -76,23 +133,67 @@ const DocumentParsers = (() => {
     });
     const pdf = await loadingTask.promise;
     const pages = [];
+    const warnings = [];
+    const ocrCandidates = [];
+    const maxOcrPages = Number.isInteger(dependencies.maxOcrPages)
+      ? Math.max(1, dependencies.maxOcrPages)
+      : DEFAULT_MAX_OCR_PAGES;
     try {
       for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
         const page = await pdf.getPage(pageNumber);
-        const textContent = await page.getTextContent();
-        const text = normalizeExtractedText(pageItemsToText(textContent.items));
-        if (text) pages.push(`--- 第 ${pageNumber} 页 ---\n${text}`);
-        page.cleanup?.();
+        try {
+          const textContent = await page.getTextContent();
+          const text = normalizeExtractedText(pageItemsToText(textContent.items));
+          pages.push({ pageNumber, text });
+          if (!text && typeof dependencies.ocrPages === 'function') {
+            if (ocrCandidates.length < maxOcrPages) {
+              const dataUrl = await renderPdfPageToDataUrl(page, dependencies);
+              ocrCandidates.push({ pageNumber, dataUrl });
+            } else {
+              warnings.push(`第 ${pageNumber} 页没有文本层，已超过单次 ${maxOcrPages} 页的 OCR 上限`);
+            }
+          }
+        } finally {
+          page.cleanup?.();
+        }
+      }
+
+      if (ocrCandidates.length) {
+        try {
+          const ocrResponse = await dependencies.ocrPages(ocrCandidates);
+          const expectedPages = ocrCandidates.map(candidate => candidate.pageNumber);
+          const ocrSections = parseOcrPageSections(ocrResponse, expectedPages);
+          pages.forEach(page => {
+            if (!page.text && ocrSections[page.pageNumber]) {
+              page.text = ocrSections[page.pageNumber];
+              page.ocrUsed = true;
+            }
+          });
+          expectedPages
+            .filter(pageNumber => !ocrSections[pageNumber])
+            .forEach(pageNumber => warnings.push(`第 ${pageNumber} 页 OCR 未返回可用文字`));
+        } catch (error) {
+          throw new Error(`扫描页 OCR 失败：${error.message}`);
+        }
       }
     } finally {
       if (typeof loadingTask.destroy === 'function') await loadingTask.destroy();
       else await pdf.destroy?.();
     }
-    const content = normalizeExtractedText(pages.join('\n\n'));
+    const extractedPages = pages.filter(page => page.text);
+    const content = normalizeExtractedText(
+      extractedPages.map(page => `--- 第 ${page.pageNumber} 页 ---\n${page.text}`).join('\n\n')
+    );
     if (!content) {
-      throw new Error('PDF 中没有可提取的文字；扫描版 PDF 暂不支持 OCR');
+      throw new Error(typeof dependencies.ocrPages === 'function'
+        ? 'PDF 中没有可提取或可识别的文字'
+        : 'PDF 中没有可提取的文字；请在设置中开启扫描版 PDF AI OCR');
     }
-    return { content, warnings: [] };
+    return {
+      content,
+      warnings,
+      ocrPageCount: pages.filter(page => page.ocrUsed === true).length
+    };
   }
 
   function decodeXmlEntities(value) {
@@ -147,8 +248,11 @@ const DocumentParsers = (() => {
   }
 
   return {
+    DEFAULT_MAX_OCR_PAGES,
     normalizeExtractedText,
     pageItemsToText,
+    parseOcrPageSections,
+    renderPdfPageToDataUrl,
     decodeXmlEntities,
     extractWordXmlText,
     extractPdfText,

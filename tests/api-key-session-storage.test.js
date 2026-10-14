@@ -9,7 +9,7 @@ global.chrome = {
     local: {
       get(data, callback) {
         calls.push({ area: 'local', method: 'get', data });
-        callback({ baseUrl: 'https://example.test/v1', activeProviderId: 'custom', multimodalEnabled: true });
+        callback({ baseUrl: 'https://example.test/v1', activeProviderId: 'custom', multimodalEnabled: true, pdfOcrEnabled: true });
       },
       set(data, callback) { calls.push({ area: 'local', method: 'set', data }); callback(); },
       remove(data, callback) { calls.push({ area: 'local', method: 'remove', data }); callback(); }
@@ -33,6 +33,7 @@ const { loadConfig } = require(commonPath);
   assert.equal(config.apiKey, 'session-key');
   assert.equal(config.baseUrl, 'https://example.test/v1');
   assert.equal(config.multimodalEnabled, true);
+  assert.equal(config.pdfOcrEnabled, true);
   assert.equal(calls.some(call => call.area === 'session' && call.method === 'get'), true);
 
   const settingsSource = fs.readFileSync(path.join(__dirname, '..', 'settings', 'settings.js'), 'utf8');
@@ -41,6 +42,7 @@ const { loadConfig } = require(commonPath);
   const localSet = saveConfigSource.match(/storagePromise\(['"]local['"],\s*['"]set['"],\s*\{([\s\S]*?)\}\);/)?.[1] || '';
   assert.doesNotMatch(localSet, /\bapiKey\s*:/);
   assert.match(localSet, /multimodalEnabled\s*:/);
+  assert.match(localSet, /pdfOcrEnabled\s*:/);
   assert.match(saveConfigSource, /storagePromise\(['"]local['"],\s*['"]remove['"],\s*['"]apiKey['"]\)/);
 })().catch(error => {
   console.error(error);

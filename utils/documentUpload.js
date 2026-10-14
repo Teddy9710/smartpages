@@ -4,10 +4,13 @@
  */
 
 class DocumentUploader {
-  constructor() {
+  constructor(options = {}) {
     this.supportedFormats = ['txt', 'md', 'html', 'htm', 'rtf', 'pdf', 'docx'];
     this.uploadDir = 'docs';
     this.storageKey = 'documents';
+    this._getConfig = options.getConfig || (() => loadConfig());
+    this._requestOcr = options.requestOcr || ((config, pages) => this._requestPdfOcr(config, pages));
+    this._parserDependencies = options.parserDependencies || {};
     this._docIndex = new Map();
     this._docsCache = null;
     if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
@@ -51,7 +54,11 @@ class DocumentUploader {
   async readFileContent(file) {
     const extension = this._getExtension(file.name);
     if (extension === 'pdf' || extension === 'docx') {
-      const parsed = await DocumentParsers.extractDocumentText(await this._readAsArrayBuffer(file), extension);
+      const parsed = await DocumentParsers.extractDocumentText(
+        await this._readAsArrayBuffer(file),
+        extension,
+        await this._getParserDependencies(extension)
+      );
       return parsed.content;
     }
     return this._readAsText(file);
@@ -64,7 +71,11 @@ class DocumentUploader {
     const extension = this._getExtension(file.name);
     try {
       const parsed = extension === 'pdf' || extension === 'docx'
-        ? await DocumentParsers.extractDocumentText(await this._readAsArrayBuffer(file), extension)
+        ? await DocumentParsers.extractDocumentText(
+          await this._readAsArrayBuffer(file),
+          extension,
+          await this._getParserDependencies(extension)
+        )
         : { content: await this._readAsText(file), warnings: [] };
       return {
         name: file.name,
@@ -72,6 +83,7 @@ class DocumentUploader {
         type: file.type,
         content: parsed.content,
         parserWarnings: parsed.warnings || [],
+        ocrPageCount: Number(parsed.ocrPageCount) || 0,
         uploadTime: new Date().toISOString()
       };
     } catch (error) {
@@ -81,6 +93,63 @@ class DocumentUploader {
 
   _getExtension(filename) {
     return String(filename || '').toLowerCase().split('.').pop();
+  }
+
+  async _getParserDependencies(extension) {
+    if (extension !== 'pdf') return this._parserDependencies;
+    if (typeof this._parserDependencies.ocrPages === 'function') {
+      return this._parserDependencies;
+    }
+
+    const config = await this._getConfig();
+    if (config?.pdfOcrEnabled !== true) return this._parserDependencies;
+    return {
+      ...this._parserDependencies,
+      ocrPages: pages => this._ocrPdfPages(pages, config)
+    };
+  }
+
+  async _ocrPdfPages(pages, resolvedConfig = null) {
+    const config = resolvedConfig || await this._getConfig();
+    if (config?.pdfOcrEnabled !== true) {
+      throw new Error('这是扫描版 PDF。请先在设置中开启“扫描版 PDF AI OCR”后重试');
+    }
+    if (config?.multimodalEnabled !== true) {
+      throw new Error('扫描版 PDF OCR 需要支持图片输入的模型，请在设置中开启图片输入');
+    }
+    if (!config?.apiKey) {
+      throw new Error('扫描版 PDF OCR 需要 API Key，请先在设置中完成模型配置');
+    }
+    return this._requestOcr(config, pages);
+  }
+
+  async _requestPdfOcr(config, pages) {
+    const pageNumbers = pages.map(page => page.pageNumber);
+    const prompt = `Extract all visible text from the attached scanned PDF pages.
+
+Requirements:
+- Preserve the original language, reading order, headings, lists, and table content.
+- Do not summarize, translate, explain, or invent missing text.
+- Return plain text only.
+- Start every page with its exact marker in this form: [[PAGE N]]
+- Include every requested page exactly once, in this order: ${pageNumbers.join(', ')}.`;
+    const request = buildModelApiRequest(config, prompt, {
+      temperature: 0,
+      maxTokens: Math.min(MAX_MAX_TOKENS, Math.max(8000, Number(config.maxTokens) || 0)),
+      images: pages.map(page => ({
+        dataUrl: page.dataUrl,
+        label: `PDF page ${page.pageNumber}`
+      }))
+    });
+    const response = await fetchWithTimeout(request.url, request.fetchOptions, DOC_GEN_TIMEOUT);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`AI OCR 请求失败：${errorData.error?.message || response.statusText || response.status}`);
+    }
+    const data = await response.json();
+    const content = extractModelResponseText(data, getApiFormat(config));
+    if (!content) throw new Error('AI OCR 没有返回文字');
+    return content;
   }
 
   async _readAsText(file) {
@@ -154,6 +223,21 @@ class DocumentUploader {
     } catch (error) {
       throw new Error('删除文档失败: ' + error.message);
     }
+  }
+
+  async updateDocumentCategory(docId, category) {
+    const normalizedCategory = String(category || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 40);
+    let updatedDocument = null;
+    await this._updateDocs(documents => documents.map(document => {
+      if (document.id !== docId) return document;
+      updatedDocument = { ...document, category: normalizedCategory };
+      return updatedDocument;
+    }));
+    if (!updatedDocument) throw new Error('文档不存在');
+    return updatedDocument;
   }
 
   /**

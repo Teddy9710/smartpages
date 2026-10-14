@@ -168,6 +168,17 @@
           </div>
         </div>
 
+        <div class="form-group-switch" id="pdf-ocr-setting">
+          <label class="switch-label">
+            <input type="checkbox" id="pdf-ocr-enabled">
+            <span class="switch-slider"></span>
+          </label>
+          <div class="switch-info">
+            <div class="switch-title">扫描版 PDF AI OCR</div>
+            <div class="switch-desc">仅当 PDF 没有文本层时，将扫描页发送给当前视觉模型识别；每份文档最多 12 页。</div>
+          </div>
+        </div>
+
         <div class="form-group">
           <label for="prompt-mode">提示词模式</label>
           <select id="prompt-mode" class="input">
@@ -365,6 +376,10 @@
           <h3>已上传的参考文档</h3>
           <div class="documents-actions">
             <input type="text" id="search-documents" placeholder="搜索文档..." class="input input-small">
+            <select id="document-category-filter" class="input category-filter" aria-label="按分类筛选">
+              <option value="">全部分类</option>
+              <option value="__uncategorized__">未分类</option>
+            </select>
             <button id="refresh-documents" class="btn btn-small btn-secondary"><span class="icon icon-refresh" aria-hidden="true"></span>刷新</button>
           </div>
           <div id="documents-list" class="documents-list">

@@ -54,6 +54,10 @@
           <h3>已上传的文档</h3>
           <div class="documents-actions">
             <input type="text" id="sidepanel-search-documents" placeholder="搜索文档..." class="input input-small">
+            <select id="sidepanel-document-category-filter" class="input category-filter" aria-label="按分类筛选">
+              <option value="">全部分类</option>
+              <option value="__uncategorized__">未分类</option>
+            </select>
             <button id="sidepanel-refresh-documents" class="btn btn-small btn-secondary"><span class="icon icon-retry" aria-hidden="true"></span>刷新</button>
           </div>
           <div id="sidepanel-documents-list" class="documents-list">

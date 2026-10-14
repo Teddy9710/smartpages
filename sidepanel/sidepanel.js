@@ -307,6 +307,7 @@ class SidePanelManager {
     const uploadArea = document.getElementById(`${source}-upload-area`);
     const refreshBtn = document.getElementById(`${source}-refresh-documents`);
     const searchInput = document.getElementById(`${source}-search-documents`);
+    const categoryFilter = document.getElementById(`${source}-document-category-filter`);
 
     if (browseBtn && fileInput) {
       browseBtn.addEventListener('click', () => fileInput.click());
@@ -323,6 +324,9 @@ class SidePanelManager {
     }
     if (searchInput) {
       searchInput.addEventListener('input', debounce((e) => d.searchDocuments(e.target.value)));
+    }
+    if (categoryFilter) {
+      categoryFilter.addEventListener('change', (e) => d.setCategoryFilter(e.target.value));
     }
   }
 
@@ -714,6 +718,14 @@ class SidePanelManager {
     setButton('#sidepanel-browse-btn', text.browse);
     const search = document.getElementById('sidepanel-search-documents');
     if (search) search.placeholder = text.search;
+    const categoryFilter = document.getElementById('sidepanel-document-category-filter');
+    if (categoryFilter) {
+      const allOption = categoryFilter.querySelector('option[value=""]');
+      const uncategorizedOption = categoryFilter.querySelector('option[value="__uncategorized__"]');
+      if (allOption) allOption.textContent = isEn ? 'All categories' : '全部分类';
+      if (uncategorizedOption) uncategorizedOption.textContent = isEn ? 'Uncategorized' : '未分类';
+      categoryFilter.setAttribute('aria-label', isEn ? 'Filter by category' : '按分类筛选');
+    }
     setButton('#sidepanel-refresh-documents', text.refresh);
     setButton('#btn-close-documents', text.documentsBack);
     set('#loading-text', text.loading);

@@ -911,6 +911,7 @@ async function loadConfig() {
     'maxTokens',
     'maxInputTokens',
     'multimodalEnabled',
+    'pdfOcrEnabled',
     'promptMode',
     'promptAppend',
     'customPrompt',
@@ -994,6 +995,7 @@ async function loadConfig() {
     multimodalEnabled: activeProfile
       ? activeProfile.multimodalEnabled === true
       : result.multimodalEnabled === true,
+    pdfOcrEnabled: result.pdfOcrEnabled === true,
     promptMode: result.promptMode || DEFAULT_PROMPT_MODE,
     promptAppend: result.promptAppend || '',
     customPrompt: result.customPrompt || DEFAULT_PROMPT_TEMPLATE,

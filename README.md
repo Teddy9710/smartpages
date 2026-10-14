@@ -106,6 +106,7 @@ downloads and release instructions, see [repository maintenance](docs/repository
 - **Capture real workflows:** record clicks, input, SPA navigation, embedded-frame interactions, and step screenshots; pause and resume whenever needed.
 - **Generate for the job:** start with goals for guides, tutorials, test cases, and bug reports, or provide a fully custom prompt.
 - **Control the output:** apply style guides and examples, choose Markdown or HTML, and configure the maximum token count.
+- **Use reference documents:** upload TXT, Markdown, HTML, RTF, PDF, or DOCX files; recognize scanned PDFs, preview and categorize documents, and share extracted content from the document list.
 - **Edit before delivery:** refine the rendered document or Markdown source; crop screenshots or add boxes, numbers, blur, and text annotations; then use AI for a second pass when needed.
 - **Export anywhere:** copy or export as Markdown, HTML, plain text, Word, ZIP, image, or PDF.
 - **Keep your history:** save to an authorized local folder or optionally configure Supabase cloud sync.
