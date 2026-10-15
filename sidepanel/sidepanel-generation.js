@@ -55,6 +55,7 @@
       this._setEditorContent(this._injectScreenshots(markdown, outputFormat));
       this._resetOptimizationState();
       await this._saveGeneratedDocumentToHistory();
+      this._autoDownloadGeneratedMarkdown();
       if (await this.localDocuments.hasPermission().catch(() => false)) {
         await this.saveCurrentDocumentLocally();
       }
@@ -64,6 +65,22 @@
     } finally {
       this.isGenerating = false;
       if (generateButton) generateButton.disabled = false;
+    }
+  }
+
+  _autoDownloadGeneratedMarkdown() {
+    try {
+      this._ensureEditorContentFresh();
+      const content = document.getElementById('markdown-editor')?.value || '';
+      if (!content.trim()) return false;
+      const filename = `${this._getExportBaseName(content)}.md`;
+      this._downloadBlob(filename, new Blob([content], { type: 'text/markdown;charset=utf-8' }));
+      this._showNotification(this._t('markdownAutoSaved', { filename }), 'success');
+      return true;
+    } catch (error) {
+      console.warn('[SmartPages:Local] Failed to auto-save generated Markdown:', error);
+      this._showNotification(this._t('markdownAutoSaveFailed'), 'error');
+      return false;
     }
   }
 

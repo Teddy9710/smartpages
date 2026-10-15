@@ -56,11 +56,14 @@ const { loadConfig } = require(commonPath);
   assert.equal(config.maxTokens, 6000);
   assert.equal(config.maxInputTokens, 180000);
   assert.equal(config.multimodalEnabled, true);
+  assert.equal(config.rememberApiKey, true);
   assert.equal(config.providerProfiles.openai.apiKey, 'openai-key');
   assert.equal(writes.some(call => call.area === 'session' && call.data.providerApiKeys.openai === 'openai-key'), true);
   const localMigration = writes.find(call => call.area === 'local' && call.method === 'set');
   assert.equal(Object.hasOwn(localMigration.data.providerProfiles.openai, 'apiKey'), false);
-  assert.equal(writes.some(call => call.area === 'local' && call.method === 'remove' && call.data === 'apiKey'), true);
+  assert.equal(localMigration.data.providerApiKeys.openai, 'openai-key');
+  assert.equal(localMigration.data.providerApiKeys.claude, 'claude-key');
+  assert.equal(writes.some(call => call.area === 'local' && call.method === 'remove'), false);
 
   const source = fs.readFileSync(path.join(__dirname, '..', 'settings', 'settings.js'), 'utf8');
   assert.match(source, /_captureProviderProfile\(this\.activeProviderId\)/);

@@ -21,7 +21,7 @@
 
 <p align="center">
   <img alt="Chrome Extension MV3" src="https://img.shields.io/badge/Chrome%20Extension-MV3-2563eb">
-  <img alt="Version 1.3.1" src="https://img.shields.io/badge/version-1.3.1-7c3aed">
+  <img alt="Version 1.4.0" src="https://img.shields.io/badge/version-1.4.0-7c3aed">
   <img alt="License GPL v3" src="https://img.shields.io/badge/license-GPL%20v3-111827">
 </p>
 
@@ -103,6 +103,13 @@ downloads and release instructions, see [repository maintenance](docs/repository
 
 ## Key features
 
+### New in 1.4.0
+
+- Recognize scanned PDF pages with the configured vision model while keeping text-based PDF extraction local.
+- Preview uploaded documents directly in the document list without storing additional thumbnail images.
+- Organize reference documents with custom categories and category filters.
+- Share extracted document content through the system share sheet, with clipboard fallback.
+
 - **Capture real workflows:** record clicks, input, SPA navigation, embedded-frame interactions, and step screenshots; pause and resume whenever needed.
 - **Generate for the job:** start with goals for guides, tutorials, test cases, and bug reports, or provide a fully custom prompt.
 - **Control the output:** apply style guides and examples, choose Markdown or HTML, and configure the maximum token count.
@@ -118,13 +125,14 @@ SmartPages works with:
 - **OpenAI-compatible Chat Completions:** OpenAI, Gemini, GLM, DeepSeek, MiniMax, Kimi, OpenRouter, SiliconFlow, DashScope, and custom compatible services.
 - **Anthropic Messages API:** Claude models through Anthropic.
 
-You choose the provider, base URL, model, and API key. Each provider keeps an independent non-sensitive connection profile; API keys are retained only for the current browser session. Provider limits and pricing remain under your control.
+You choose the provider, base URL, model, and API key. Each provider keeps an independent connection profile. By default, API keys are stored in this browser's local extension data so they survive extension reloads and browser restarts. Provider limits and pricing remain under your control.
 
 ## Privacy by default
 
-- API keys stay only in Chrome session storage and are never written to disk or committed to the repository; closing the browser completely clears them.
+- API keys are never committed to the repository or synced by SmartPages. “Remember API Key on this device” stores them in the current browser profile; turn it off to use session-only storage that is cleared when the browser fully closes.
 - Recorded content is sent only to the model API you configure when you generate a document.
 - Step screenshots are sent only when you explicitly enable image input for a multimodal model; hidden screenshots are excluded and each request is limited to 12 images.
+- Uploaded documents are parsed locally whenever possible. Scanned PDF pages are sent to your configured vision model only when you explicitly enable AI OCR, with a limit of 12 pages per document.
 - Supabase sync is off by default and uploads only after explicit configuration, sign-in, and save actions.
 - Local history can access only a folder you authorize through the browser directory picker.
 - Dynamic HTML is sanitized before rendering and export, and extension pages use Manifest V3 CSP.

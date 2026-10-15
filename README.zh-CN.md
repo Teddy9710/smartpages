@@ -21,7 +21,7 @@
 
 <p align="center">
   <img alt="Chrome Extension MV3" src="https://img.shields.io/badge/Chrome%20Extension-MV3-2563eb">
-  <img alt="Version 1.3.1" src="https://img.shields.io/badge/version-1.3.1-7c3aed">
+  <img alt="Version 1.4.0" src="https://img.shields.io/badge/version-1.4.0-7c3aed">
   <img alt="License GPL v3" src="https://img.shields.io/badge/license-GPL%20v3-111827">
 </p>
 
@@ -100,6 +100,13 @@ npm run build
 
 ## 核心能力
 
+### 1.4.0 新增
+
+- 使用已配置的视觉模型识别扫描版 PDF，文本型 PDF 继续在本地提取。
+- 在文档列表中直接预览内容，不额外保存缩略图图片。
+- 使用自定义分类整理参考文档，并按分类筛选。
+- 通过系统分享面板分享提取后的正文，不支持时自动复制到剪贴板。
+
 - **记录真实操作：**捕获点击、输入、SPA 页面跳转、内嵌 frame 交互和步骤截图，并可随时暂停和继续。
 - **按目标生成：**内置用户指南、教程、测试用例和 Bug 报告等目标，也支持完全自定义提示词。
 - **控制文档输出：**应用风格指南和示例，选择 Markdown 或 HTML，并配置最大 Token。
@@ -115,13 +122,14 @@ SmartPages 支持：
 - **OpenAI-compatible Chat Completions：**OpenAI、Gemini、GLM、DeepSeek、MiniMax、Kimi、OpenRouter、SiliconFlow、DashScope，以及自定义兼容服务。
 - **Anthropic Messages API：**通过 Anthropic 使用 Claude 模型。
 
-服务商、Base URL、模型和 API Key 均由你选择，对应服务的限制和费用也由你掌控。每个服务商会独立保存自己的非敏感连接配置；API Key 仅在当前浏览器会话中保留。
+服务商、Base URL、模型和 API Key 均由你选择，对应服务的限制和费用也由你掌控。每个服务商会独立保存自己的连接配置；API Key 默认保存在当前浏览器的扩展数据中，扩展重载或浏览器重启后仍可使用。
 
 ## 默认保护隐私
 
-- API Key 只保存在 Chrome 的会话存储中，不会写入磁盘或仓库；完全退出浏览器后需要重新输入。
+- SmartPages 不会把 API Key 提交到代码仓库或同步到云端。开启“在此设备上记住 API Key”时会保存到当前浏览器配置；关闭后则仅保留在会话存储中，完全退出浏览器后清除。
 - 录制内容只在生成文档时发送到你配置的模型 API。
 - 只有显式启用“模型支持图片输入”后，步骤截图才会发送给多模态模型；已隐藏的截图不会发送，每次请求最多附带 12 张。
+- 上传的文档会尽可能在本地解析；只有显式开启 AI OCR 后，扫描版 PDF 页面才会发送到你配置的视觉模型，每份文档最多 12 页。
 - Supabase 同步默认关闭，只有完成配置、登录并主动保存后才会上传。
 - 本地历史只能访问你通过浏览器目录选择器明确授权的文件夹。
 - 动态 HTML 在渲染和导出前会经过清理，扩展页面使用 Manifest V3 CSP。

@@ -122,6 +122,7 @@ class SettingsManager {
   constructor() {
     this.config = {
       apiKey: '',
+      rememberApiKey: true,
       baseUrl: '',
       modelName: 'gpt-3.5-turbo',
       apiFormat: DEFAULT_API_FORMAT,
@@ -341,6 +342,7 @@ class SettingsManager {
 
   _populateForm() {
     const apiKeyInput = document.getElementById('api-key');
+    const rememberApiKeyCheckbox = document.getElementById('remember-api-key');
     const appLanguageSelect = document.getElementById('app-language');
     const apiProviderSelect = document.getElementById('api-provider');
     const baseUrlInput = document.getElementById('base-url');
@@ -374,6 +376,7 @@ class SettingsManager {
     if (maxTokensInput) maxTokensInput.value = this.config.maxTokens || DEFAULT_MAX_TOKENS;
     if (maxInputTokensInput) maxInputTokensInput.value = this.config.maxInputTokens || DEFAULT_MAX_INPUT_TOKENS;
     if (multimodalCheckbox) multimodalCheckbox.checked = this.config.multimodalEnabled === true;
+    if (rememberApiKeyCheckbox) rememberApiKeyCheckbox.checked = this.config.rememberApiKey !== false;
     if (pdfOcrCheckbox) pdfOcrCheckbox.checked = this.config.pdfOcrEnabled === true;
     if (outputFormatSelect) outputFormatSelect.value = this.config.outputFormat || DEFAULT_OUTPUT_FORMAT;
     if (promptModeSelect) promptModeSelect.value = this.config.promptMode || DEFAULT_PROMPT_MODE;
@@ -968,6 +971,7 @@ class SettingsManager {
     const maxInputTokensInput = document.getElementById('max-input-tokens');
     const multimodalCheckbox = document.getElementById('multimodal-enabled');
     const pdfOcrCheckbox = document.getElementById('pdf-ocr-enabled');
+    const rememberApiKeyCheckbox = document.getElementById('remember-api-key');
     const outputFormatSelect = document.getElementById('output-format');
     const promptModeSelect = document.getElementById('prompt-mode');
     const promptAppendInput = document.getElementById('prompt-append');
@@ -1018,6 +1022,7 @@ class SettingsManager {
     this.activeProviderId = apiProviderSelect?.value || this.activeProviderId || 'custom';
     this.config = {
       apiKey,
+      rememberApiKey: rememberApiKeyCheckbox?.checked !== false,
       baseUrl: baseUrlInput?.value.trim() || '',
       modelName: modelNameInput?.value.trim() || 'gpt-3.5-turbo',
       apiFormat: (ApiProviders[apiProviderSelect?.value] || ApiProviders.custom).apiFormat || DEFAULT_API_FORMAT,
@@ -1056,7 +1061,12 @@ class SettingsManager {
         apiKey: this.config.apiKey,
         providerApiKeys
       });
+      const persistentSecrets = this.config.rememberApiKey
+        ? { apiKey: this.config.apiKey, providerApiKeys }
+        : {};
       await storagePromise('local', 'set', {
+        ...persistentSecrets,
+        rememberApiKey: this.config.rememberApiKey,
         baseUrl: this.config.baseUrl,
         modelName: this.config.modelName,
         apiFormat: this.config.apiFormat,
@@ -1075,7 +1085,9 @@ class SettingsManager {
         activeProviderId: this.config.activeProviderId,
         providerProfiles: persistentProviderProfiles
       });
-      await storagePromise('local', 'remove', 'apiKey');
+      if (!this.config.rememberApiKey) {
+        await storagePromise('local', 'remove', ['apiKey', 'providerApiKeys']);
+      }
       const bridgeSaved = await this.saveAgentBridgeConfig();
       if (!bridgeSaved) return;
       if (apiKeyInput) { this.#apiKeyMemory = this.config.apiKey; apiKeyInput.value = maskApiKey(this.config.apiKey); }
@@ -1178,7 +1190,9 @@ class SettingsManager {
       apiDesc: 'Configure model API credentials for AI features',
       language: 'Interface Language',
       provider: 'Model Provider',
-      providerHelp: 'Each provider keeps its own settings. API keys remain only for the current browser session and must be re-entered after the browser fully closes.',
+      providerHelp: 'Each provider keeps its own settings.',
+      rememberApiKeyTitle: 'Remember API Key on this device',
+      rememberApiKeyDesc: 'Store it in this browser’s extension data so it survives extension reloads and browser restarts. Turn this off to keep it only for the current browser session.',
       baseUrl: 'Base URL (optional)',
       baseHelp: 'Leave empty to use the default OpenAI API URL',
       model: 'Model Name',
@@ -1212,7 +1226,9 @@ class SettingsManager {
       apiDesc: '配置大模型 API 凭证以使用 AI 功能',
       language: '界面语言',
       provider: '模型服务商',
-      providerHelp: '每个服务商的配置会独立保存；API Key 仅在当前浏览器会话中保留，完全退出浏览器后需重新输入。',
+      providerHelp: '每个服务商的配置会独立保存。',
+      rememberApiKeyTitle: '在此设备上记住 API Key',
+      rememberApiKeyDesc: '保存在当前浏览器的扩展数据中，扩展重新加载或浏览器重启后仍可使用。关闭后仅保留到本次浏览器会话结束。',
       baseUrl: 'Base URL（可选）',
       baseHelp: '留空使用默认的 OpenAI API 地址',
       model: '模型名称',
@@ -1280,7 +1296,7 @@ class SettingsManager {
       aboutHeading: 'About',
       aboutVersion: `Version ${manifestVersion}`,
       aboutDesc: 'Record browser workflows and automatically generate documentation.',
-      aboutFeature: 'New feature: document upload and management.'
+      aboutFeature: 'Scanned PDF OCR, document previews, categories, and sharing.'
     } : {
       languageHelp: '切换扩展主要页面的显示语言。',
       outputText: '纯文本 (.txt)',
@@ -1321,7 +1337,7 @@ class SettingsManager {
       aboutHeading: '关于',
       aboutVersion: `版本 ${manifestVersion}`,
       aboutDesc: '智能录制网页操作并自动生成文档。',
-      aboutFeature: '新增功能：文档上传与管理。'
+      aboutFeature: '扫描版 PDF OCR、内容预览、分类与分享。'
     });
 
     document.title = `${text.title} - SmartPages`;
@@ -1346,6 +1362,8 @@ class SettingsManager {
     set('label[for="app-language"] + select + .help-text', text.languageHelp);
     set('label[for="api-provider"]', text.provider);
     set('#api-provider + .help-text', text.providerHelp);
+    set('#remember-api-key-setting .switch-title', text.rememberApiKeyTitle);
+    set('#remember-api-key-setting .switch-desc', text.rememberApiKeyDesc);
     set('label[for="base-url"]', text.baseUrl);
     set('#base-url + .help-text', text.baseHelp);
     set('label[for="model-name"]', text.model);
@@ -1431,7 +1449,7 @@ class SettingsManager {
     if (aboutParagraphs[2]) aboutParagraphs[2].textContent = text.aboutDesc;
     if (aboutParagraphs[3]) {
       aboutParagraphs[3].replaceChildren(
-        createElement('strong', { textContent: isEn ? 'New feature:' : '新增功能:' }),
+        createElement('strong', { textContent: isEn ? 'New in 1.4.0:' : '1.4.0 新增：' }),
         document.createTextNode(` ${text.aboutFeature.replace(/^(New feature:|新增功能：)\s*/i, '')}`)
       );
     }

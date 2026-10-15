@@ -14,7 +14,13 @@ assert.match(source, /this\.stateBeforeDocuments = StateViews\.EMPTY/);
 const documentsNavigation = source.slice(source.indexOf('  showDocumentsPanel()'), source.indexOf('  async _applyLanguage()'));
 assert.match(documentsNavigation, /this\.stateBeforeDocuments = this\.currentState/);
 assert.match(documentsNavigation, /this\.setState\(returnState\)/);
+assert.match(documentsNavigation, /returnState === StateViews\.EMPTY[\s\S]*returnToPreviousDocument\(\)/);
 assert.doesNotMatch(documentsNavigation, /this\._showEmptyState\(\)/);
+
+const newDocument = source.slice(source.indexOf('  newDocument()'), source.indexOf('  retry()'));
+assert.match(newDocument, /_ensureEditorContentFresh\(\)/);
+assert.match(newDocument, /_pushCurrentDocumentForNavigation\(\)/);
+assert.doesNotMatch(newDocument, /documentNavigationStack = \[\]/);
 
 const localOpen = source.slice(source.indexOf('  async openLocalDocument('), source.indexOf('  async deleteLocalDocument('));
 const cloudOpen = source.slice(source.indexOf('  async openCloudDocument('), source.indexOf('  async deleteCloudDocument('));

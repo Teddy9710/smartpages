@@ -387,11 +387,15 @@ class SidePanelManager {
     this.docUI.loadDocumentsList();
   }
 
-  hideDocumentsPanel() {
+  async hideDocumentsPanel() {
     const returnState = Object.values(StateViews).includes(this.stateBeforeDocuments) &&
       this.stateBeforeDocuments !== StateViews.DOCUMENTS
       ? this.stateBeforeDocuments
       : StateViews.EMPTY;
+    if (returnState === StateViews.EMPTY && this.documentNavigationStack.length) {
+      await this.returnToPreviousDocument();
+      return;
+    }
     this.setState(returnState);
   }
 
@@ -526,6 +530,8 @@ class SidePanelManager {
       customRequired: 'Please enter a custom description',
       generating: 'Generating document...',
       generationFailed: 'Failed to generate document. Please try again.',
+      markdownAutoSaved: 'Markdown saved locally: {{filename}}',
+      markdownAutoSaveFailed: 'The document was generated, but the Markdown file could not be saved locally.',
       workflowExportEmptyContent: 'Enter document content before exporting a workflow.',
       workflowExportEmptySession: 'Record at least one step before exporting a workflow.',
       workflowExportUnavailable: 'Workflow export is unavailable. Please reload the extension and try again.',
@@ -582,6 +588,8 @@ class SidePanelManager {
       customRequired: '请输入自定义描述',
       generating: '正在生成文档...',
       generationFailed: '生成文档失败，请重试',
+      markdownAutoSaved: 'Markdown 已自动保存到本地：{{filename}}',
+      markdownAutoSaveFailed: '文档已生成，但 Markdown 文件自动落盘失败。',
       workflowExportEmptyContent: '请先输入文档内容，再导出工作流。',
       workflowExportEmptySession: '请先录制至少一个步骤，再导出工作流。',
       workflowExportUnavailable: '工作流导出功能暂不可用，请重新加载扩展后重试。',
@@ -1382,8 +1390,9 @@ ${markdown}`;
   }
 
   newDocument() {
+    this._ensureEditorContentFresh();
+    this._pushCurrentDocumentForNavigation();
     this.session = null;
-    this.documentNavigationStack = [];
     this._updateDocumentBackButton();
     this.localDocumentState = { fileName: null, dirty: true };
     this.cloudDocumentState = { id: null, revision: 0, dirty: true };

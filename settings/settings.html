@@ -57,8 +57,19 @@
             <option value="dashscope">阿里云百炼 DashScope</option>
             <option value="custom">自定义 OpenAI-compatible API</option>
           </select>
-          <p class="help-text">每个服务商的配置会独立保存；API Key 仅在当前浏览器会话中保留。</p>
+          <p class="help-text">每个服务商的配置会独立保存。</p>
         </div>
+        </div>
+
+        <div class="form-group-switch" id="remember-api-key-setting">
+          <label class="switch-label">
+            <input type="checkbox" id="remember-api-key" checked>
+            <span class="switch-slider"></span>
+          </label>
+          <div class="switch-info">
+            <div class="switch-title">在此设备上记住 API Key</div>
+            <div class="switch-desc">保存在当前浏览器的扩展数据中，扩展重新加载或浏览器重启后仍可使用。关闭后仅保留到本次浏览器会话结束。</div>
+          </div>
         </div>
 
         <div class="form-grid form-grid--two">
@@ -422,9 +433,9 @@
         <h2>关于</h2>
         <div class="about">
           <p><strong>SmartPages</strong></p>
-          <p>版本</p>
+          <p>版本 1.4.0</p>
           <p>智能录制网页操作并自动生成文档</p>
-          <p><strong>新增功能:</strong> 文档上传与管理</p>
+          <p><strong>1.4.0 新增：</strong> 扫描版 PDF OCR、内容预览、分类与分享</p>
         </div>
       </section>
       </main>
