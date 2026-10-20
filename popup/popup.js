@@ -71,11 +71,29 @@ class PopupManager {
    * @async
    */
   async init() {
-    await this._applyLanguage();
+    // Bind controls before any asynchronous storage/background work. Popup
+    // pages are short-lived, so a delayed or failed initialization must not
+    // leave the visible controls without handlers.
     this._bindButtonEvents();
     this._bindMessageListener();
-    await this._refreshState();
-    await this._refreshGifState();
+
+    try {
+      await this._applyLanguage();
+    } catch (error) {
+      console.warn('[Scribe:Popup] Failed to apply language:', error);
+    }
+
+    try {
+      await this._refreshState();
+    } catch (error) {
+      console.warn('[Scribe:Popup] Failed to refresh recording state:', error);
+    }
+
+    try {
+      await this._refreshGifState();
+    } catch (error) {
+      console.warn('[Scribe:Popup] Failed to refresh GIF state:', error);
+    }
   }
 
   // ========================================================================

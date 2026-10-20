@@ -99,6 +99,10 @@ const ApiProviders = {
     label: '阿里云百炼 DashScope',
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     internationalBaseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+    // DashScope's model catalog is exposed by the native API path rather than
+    // the OpenAI-compatible /compatible-mode/v1 path.
+    modelListUrl: 'https://dashscope.aliyuncs.com/api/v1/models',
+    internationalModelListUrl: 'https://dashscope-intl.aliyuncs.com/api/v1/models',
     modelName: 'qwen-plus',
     keyUrl: 'https://bailian.console.aliyun.com/?apiKey=1',
     internationalKeyUrl: 'https://modelstudio.console.alibabacloud.com/',
@@ -776,10 +780,23 @@ class SettingsManager {
     }
   }
 
-  _getModelListUrl(baseUrl) {
+  _getModelListUrl(baseUrl, providerId = '') {
     const normalized = String(baseUrl || '').trim().replace(/\/+$/, '')
       .replace(/\/(?:chat\/completions|messages)$/i, '');
     if (!normalized) return '';
+
+    const provider = ApiProviders[providerId];
+    if (provider) {
+      const regionalCatalogUrls = [
+        provider.modelListUrl,
+        provider.internationalModelListUrl
+      ].filter(Boolean);
+      const regionalBaseUrls = [provider.baseUrl, provider.internationalBaseUrl].filter(Boolean);
+      const regionalIndex = regionalBaseUrls.findIndex(url => this._normalizeBaseUrl(url) === normalized);
+      if (regionalIndex >= 0 && regionalCatalogUrls[regionalIndex]) {
+        return regionalCatalogUrls[regionalIndex];
+      }
+    }
     return /\/models$/i.test(normalized) ? normalized : `${normalized}/models`;
   }
 
@@ -854,7 +871,7 @@ class SettingsManager {
       } else {
         headers.Authorization = `Bearer ${apiKey}`;
       }
-      const response = await fetchWithTimeout(this._getModelListUrl(baseUrl), {
+      const response = await fetchWithTimeout(this._getModelListUrl(baseUrl, providerId), {
         method: 'GET',
         headers
       }, MODEL_LIST_TIMEOUT);
