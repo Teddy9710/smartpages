@@ -83,6 +83,7 @@ body {
 .ai-config-actions { position: sticky; top: 86px; z-index: 4; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 18px 0 22px; padding: 11px 13px; border: 1px solid #cfe0ff; border-radius: 12px; background: rgba(248, 251, 255, .94); box-shadow: 0 8px 22px rgba(30, 64, 175, .08); backdrop-filter: blur(10px); }
 .ai-config-actions__hint { color: #49617f; font-size: 12px; line-height: 1.45; }
 .ai-config-actions .button-group { margin: 0; padding: 0; border-top: 0; flex-shrink: 0; }
+.ai-config-actions .test-result { flex-basis: 100%; margin-top: 0; }
 .form-group label { display: block; margin-bottom: 7px; color: #334155; font-size: 13px; font-weight: 650; }
 
 .input, .textarea { display: block; width: 100%; border: 1px solid #d8e1ec; border-radius: 9px; outline: 0; background: #fff; color: var(--ink); font: inherit; transition: border-color .16s ease, box-shadow .16s ease; }

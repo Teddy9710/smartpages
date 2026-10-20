@@ -161,6 +161,9 @@ class SettingsManager {
       actions: this._getReferenceDocumentActions()
     });
     this.cleanupFunctions = [];
+    // Bind primary controls immediately so the settings page remains
+    // responsive while stored configuration and documents load.
+    this._bindEvents();
     this.init();
   }
 
@@ -186,6 +189,8 @@ class SettingsManager {
   // ========================================================================
 
   _bindEvents() {
+    if (this.eventsBound) return;
+    this.eventsBound = true;
     this._bindButton('btn-save', () => this.saveConfig());
     this._bindButton('btn-test', () => this.testConnection());
     this._bindButton('btn-refresh-models', () => this.refreshModelList());
@@ -1111,6 +1116,7 @@ class SettingsManager {
     const apiKey = this._readApiKeyFromForm();
 
     const isEn = (appLanguageSelect?.value || this.config.appLanguage || DEFAULT_APP_LANGUAGE) === 'en-US';
+    this._showTestResult(isEn ? 'Saving settings...' : '正在保存配置...', 'pending');
     if (!apiKey) { this._showTestResult(isEn ? 'Please enter an API Key' : '请输入API Key', 'error'); return; }
     if (apiKey.length < MIN_API_KEY_LENGTH) { this._showTestResult(isEn ? 'API Key is too short. Please check it.' : 'API Key长度不足，请检查', 'error'); return; }
     const maxTokens = this._parseMaxTokens(maxTokensInput?.value);
