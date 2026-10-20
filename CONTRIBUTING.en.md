@@ -1,5 +1,7 @@
 # Contributing Guide
 
+中文版：[CONTRIBUTING.md](CONTRIBUTING.md)
+
 Thank you for your interest in SmartPages! We welcome Issues, Pull Requests, and suggestions.
 
 ## Contributor License Agreement (CLA)
