@@ -98,13 +98,23 @@
 
         <div class="form-group">
           <label for="model-name">模型名称</label>
-          <input
-            type="text"
-            id="model-name"
-            class="input"
-            placeholder="gpt-3.5-turbo"
-          >
-          <p class="help-text">默认使用 gpt-3.5-turbo</p>
+          <div class="model-input-row">
+            <input
+              type="text"
+              id="model-name"
+              class="input"
+              list="model-options"
+              placeholder="gpt-3.5-turbo"
+              autocomplete="off"
+            >
+            <button id="btn-refresh-models" class="btn btn-secondary btn-small" type="button">
+              <span class="icon icon-refresh" aria-hidden="true"></span>
+              获取模型
+            </button>
+          </div>
+          <datalist id="model-options"></datalist>
+          <p id="model-list-status" class="help-text" aria-live="polite"></p>
+          <p id="model-name-help" class="help-text">默认使用 gpt-3.5-turbo</p>
         </div>
         </div>
 
@@ -436,7 +446,7 @@
         <h2>关于</h2>
         <div class="about">
           <p><strong>SmartPages</strong></p>
-          <p>版本 1.4.0</p>
+          <p>版本 1.4.1</p>
           <p>智能录制网页操作并自动生成文档</p>
           <p><strong>1.4.0 新增：</strong> 扫描版 PDF OCR、内容预览、分类与分享</p>
         </div>

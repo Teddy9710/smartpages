@@ -13,6 +13,8 @@
 // ============================================================================
 
 const MIN_API_KEY_LENGTH = 10;
+const MODEL_LIST_CACHE_TTL = 5 * 60 * 1000;
+const MODEL_LIST_TIMEOUT = 15000;
 const AGENT_BRIDGE_CONFIG_KEY = 'smartpagesAgentBridge';
 const AGENT_BRIDGE_WORKFLOW_ORIGINS = ['http://localhost/*'];
 
@@ -146,6 +148,7 @@ class SettingsManager {
     this.customGenerationTemplates = [];
     this.defaultGenerationTemplateId = '';
     this.activeGenerationTemplateId = '';
+    this.modelListCache = new Map();
     this.docUI = new DocUIHelper({
       api: this.api,
       source: '',
@@ -181,6 +184,7 @@ class SettingsManager {
   _bindEvents() {
     this._bindButton('btn-save', () => this.saveConfig());
     this._bindButton('btn-test', () => this.testConnection());
+    this._bindButton('btn-refresh-models', () => this.refreshModelList());
     this._bindButton('btn-clear-api-keys', () => this.clearApiKeys());
     this._bindButton('btn-agent-bridge-test', () => this.testAgentBridgeConnection());
     this._bindButton('btn-toggle-key', () => this._toggleApiKeyVisibility());
@@ -745,6 +749,7 @@ class SettingsManager {
     this._populateProviderProfile(providerId, this.providerProfiles[providerId]);
     this.config.apiFormat = provider.apiFormat || DEFAULT_API_FORMAT;
     this._syncKeyHelp(providerId);
+    this._clearModelListOptions();
   }
 
   _syncProviderFromBaseUrl() {
@@ -759,6 +764,113 @@ class SettingsManager {
     providerSelect.value = inferredProviderId;
     this.config.apiFormat = (ApiProviders[inferredProviderId] || ApiProviders.custom).apiFormat || DEFAULT_API_FORMAT;
     this._syncKeyHelp(inferredProviderId);
+    this._clearModelListOptions();
+  }
+
+  _clearModelListOptions() {
+    document.getElementById('model-options')?.replaceChildren();
+    const status = document.getElementById('model-list-status');
+    if (status) {
+      status.textContent = '';
+      status.className = 'help-text';
+    }
+  }
+
+  _getModelListUrl(baseUrl) {
+    const normalized = String(baseUrl || '').trim().replace(/\/+$/, '')
+      .replace(/\/(?:chat\/completions|messages)$/i, '');
+    if (!normalized) return '';
+    return /\/models$/i.test(normalized) ? normalized : `${normalized}/models`;
+  }
+
+  _normalizeModelList(payload) {
+    const entries = Array.isArray(payload?.data)
+      ? payload.data
+      : Array.isArray(payload?.models)
+        ? payload.models
+        : Array.isArray(payload)
+          ? payload
+          : [];
+    const seen = new Set();
+    return entries.map(entry => {
+      if (typeof entry === 'string') return entry.trim();
+      if (!entry || typeof entry !== 'object') return '';
+      return String(entry.id || entry.name || entry.model || entry.modelId || '').trim();
+    }).filter(model => {
+      if (!model || seen.has(model)) return false;
+      seen.add(model);
+      return !/(^|[-_/])(embedding|embed|moderation|whisper|transcrib|rerank|tts)([-_/]|$)/i.test(model);
+    }).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).slice(0, 200);
+  }
+
+  _renderModelList(models) {
+    const datalist = document.getElementById('model-options');
+    if (!datalist) return;
+    datalist.replaceChildren(...models.map(model => createElement('option', { value: model })));
+  }
+
+  async refreshModelList() {
+    const isEn = this._getAppLanguage() === 'en-US';
+    const button = document.getElementById('btn-refresh-models');
+    const status = document.getElementById('model-list-status');
+    const baseUrl = document.getElementById('base-url')?.value.trim() || '';
+    const apiKey = this._readApiKeyFromForm();
+    const providerId = document.getElementById('api-provider')?.value || this.activeProviderId || 'custom';
+    const setStatus = (message, type = '') => {
+      if (!status) return;
+      status.textContent = message;
+      status.className = `help-text${type ? ` status-${type}` : ''}`;
+    };
+
+    if (!apiKey) {
+      setStatus(isEn ? 'Enter an API Key first.' : '请先输入 API Key。', 'warning');
+      return;
+    }
+    const validation = validateUrl(baseUrl);
+    if (!validation.valid || (!isLoopbackUrl(baseUrl) && new URL(baseUrl).protocol !== 'https:')) {
+      setStatus(isEn ? 'Use a valid HTTPS API Base URL.' : '请输入有效的 HTTPS API Base URL。', 'error');
+      return;
+    }
+    try {
+      if (!(await this._requestApiHostPermission(baseUrl))) {
+        setStatus(isEn ? 'API host permission is required.' : '需要授权访问 API 服务地址。', 'error');
+        return;
+      }
+      const cacheKey = `${providerId}:${this._normalizeBaseUrl(baseUrl)}`;
+      const cached = this.modelListCache.get(cacheKey);
+      if (cached && Date.now() - cached.updatedAt < MODEL_LIST_CACHE_TTL) {
+        this._renderModelList(cached.models);
+        setStatus(isEn ? `${cached.models.length} models loaded from cache.` : `已从缓存加载 ${cached.models.length} 个模型。`, 'success');
+        return;
+      }
+
+      if (button) button.disabled = true;
+      setStatus(isEn ? 'Loading models...' : '正在获取模型列表...');
+      const apiFormat = (ApiProviders[providerId] || ApiProviders.custom).apiFormat || DEFAULT_API_FORMAT;
+      const headers = { Accept: 'application/json' };
+      if (apiFormat === 'anthropic') {
+        headers['x-api-key'] = apiKey;
+        headers['anthropic-version'] = '2023-06-01';
+      } else {
+        headers.Authorization = `Bearer ${apiKey}`;
+      }
+      const response = await fetchWithTimeout(this._getModelListUrl(baseUrl), {
+        method: 'GET',
+        headers
+      }, MODEL_LIST_TIMEOUT);
+      if (!response.ok) {
+        throw new Error(`${response.status} ${response.statusText || 'Model list request failed'}`.trim());
+      }
+      const models = this._normalizeModelList(await response.json());
+      if (!models.length) throw new Error(isEn ? 'No compatible models were returned.' : '服务商没有返回可用模型。');
+      this.modelListCache.set(cacheKey, { models, updatedAt: Date.now() });
+      this._renderModelList(models);
+      setStatus(isEn ? `${models.length} models loaded. You can still enter a custom model.` : `已获取 ${models.length} 个模型，也可以继续手动输入自定义模型。`, 'success');
+    } catch (error) {
+      setStatus((isEn ? 'Could not load models: ' : '获取模型失败：') + (error?.message || (isEn ? 'check the API settings.' : '请检查 API 配置。')), 'error');
+    } finally {
+      if (button) button.disabled = false;
+    }
   }
 
   _inferApiProvider(baseUrl) {
@@ -1197,6 +1309,7 @@ class SettingsManager {
       baseUrl: 'Base URL (optional)',
       baseHelp: 'Leave empty to use the default OpenAI API URL',
       model: 'Model Name',
+      refreshModels: 'Get Models',
       modelHelp: 'For example: gpt-4o-mini, gemini-3-flash-preview, claude-sonnet-4-20250514',
       maxTokens: 'Max Output Tokens',
       maxInputTokens: 'Max Input Tokens',
@@ -1234,6 +1347,7 @@ class SettingsManager {
       baseUrl: 'Base URL（可选）',
       baseHelp: '留空使用默认的 OpenAI API 地址',
       model: '模型名称',
+      refreshModels: '获取模型',
       modelHelp: '例如：gpt-4o-mini、gemini-3-flash-preview、claude-sonnet-4-20250514',
       maxTokens: '最大输出 Token',
       maxInputTokens: '最大输入 Token',
@@ -1370,7 +1484,8 @@ class SettingsManager {
     set('label[for="base-url"]', text.baseUrl);
     set('#base-url + .help-text', text.baseHelp);
     set('label[for="model-name"]', text.model);
-    set('#model-name + .help-text', text.modelHelp);
+    set('#model-name-help', text.modelHelp);
+    setButton('#btn-refresh-models', text.refreshModels);
     set('label[for="max-tokens"]', text.maxTokens);
     set('label[for="max-input-tokens"]', text.maxInputTokens);
     set('#multimodal-setting .switch-title', text.multimodalTitle);
