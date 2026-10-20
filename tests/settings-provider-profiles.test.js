@@ -63,7 +63,10 @@ const { loadConfig } = require(commonPath);
   assert.equal(Object.hasOwn(localMigration.data.providerProfiles.openai, 'apiKey'), false);
   assert.equal(localMigration.data.providerApiKeys.openai, 'openai-key');
   assert.equal(localMigration.data.providerApiKeys.claude, 'claude-key');
-  assert.equal(writes.some(call => call.area === 'local' && call.method === 'remove'), false);
+  assert.equal(writes.some(call => call.area === 'local'
+    && call.method === 'remove'
+    && Array.isArray(call.data)
+    && call.data.includes('apiKey')), true);
 
   const source = fs.readFileSync(path.join(__dirname, '..', 'settings', 'settings.js'), 'utf8');
   assert.match(source, /_captureProviderProfile\(this\.activeProviderId\)/);

@@ -945,12 +945,18 @@ async function loadConfig() {
       .map(([id, profile]) => [id, profile.apiKey])
   );
   const rememberApiKey = result.rememberApiKey !== false;
+  const activeProviderId = String(result.activeProviderId || '');
   const persistentProviderApiKeys = rememberApiKey && result.providerApiKeys && typeof result.providerApiKeys === 'object'
     ? result.providerApiKeys
+    : {};
+  const migratedTopLevelApiKey = rememberApiKey && activeProviderId && result.apiKey
+    && !persistentProviderApiKeys[activeProviderId] && !legacyProviderApiKeys[activeProviderId]
+    ? { [activeProviderId]: String(result.apiKey) }
     : {};
   const providerApiKeys = {
     ...legacyProviderApiKeys,
     ...persistentProviderApiKeys,
+    ...migratedTopLevelApiKey,
     ...(sessionSecrets.providerApiKeys && typeof sessionSecrets.providerApiKeys === 'object'
       ? sessionSecrets.providerApiKeys
       : {})
@@ -961,7 +967,6 @@ async function loadConfig() {
       apiKey: String(providerApiKeys[id] || '')
     }])
   );
-  const activeProviderId = String(result.activeProviderId || '');
   const persistentApiKey = rememberApiKey ? String(result.apiKey || '') : '';
   const sessionApiKey = String(sessionSecrets.apiKey || '');
   const activeFallbackApiKey = sessionApiKey || persistentApiKey;
@@ -989,11 +994,18 @@ async function loadConfig() {
       providerApiKeys
     });
   }
-  if (Object.keys(legacyProviderApiKeys).length) {
+  const shouldNormalizePersistentSecrets = rememberApiKey && activeProviderId
+    && providerApiKeys[activeProviderId] && (result.apiKey || Object.keys(legacyProviderApiKeys).length);
+  if (Object.keys(legacyProviderApiKeys).length || Object.keys(migratedTopLevelApiKey).length || shouldNormalizePersistentSecrets) {
     await storagePromise('local', 'set', {
       providerProfiles: persistentProviderProfiles,
       ...(rememberApiKey ? { providerApiKeys } : {})
     });
+    if (rememberApiKey && activeProviderId && providerApiKeys[activeProviderId] && result.apiKey) {
+      // Keep one canonical persistent copy per provider instead of retaining
+      // the legacy top-level apiKey alongside providerApiKeys.
+      await storagePromise('local', 'remove', ['apiKey']);
+    }
   }
   if (!rememberApiKey && (result.apiKey || result.providerApiKeys)) {
     await storagePromise('local', 'remove', ['apiKey', 'providerApiKeys']);

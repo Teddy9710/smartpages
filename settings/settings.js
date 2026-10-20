@@ -181,6 +181,7 @@ class SettingsManager {
   _bindEvents() {
     this._bindButton('btn-save', () => this.saveConfig());
     this._bindButton('btn-test', () => this.testConnection());
+    this._bindButton('btn-clear-api-keys', () => this.clearApiKeys());
     this._bindButton('btn-agent-bridge-test', () => this.testAgentBridgeConnection());
     this._bindButton('btn-toggle-key', () => this._toggleApiKeyVisibility());
     this._bindButton('btn-save-cloud-settings', () => this.saveCloudConfig());
@@ -1207,6 +1208,7 @@ class SettingsManager {
       promptMode: 'Prompt Mode',
       test: 'Test Connection',
       save: 'Save Settings',
+      clearApiKeys: 'Clear All API Keys',
       docsHeading: 'Reference Document Management',
       docsDesc: 'Upload style guides or sample documents and apply them to generation settings.',
       uploadTitle: 'Drag files here or click to upload',
@@ -1243,6 +1245,7 @@ class SettingsManager {
       promptMode: '提示词模式',
       test: '测试连接',
       save: '保存设置',
+      clearApiKeys: '清除所有 API Key',
       docsHeading: '参考文档管理',
       docsDesc: '上传风格指南或示例文档，然后一键应用到生成配置。',
       uploadTitle: '拖拽文件到这里或点击上传',
@@ -1409,6 +1412,7 @@ class SettingsManager {
     this._renderGenerationTemplates();
     setButton('#btn-test', text.test);
     setButton('#btn-save', text.save);
+    setButton('#btn-clear-api-keys', text.clearApiKeys);
     set('.section:nth-of-type(2) h2', text.docsHeading);
     set('.section:nth-of-type(2) .section-desc', text.docsDesc);
     set('.upload-content h3', text.uploadTitle);
@@ -1455,6 +1459,36 @@ class SettingsManager {
     }
     const toggle = document.getElementById('btn-toggle-key');
     if (toggle) toggle.textContent = document.getElementById('api-key')?.type === 'text' ? text.hide : text.show;
+  }
+
+  async clearApiKeys() {
+    const isEn = (this.config?.appLanguage || DEFAULT_APP_LANGUAGE) === 'en-US';
+    const confirmed = confirm(isEn
+      ? 'Clear all saved API Keys from this extension? This cannot be undone.'
+      : '确定清除这个扩展中保存的所有 API Key 吗？此操作无法撤销。');
+    if (!confirmed) return;
+
+    const button = document.getElementById('btn-clear-api-keys');
+    if (button) button.disabled = true;
+    try {
+      await storagePromise('local', 'remove', ['apiKey', 'providerApiKeys']);
+      await storagePromise('session', 'remove', ['apiKey', 'providerApiKeys']).catch(() => {});
+      this.#apiKeyMemory = '';
+      this.config.apiKey = '';
+      Object.values(this.providerProfiles).forEach(profile => { if (profile) profile.apiKey = ''; });
+      this.config.providerProfiles = this.providerProfiles;
+      const apiKeyInput = document.getElementById('api-key');
+      if (apiKeyInput) apiKeyInput.value = '';
+      const message = isEn ? 'All API Keys were cleared.' : '所有 API Key 已清除。';
+      this._showTestResult(message, 'success');
+      this._showToast(message, 'success');
+    } catch (error) {
+      const message = error?.message || (isEn ? 'Failed to clear API Keys.' : '清除 API Key 失败。');
+      this._showTestResult(message, 'error');
+      this._showToast(message, 'error');
+    } finally {
+      if (button) button.disabled = false;
+    }
   }
 
   async clearRecordingCache() {

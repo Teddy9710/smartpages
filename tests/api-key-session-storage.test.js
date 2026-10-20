@@ -80,9 +80,12 @@ const { loadConfig } = require(commonPath);
   assert.match(saveConfigSource, /\?\s*\{\s*apiKey:\s*this\.config\.apiKey,\s*providerApiKeys\s*\}/);
   assert.match(saveConfigSource, /rememberApiKey:\s*this\.config\.rememberApiKey/);
   assert.match(saveConfigSource, /if\s*\(!this\.config\.rememberApiKey\)[\s\S]*?remove['"],\s*\[['"]apiKey['"],\s*['"]providerApiKeys['"]\]/);
+  assert.match(settingsSource, /async clearApiKeys\(\)/);
+  assert.match(settingsSource, /storagePromise\(['"]local['"],\s*['"]remove['"],\s*\[['"]apiKey['"],\s*['"]providerApiKeys['"]\]/);
 
   const settingsHtml = fs.readFileSync(path.join(__dirname, '..', 'settings', 'settings.html'), 'utf8');
   assert.match(settingsHtml, /id="remember-api-key"\s+checked/);
+  assert.match(settingsHtml, /id="btn-clear-api-keys"/);
 })().catch(error => {
   console.error(error);
   process.exit(1);
