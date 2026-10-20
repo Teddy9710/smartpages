@@ -1,6 +1,6 @@
 # 贡献指南 (Contributing Guide)
 
-English version: [CONTRIBUTING.en.md](CONTRIBUTING.en.md)
+English version: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 感谢你对 SmartPages 的关注！欢迎提交 Issue、Pull Request 或建议。
 

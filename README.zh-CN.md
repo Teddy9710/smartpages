@@ -164,7 +164,7 @@ npm run build       # 生成可加载的 dist/
 npm run verify      # 运行完整验证
 ```
 
-欢迎提交 Issue 和 Pull Request。贡献前请阅读[中文贡献指南](CONTRIBUTING.md)或[English contributing guide](CONTRIBUTING.en.md)。
+欢迎提交 Issue 和 Pull Request。贡献前请阅读[中文贡献指南](CONTRIBUTING.zh-CN.md)或[English contributing guide](CONTRIBUTING.md)。
 
 ## 许可证
 

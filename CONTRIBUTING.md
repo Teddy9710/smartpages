@@ -1,6 +1,6 @@
 # Contributing Guide
 
-中文版：[CONTRIBUTING.md](CONTRIBUTING.md)
+中文版：[CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md)
 
 Thank you for your interest in SmartPages! We welcome Issues, Pull Requests, and suggestions.
 

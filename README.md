@@ -167,7 +167,7 @@ npm run build       # Generate the loadable dist/ directory
 npm run verify      # Run the full verification pipeline
 ```
 
-Issues and pull requests are welcome. Please read the [English contributing guide](CONTRIBUTING.en.md) or the [中文贡献指南](CONTRIBUTING.md) before contributing.
+Issues and pull requests are welcome. Please read the [English contributing guide](CONTRIBUTING.md) or the [中文贡献指南](CONTRIBUTING.zh-CN.md) before contributing.
 
 ## License
 
