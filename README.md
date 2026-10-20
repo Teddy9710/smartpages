@@ -21,7 +21,7 @@
 
 <p align="center">
   <img alt="Chrome Extension MV3" src="https://img.shields.io/badge/Chrome%20Extension-MV3-2563eb">
-  <img alt="Version 1.4.0" src="https://img.shields.io/badge/version-1.4.0-7c3aed">
+  <img alt="Version 1.4.3" src="https://img.shields.io/badge/version-1.4.3-7c3aed">
   <img alt="License GPL v3" src="https://img.shields.io/badge/license-GPL%20v3-111827">
 </p>
 
