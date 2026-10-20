@@ -849,15 +849,21 @@ body {
 
 .image-crop-panel {
   width: min(920px, 96vw);
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
 }
 
 .image-crop-panel .modal-actions {
   flex-wrap: wrap;
+  flex: 0 0 auto;
 }
 
 .image-crop-body {
   display: grid;
   gap: 12px;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .image-edit-toolbar {

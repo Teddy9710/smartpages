@@ -147,6 +147,7 @@ function assertRect(actual, expected) {
 {
   const source = require('./sidepanel-test-source')();
   const html = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.html'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.css'), 'utf8');
   assert.match(html, /id="btn-restore-original-image"/);
   assert.match(html, /id="btn-undo-image-edit"/);
   assert.match(html, /id="btn-redo-image-edit"/);
@@ -156,6 +157,9 @@ function assertRect(actual, expected) {
   assert.match(source, /undoImageEdit\(\)/);
   assert.match(source, /redoImageEdit\(\)/);
   assert.match(source, /_drawTextAnnotation\(/);
+  assert.match(css, /\.image-crop-panel\s*\{[\s\S]*max-height:\s*calc\(100vh\s*-\s*32px\)/);
+  assert.match(css, /\.image-crop-body\s*\{[\s\S]*overflow-y:\s*auto/);
+  assert.match(css, /\.image-crop-panel \.modal-actions\s*\{[\s\S]*flex:\s*0 0 auto/);
 }
 
 {
