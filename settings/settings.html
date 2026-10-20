@@ -118,6 +118,23 @@
         </div>
         </div>
 
+        <div class="ai-config-actions" role="group" aria-label="AI 配置操作">
+          <div class="ai-config-actions__hint">输入 API Key 后可直接测试或保存配置</div>
+          <div class="button-group">
+            <button id="btn-test" class="btn btn-secondary">
+              <span class="icon icon-test" aria-hidden="true"></span>
+              测试连接
+            </button>
+            <button id="btn-save" class="btn btn-primary">
+              <span class="icon icon-save" aria-hidden="true"></span>
+              保存配置
+            </button>
+            <button id="btn-clear-api-keys" class="btn btn-danger" type="button">
+              清除所有 API Key
+            </button>
+          </div>
+        </div>
+
         <div class="form-grid form-grid--two">
         <div class="form-group">
           <label for="max-tokens">最大输出 Token</label>
@@ -268,20 +285,6 @@
             </div>
           </div>
           <p class="help-text">生成时会优先使用当前文档类型对应的示例；示例可为 Markdown 或 HTML，只用于学习结构、语气、版式层级和颗粒度，不会照抄事实内容。</p>
-        </div>
-
-        <div class="button-group">
-          <button id="btn-test" class="btn btn-secondary">
-            <span class="icon icon-test" aria-hidden="true"></span>
-            测试连接
-          </button>
-          <button id="btn-save" class="btn btn-primary">
-            <span class="icon icon-save" aria-hidden="true"></span>
-            保存配置
-          </button>
-          <button id="btn-clear-api-keys" class="btn btn-danger" type="button">
-            清除所有 API Key
-          </button>
         </div>
 
         <div id="test-result" class="test-result hidden"></div>
