@@ -73,8 +73,8 @@ echo.
 
 echo 9. 检查文档...
 call :checkfile "README.md"
-call :checkfile "QUICKSTART.md"
-call :checkfile "TESTING.md"
+call :checkfile "docs\QUICKSTART.md"
+call :checkfile "docs\TESTING.md"
 echo.
 
 echo ===================================
@@ -93,7 +93,7 @@ if %fail%==0 (
     echo 3. 加载已解压的扩展程序
     echo 4. 选择当前目录
     echo.
-    echo 详细测试步骤请参考：TESTING.md
+    echo 详细测试步骤请参考：docs\TESTING.md
 ) else (
     echo [X] 发现 %fail% 个问题，请修复后重试
 )

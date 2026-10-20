@@ -67,5 +67,5 @@ The current bridge supports local calls only. SmartPages does not expose arbitra
 ## Related documentation
 
 - [SmartPages overview](../README.md)
-- [Quick start](../QUICKSTART.md)
-- [Troubleshooting](../TROUBLESHOOTING.md)
+- [Quick start](QUICKSTART.md)
+- [Troubleshooting](TROUBLESHOOTING.md)

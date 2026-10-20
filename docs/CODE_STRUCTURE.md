@@ -56,7 +56,8 @@ smartpages/
 │       └── README.md        # 技能说明
 ├── manifest.json            # 扩展清单文件
 ├── package.json             # NPM 配置文件
-└── prd.md                   # 产品需求文档
+└── docs/                    # 产品文档、归档记录与需求文档
+    └── prd.md               # 产品需求文档
 ```
 
 ---

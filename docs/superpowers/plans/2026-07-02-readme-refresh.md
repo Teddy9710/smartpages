@@ -76,7 +76,7 @@ Expected: `git diff --check` exits successfully; `rg` returns no stale PDF or pl
 Run:
 
 ```powershell
-@('icons/icon128.png','docs/assets/smartpages-demo-zh.gif','docs/assets/readme-hero.png','CONTRIBUTING.md','CONTRIBUTING.zh-CN.md','LICENSE','QUICKSTART.md','TESTING.md','TROUBLESHOOTING.md') | ForEach-Object { if (-not (Test-Path $_)) { throw "Missing README target: $_" } }
+@('icons/icon128.png','docs/assets/smartpages-demo-zh.gif','docs/assets/readme-hero.png','CONTRIBUTING.md','CONTRIBUTING.zh-CN.md','LICENSE','docs/QUICKSTART.md','docs/TESTING.md','docs/TROUBLESHOOTING.md') | ForEach-Object { if (-not (Test-Path $_)) { throw "Missing README target: $_" } }
 ```
 
 Expected: command exits successfully without output.

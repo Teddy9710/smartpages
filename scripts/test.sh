@@ -93,8 +93,8 @@ echo ""
 
 echo "9. 检查文档..."
 check_file "README.md"
-check_file "QUICKSTART.md"
-check_file "TESTING.md"
+check_file "docs/QUICKSTART.md"
+check_file "docs/TESTING.md"
 echo ""
 
 echo "10. 验证manifest.json语法..."
@@ -127,7 +127,7 @@ if [ $fail -eq 0 ]; then
     echo "3. 加载已解压的扩展程序"
     echo "4. 选择当前目录"
     echo ""
-    echo "详细测试步骤请参考：TESTING.md"
+    echo "详细测试步骤请参考：docs/TESTING.md"
     exit 0
 else
     echo -e "${RED}✗ 发现 ${fail} 个问题，请修复后重试${NC}"
