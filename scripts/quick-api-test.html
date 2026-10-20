@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https:; frame-ancestors 'none'; form-action 'none'; base-uri 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>API连接测试</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 20px auto;
+      padding: 20px;
+    }
+    .section {
+      margin: 20px 0;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+    .success { background: #d4edda; border-color: #c3e6cb; }
+    .error { background: #f8d7da; border-color: #f5c6cb; }
+    .warning { background: #fff3cd; border-color: #ffeaa7; }
+    input {
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    button {
+      background: #667eea;
+      color: white;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 10px 5px;
+    }
+    button:hover { background: #5568d3; }
+    #result {
+      white-space: pre-wrap;
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 4px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔧 API连接测试工具</h1>
+  <div class="section warning"><strong>仅供开发调试使用，不要输入生产环境的 API Key</strong></div>
+
+  <div class="section">
+    <h2>步骤1：加载API配置</h2>
+    <button onclick="loadConfig()">📥 从插件加载配置</button>
+    <div id="config-display"></div>
+  </div>
+
+  <div class="section">
+    <h2>步骤2：手动输入配置</h2>
+    <label>API Key:</label>
+    <input type="password" id="api-key" placeholder="sk-xxxxxxxxxxxxx" autocomplete="new-password" spellcheck="false">
+
+    <label>Base URL:</label>
+    <input type="text" id="base-url" placeholder="https://api.deepseek.com">
+
+    <label>模型名称:</label>
+    <input type="text" id="model-name" placeholder="deepseek-chat">
+  </div>
+
+  <div class="section">
+    <h2>步骤3：测试连接</h2>
+    <button onclick="testConnection()">🔍 测试API连接</button>
+    <button onclick="stopTest()">⏹ 停止测试</button>
+    <div id="result"></div>
+  </div>
+
+  <div class="section warning">
+    <h3>💡 常见配置</h3>
+    <button onclick="setDeepSeek()">DeepSeek</button>
+    <button onclick="setOpenAI()">OpenAI</button>
+  </div>
+
+  <script>
+    let currentController = null;
+
+    // 加载插件配置
+    async function loadConfig() {
+      try {
+        const [sessionConfig, localConfig] = await Promise.all([
+          chrome.storage.session.get(['apiKey']),
+          chrome.storage.local.get(['baseUrl', 'modelName'])
+        ]);
+        const result = { ...localConfig, apiKey: sessionConfig.apiKey || '' };
+        document.getElementById('api-key').value = result.apiKey || '';
+        document.getElementById('base-url').value = result.baseUrl || '';
+        document.getElementById('model-name').value = result.modelName || '';
+
+        const display = document.getElementById('config-display');
+        if (result.apiKey) {
+          renderConfigMessages([
+            { text: '✅ 配置已加载', type: 'success' },
+            { text: `API Key: ${maskKey(result.apiKey)}` },
+            { text: `Base URL: ${result.baseUrl || '未配置'}` },
+            { text: `模型: ${result.modelName || '未配置'}` }
+          ]);
+        } else {
+          renderConfigMessages([{ text: '⚠️ 未找到API配置', type: 'warning' }]);
+        }
+      } catch (error) {
+        renderConfigMessages([{ text: `❌ 加载失败: ${error.message}`, type: 'error' }]);
+      }
+    }
+
+    function renderConfigMessages(messages) {
+      const fragment = document.createDocumentFragment();
+
+      for (const { text, type } of messages) {
+        const paragraph = document.createElement('p');
+        paragraph.textContent = text;
+        if (type) paragraph.className = type;
+        fragment.appendChild(paragraph);
+      }
+
+      document.getElementById('config-display').replaceChildren(fragment);
+    }
+
+    function maskKey(key) {
+      if (key.length < 10) return key;
+      return key.substring(0, 7) + '...' + key.substring(key.length - 4);
+    }
+
+    // 测试连接
+    async function testConnection() {
+      const apiKey = document.getElementById('api-key').value.trim();
+      const baseUrl = document.getElementById('base-url').value.trim() || 'https://api.openai.com/v1';
+      const modelName = document.getElementById('model-name').value.trim() || 'gpt-3.5-turbo';
+
+      if (!apiKey) {
+        showResult('❌ 请先输入API Key', 'error');
+        return;
+      }
+
+      // 清理URL
+      let url = baseUrl;
+      if (url.endsWith('/')) {
+        url = url.slice(0, -1);
+      }
+
+      showResult('⏳ 正在测试连接...', 'warning');
+
+      // 创建AbortController用于超时
+      currentController = new AbortController();
+      const timeoutId = setTimeout(() => {
+        if (currentController) {
+          currentController.abort();
+        }
+      }, 15000); // 15秒超时
+
+      const startTime = Date.now();
+
+      try {
+        const testUrl = `${url}/chat/completions`;
+
+        const response = await fetch(testUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: modelName,
+            messages: [
+              { role: 'user', content: 'Hi' }
+            ],
+            max_tokens: 5
+          }),
+          signal: currentController.signal
+        });
+
+        clearTimeout(timeoutId);
+        const elapsed = Date.now() - startTime;
+
+        if (response.ok) {
+          const data = await response.json();
+          showResult(`✅ 连接成功！\n\n响应时间: ${elapsed}ms\n状态码: ${response.status}\n模型: ${modelName}\n\n返回数据:\n${JSON.stringify(data, null, 2)}`, 'success');
+        } else {
+          const errorData = await response.json().catch(() => ({ error: '无法解析错误响应' }));
+          showResult(`❌ API错误\n\n状态码: ${response.status}\n状态: ${response.statusText}\n\n错误详情:\n${JSON.stringify(errorData, null, 2)}`, 'error');
+        }
+      } catch (error) {
+        clearTimeout(timeoutId);
+
+        if (error.name === 'AbortError') {
+          showResult(`❌ 请求超时（15秒）\n\n可能的原因：\n1. 网络连接问题\n2. API地址不正确\n3. 服务器响应太慢\n\n建议：\n- 检查网络连接\n- 验证Base URL是否正确\n- 尝试使用不同的API服务`, 'error');
+        } else {
+          showResult(`❌ 请求失败\n\n错误信息: ${error.message}\n\n可能的原因：\n1. CORS限制\n2. 网络错误\n3. URL格式错误\n\n建议检查：\n- Base URL格式是否正确\n- 网络连接是否正常`, 'error');
+        }
+      } finally {
+        currentController = null;
+      }
+    }
+
+    function stopTest() {
+      if (currentController) {
+        currentController.abort();
+        currentController = null;
+        showResult('⏹ 测试已停止', 'warning');
+      }
+    }
+
+    function showResult(message, type) {
+      const result = document.getElementById('result');
+      result.textContent = message;
+      result.className = type;
+    }
+
+    function setDeepSeek() {
+      document.getElementById('base-url').value = 'https://api.deepseek.com';
+      document.getElementById('model-name').value = 'deepseek-chat';
+    }
+
+    function setOpenAI() {
+      document.getElementById('base-url').value = 'https://api.openai.com/v1';
+      document.getElementById('model-name').value = 'gpt-3.5-turbo';
+    }
+
+  </script>
+</body>
+</html>

@@ -67,5 +67,5 @@ Agent 只能通过该扩展回放操作；其他浏览器实例或内置浏览�
 ## 相关文档
 
 - [SmartPages 项目首页](../README.zh-CN.md)
-- [快速上手](../QUICKSTART.md)
-- [故障排查](../TROUBLESHOOTING.md)
+- [快速上手](QUICKSTART.md)
+- [故障排查](TROUBLESHOOTING.md)
