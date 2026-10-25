@@ -1101,6 +1101,8 @@ class SidePanelManager {
     ['preview-pane', 'edit-pane', 'btn-preview', 'btn-edit'].forEach(id => document.getElementById(id)?.classList.remove('active'));
     document.getElementById(paneId)?.classList.add('active');
     document.getElementById(buttonId)?.classList.add('active');
+    document.getElementById('btn-preview')?.setAttribute('aria-pressed', String(buttonId === 'btn-preview'));
+    document.getElementById('btn-edit')?.setAttribute('aria-pressed', String(buttonId === 'btn-edit'));
   }
 
   async copyDocument() {

@@ -118,6 +118,7 @@ body {
 .btn-danger:hover { border-color: #fca5a5; background: #fef2f2; }
 .btn-small { min-height: 36px; padding: 7px 10px; font-size: 12px; }
 .btn:disabled { cursor: not-allowed; opacity: .5; box-shadow: none; }
+.btn:focus-visible, .btn-toggle:focus-visible, .input:focus-visible, .textarea:focus-visible, select:focus-visible { outline: 3px solid rgba(37, 99, 235, .35); outline-offset: 2px; }
 
 .storage-action-row {
   display: flex;

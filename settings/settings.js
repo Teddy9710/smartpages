@@ -950,8 +950,15 @@ class SettingsManager {
     const toggleBtn = document.getElementById('btn-toggle-key');
     if (!apiKeyInput || !toggleBtn) return;
     const isEn = (this.config.appLanguage || DEFAULT_APP_LANGUAGE) === 'en-US';
-    if (apiKeyInput.type === 'password') { apiKeyInput.type = 'text'; toggleBtn.textContent = isEn ? 'Hide' : '隐藏'; }
-    else { apiKeyInput.type = 'password'; toggleBtn.textContent = isEn ? 'Show' : '显示'; }
+    if (apiKeyInput.type === 'password') {
+      apiKeyInput.type = 'text';
+      toggleBtn.textContent = isEn ? 'Hide' : '隐藏';
+      toggleBtn.setAttribute('aria-label', isEn ? 'Hide API Key' : '隐藏 API Key');
+    } else {
+      apiKeyInput.type = 'password';
+      toggleBtn.textContent = isEn ? 'Show' : '显示';
+      toggleBtn.setAttribute('aria-label', isEn ? 'Show API Key' : '显示 API Key');
+    }
   }
 
   async _requestApiHostPermission(baseUrl) {
@@ -1596,7 +1603,13 @@ class SettingsManager {
       );
     }
     const toggle = document.getElementById('btn-toggle-key');
-    if (toggle) toggle.textContent = document.getElementById('api-key')?.type === 'text' ? text.hide : text.show;
+    if (toggle) {
+      const isVisible = document.getElementById('api-key')?.type === 'text';
+      toggle.textContent = isVisible ? text.hide : text.show;
+      toggle.setAttribute('aria-label', isVisible
+        ? (isEn ? 'Hide API Key' : '隐藏 API Key')
+        : (isEn ? 'Show API Key' : '显示 API Key'));
+    }
   }
 
   async clearApiKeys() {
