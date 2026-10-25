@@ -456,3 +456,18 @@ find . -name "*.js" -not -path "./node_modules/*" | xargs wc -l
 ---
 
 **开始测试吧！** 🚀
+
+## Browser smoke test
+
+The extension smoke test loads the built MV3 extension in Chromium and checks the popup, settings page, and visible API-key feedback without calling a real model provider.
+
+Install Playwright separately for local browser testing, then run:
+
+```powershell
+npm install --save-dev playwright
+npm run build
+npm run test:browser
+```
+
+If Playwright is installed outside the project, set `NODE_PATH` to its `node_modules` directory. Set `SMARTPAGES_CHROME_PATH` when Chrome is not installed in the default location.
+
