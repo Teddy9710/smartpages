@@ -5,6 +5,20 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.4.3] - 2026-10-26
+
+### Added
+- 设置页支持从服务商接口获取可用模型列表，覆盖 DeepSeek、智谱、MiniMax、Kimi、SiliconFlow 和阿里云百炼等 OpenAI 兼容服务。
+- 新增 Chrome 扩展浏览器冒烟测试，覆盖弹窗、设置页反馈和 MV3 Service Worker 启动。
+
+### Changed
+- API Key 支持按服务商独立保存，并支持仅保留当前浏览器会话的安全模式。
+- AI 配置操作栏固定在配置输入区域附近，测试连接和保存设置的反馈直接显示在按钮下方。
+- 补充设置页和文档编辑器的键盘焦点、ARIA 状态和控件标签。
+
+### Fixed
+- 修复弹窗初始化期间异步配置读取失败时按钮无法响应的问题。
+
 ## [1.4.1] - 2026-10-20
 
 ### Fixed
