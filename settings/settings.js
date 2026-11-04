@@ -1001,6 +1001,7 @@ class SettingsManager {
 
   async saveCloudConfig() {
     const result = document.getElementById('cloud-settings-result');
+    const isEn = this._getAppLanguage() === 'en-US';
     const provider = document.getElementById('cloud-provider')?.value === 'cloudbase' ? 'cloudbase' : 'supabase';
     const config = provider === 'cloudbase' ? {
       provider,
@@ -1026,15 +1027,19 @@ class SettingsManager {
         : config.url;
       const granted = await this._requestApiHostPermission(permissionUrl);
       if (!granted) {
-        showResult(`需要允许扩展访问${provider === 'cloudbase' ? '腾讯云 CloudBase' : ' Supabase'} 服务域名。`, 'error');
+        showResult(isEn
+          ? `Allow the extension to access the ${provider === 'cloudbase' ? 'Tencent CloudBase' : 'Supabase'} service domain.`
+          : `需要允许扩展访问${provider === 'cloudbase' ? '腾讯云 CloudBase' : ' Supabase'} 服务域名。`, 'error');
         return;
       }
       const savedConfig = await this.cloudDocuments.saveConfig(config);
       const urlInput = document.getElementById('supabase-url');
       if (urlInput && savedConfig.url) urlInput.value = savedConfig.url;
-      showResult(`${provider === 'cloudbase' ? '腾讯云 CloudBase' : 'Supabase'} 配置已保存。请在侧边栏登录并保存文档。`, 'success');
+      showResult(isEn
+        ? `${provider === 'cloudbase' ? 'Tencent CloudBase' : 'Supabase'} settings saved. Sign in from the side panel before saving documents.`
+        : `${provider === 'cloudbase' ? '腾讯云 CloudBase' : 'Supabase'} 配置已保存。请在侧边栏登录并保存文档。`, 'success');
     } catch (error) {
-      showResult(`保存失败：${error.message}`, 'error');
+      showResult(isEn ? `Save failed: ${error.message}` : `保存失败：${error.message}`, 'error');
     }
   }
 
@@ -1329,6 +1334,12 @@ class SettingsManager {
     const text = isEn ? {
       title: 'Settings',
       subtitle: 'Model, prompt, and reference document management',
+      localStatus: 'Local configuration',
+      navApi: 'AI Configuration',
+      navDocs: 'Reference Documents',
+      navSmart: 'Smart Features',
+      navStorage: 'Storage & Cache',
+      navAbout: 'About',
       apiHeading: 'API Configuration',
       apiDesc: 'Configure model API credentials for AI features',
       language: 'Interface Language',
@@ -1363,10 +1374,37 @@ class SettingsManager {
       smartTitle: 'Enable smart task description inference',
       smartDesc: 'AI will analyze your operations and infer the task intent',
       show: 'Show',
-      hide: 'Hide'
+      hide: 'Hide',
+      cloudHeading: 'Cloud Documents',
+      cloudDesc: 'Choose Supabase or Tencent CloudBase. Use only public client keys, never server secrets.',
+      cloudProvider: 'Cloud Provider',
+      supabaseUrl: 'Project URL',
+      supabaseUrlHelp: 'Supabase Console → Project Settings → API',
+      supabaseKey: 'Anon / Publishable Key',
+      supabaseKeyHelp: 'Use only an anon or publishable key; protect data with Row Level Security.',
+      cloudbaseEnv: 'CloudBase Environment ID',
+      cloudbaseEnvHelp: 'CloudBase Console → Environment → Overview',
+      cloudbaseKey: 'Publishable Key',
+      cloudbaseKeyHelp: 'CloudBase Console → API Key. Do not enter a Tencent Cloud SecretId or SecretKey.',
+      cloudbaseRegion: 'Region',
+      cloudbaseRegionHelp: 'Use the region identifier shown in the CloudBase console.',
+      saveCloud: 'Save Cloud Settings',
+      agentBridgeHeading: 'Local Agent Bridge',
+      agentBridgeDesc: 'Connect to the local smartpages-mcp service so an agent can run exported workflows.',
+      agentBridgeEnabled: 'Enable Local Agent Bridge',
+      agentBridgePortHelp: 'Shown when smartpages-mcp starts',
+      agentBridgeTokenHelp: 'Paste the token shown by smartpages-mcp',
+      testAgentBridge: 'Test Agent Bridge',
+      notConnected: 'Not connected'
     } : {
       title: '设置',
       subtitle: '模型、提示词与文档资源管理',
+      localStatus: '本地配置',
+      navApi: 'AI 配置',
+      navDocs: '参考文档',
+      navSmart: '智能功能',
+      navStorage: '存储与缓存',
+      navAbout: '关于',
       apiHeading: 'API 配置',
       apiDesc: '配置大模型 API 凭证以使用 AI 功能',
       language: '界面语言',
@@ -1401,7 +1439,28 @@ class SettingsManager {
       smartTitle: '启用智能任务描述推测',
       smartDesc: 'AI 将自动分析您的操作并推测任务意图',
       show: '显示',
-      hide: '隐藏'
+      hide: '隐藏',
+      cloudHeading: '云端文档',
+      cloudDesc: '可选择 Supabase 或腾讯云 CloudBase。只填写客户端公开密钥，不要填写服务端 SecretKey。',
+      cloudProvider: '云服务商',
+      supabaseUrl: 'Project URL',
+      supabaseUrlHelp: 'Supabase 控制台 → Project Settings → API',
+      supabaseKey: 'Anon / Publishable Key',
+      supabaseKeyHelp: '只使用 anon 或 publishable key；权限由 Row Level Security 控制。',
+      cloudbaseEnv: 'CloudBase 环境 ID',
+      cloudbaseEnvHelp: '云开发平台 → 环境 → 环境总览',
+      cloudbaseKey: 'Publishable Key',
+      cloudbaseKeyHelp: '云开发平台 → API Key；不要填写腾讯云 SecretId 或 SecretKey。',
+      cloudbaseRegion: '地域',
+      cloudbaseRegionHelp: '填写 CloudBase 控制台显示的地域标识。',
+      saveCloud: '保存云端配置',
+      agentBridgeHeading: '本地 Agent Bridge',
+      agentBridgeDesc: '连接本机 smartpages-mcp，让 Agent 调用 SmartPages 执行已导出的 workflow。',
+      agentBridgeEnabled: '启用本地 Agent Bridge',
+      agentBridgePortHelp: 'smartpages-mcp 启动后显示',
+      agentBridgeTokenHelp: '粘贴 smartpages-mcp 显示的 token',
+      testAgentBridge: '测试 Agent Bridge',
+      notConnected: '未连接'
     };
     Object.assign(text, isEn ? {
       languageHelp: 'Switch the display language for the main extension pages.',
@@ -1501,6 +1560,27 @@ class SettingsManager {
       el.append(document.createTextNode(icon ? ` ${value}` : value));
     };
 
+    const setNavLabel = (href, value) => {
+      const link = document.querySelector(`.settings-nav-link[href="${href}"]`);
+      if (!link) return;
+      const index = link.querySelector('span');
+      link.replaceChildren();
+      if (index) link.appendChild(index);
+      link.append(document.createTextNode(value));
+    };
+    const headerStatus = document.querySelector('.header-status');
+    if (headerStatus) {
+      const dot = headerStatus.querySelector('span');
+      headerStatus.replaceChildren();
+      if (dot) headerStatus.appendChild(dot);
+      headerStatus.append(document.createTextNode(text.localStatus));
+    }
+    setNavLabel('#api-settings', text.navApi);
+    setNavLabel('#documents-settings', text.navDocs);
+    setNavLabel('#smart-settings', text.navSmart);
+    setNavLabel('#storage-settings', text.navStorage);
+    setNavLabel('#about-settings', text.navAbout);
+
     set('.header h1', text.title);
     set('.header p', text.subtitle);
     set('.section:nth-of-type(1) h2', text.apiHeading);
@@ -1560,7 +1640,7 @@ class SettingsManager {
     setButton('#btn-clear-api-keys', text.clearApiKeys);
     set('.section:nth-of-type(2) h2', text.docsHeading);
     set('.section:nth-of-type(2) .section-desc', text.docsDesc);
-    set('.upload-content h3', text.uploadTitle);
+    set('.upload-content p:first-of-type', text.uploadTitle);
     set('.upload-help', text.uploadHelp);
     setButton('#browse-btn', text.browse);
     set('#search-documents', text.search);
@@ -1580,13 +1660,6 @@ class SettingsManager {
     set('#smart-settings h2', text.smartHeading);
     set('#smart-settings .switch-title', text.smartTitle);
     set('#smart-settings .switch-desc', text.smartDesc);
-    const storageNav = document.querySelector('.settings-nav-link[href="#storage-settings"]');
-    if (storageNav) {
-      const index = storageNav.querySelector('span');
-      storageNav.replaceChildren();
-      if (index) storageNav.appendChild(index);
-      storageNav.append(document.createTextNode(text.storageNav));
-    }
     set('#storage-settings h2', text.storageHeading);
     set('#storage-settings .section-desc', text.storageDesc);
     set('#storage-settings .storage-action-row strong', text.cacheTitle);
@@ -1601,6 +1674,43 @@ class SettingsManager {
         createElement('strong', { textContent: isEn ? 'New in 1.4.0:' : '1.4.0 新增：' }),
         document.createTextNode(` ${text.aboutFeature.replace(/^(New feature:|新增功能：)\s*/i, '')}`)
       );
+    }
+
+    set('#cloud-settings h2', text.cloudHeading);
+    set('#cloud-settings .section-desc', text.cloudDesc);
+    set('label[for="cloud-provider"]', text.cloudProvider);
+    set('#supabase-url + .help-text', text.supabaseUrlHelp);
+    set('label[for="supabase-url"]', text.supabaseUrl);
+    set('label[for="supabase-anon-key"]', text.supabaseKey);
+    set('#supabase-anon-key + .help-text', text.supabaseKeyHelp);
+    set('label[for="cloudbase-env-id"]', text.cloudbaseEnv);
+    set('#cloudbase-env-id + .help-text', text.cloudbaseEnvHelp);
+    set('label[for="cloudbase-access-key"]', text.cloudbaseKey);
+    set('#cloudbase-access-key + .help-text', text.cloudbaseKeyHelp);
+    set('label[for="cloudbase-region"]', text.cloudbaseRegion);
+    set('#cloudbase-region-help', text.cloudbaseRegionHelp);
+    setButton('#btn-save-cloud-settings', text.saveCloud);
+    const cloudProvider = document.getElementById('cloud-provider');
+    if (cloudProvider) {
+      const options = {
+        supabase: isEn ? 'Supabase' : 'Supabase',
+        cloudbase: isEn ? 'Tencent CloudBase' : '腾讯云 CloudBase（国内）'
+      };
+      Object.entries(options).forEach(([value, label]) => {
+        const option = cloudProvider.querySelector(`option[value="${value}"]`);
+        if (option) option.textContent = label;
+      });
+    }
+    set('.agent-bridge-panel h3', text.agentBridgeHeading);
+    set('.agent-bridge-panel > .help-text', text.agentBridgeDesc);
+    set('label[for="agent-bridge-enabled"]', text.agentBridgeEnabled);
+    const bridgePort = document.getElementById('agent-bridge-port');
+    if (bridgePort) bridgePort.placeholder = text.agentBridgePortHelp;
+    const bridgeToken = document.getElementById('agent-bridge-token');
+    if (bridgeToken) bridgeToken.placeholder = text.agentBridgeTokenHelp;
+    setButton('#btn-agent-bridge-test', text.testAgentBridge);
+    if (!document.getElementById('agent-bridge-status')?.textContent?.trim()) {
+      set('#agent-bridge-status', text.notConnected);
     }
     const toggle = document.getElementById('btn-toggle-key');
     if (toggle) {

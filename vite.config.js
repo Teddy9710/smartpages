@@ -44,7 +44,9 @@ export default defineConfig({
       fileName: () => 'cloudbase-sdk.js',
     },
     copyPublicDir: false,
-    minify: false,
+    // The SDK is bundled into the extension and should be compressed for releases.
+    // Static extension scripts remain unchanged because they are copied as-is.
+    minify: 'esbuild',
   },
   plugins: [
     viteStaticCopy({
