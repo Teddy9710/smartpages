@@ -50,6 +50,8 @@ const { DocumentApi } = require('../utils/documentApi.js');
   assert.match(sidepanelHtml, /id="sidepanel-document-category-filter"/);
   assert.match(uiSource, /categorizeDocument\(doc\)/);
   assert.match(uiSource, /__uncategorized__/);
+  assert.match(uiSource, /_listRequestId/);
+  assert.match(uiSource, /if \(requestId !== this\._listRequestId\) return;/);
 })().catch(error => {
   console.error(error);
   process.exit(1);

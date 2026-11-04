@@ -42,6 +42,7 @@ class DocUIHelper {
     this._actions = Array.isArray(opts.actions) ? opts.actions : [];
     this._categoryFilter = '';
     this._searchQuery = '';
+    this._listRequestId = 0;
   }
 
   /** Resolve element ID with optional source prefix */
@@ -166,6 +167,7 @@ class DocUIHelper {
 
   /** @param {string} [filter=''] */
   async loadDocumentsList(filter = '') {
+    const requestId = ++this._listRequestId;
     this._searchQuery = String(filter || '');
     const container = document.getElementById(this._id('documents-list'));
     if (!container) return;
@@ -177,6 +179,7 @@ class DocUIHelper {
     try {
       const api = this._getApi();
       const result = await api.getDocumentsList();
+      if (requestId !== this._listRequestId) return;
 
       if (result.success) {
         this._updateCategoryOptions(result.categories || []);
@@ -196,6 +199,7 @@ class DocUIHelper {
         );
       }
     } catch (error) {
+      if (requestId !== this._listRequestId) return;
       container.replaceChildren(
         createElement('div', { className: 'no-documents' }, '加载失败: ' + error.message)
       );
@@ -204,6 +208,7 @@ class DocUIHelper {
 
   /** @param {string} query */
   async searchDocuments(query) {
+    const requestId = ++this._listRequestId;
     this._searchQuery = String(query || '');
     const container = document.getElementById(this._id('documents-list'));
     if (!container) return;
@@ -215,6 +220,7 @@ class DocUIHelper {
     try {
       const api = this._getApi();
       const result = await api.searchDocuments(query);
+      if (requestId !== this._listRequestId) return;
 
       if (result.success) {
         this._updateCategoryOptions(result.categories || []);
@@ -231,6 +237,7 @@ class DocUIHelper {
         );
       }
     } catch (error) {
+      if (requestId !== this._listRequestId) return;
       container.replaceChildren(
         createElement('div', { className: 'no-documents' }, '搜索失败: ' + error.message)
       );

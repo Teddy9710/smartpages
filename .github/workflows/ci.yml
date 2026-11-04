@@ -43,5 +43,8 @@ jobs:
       - name: Build extension
         run: npm run build
 
+      - name: Check build size budget
+        run: node scripts/check-build-size.js
+
       - name: Validate extension sources
         run: node scripts/validate.js --quiet
