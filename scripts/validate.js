@@ -8,7 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { createLogger } = require('./utils/logger.js');
+const { createLogger } = require('../utils/logger.js');
 
 const log = createLogger({
   quiet: process.argv.includes('--quiet'),

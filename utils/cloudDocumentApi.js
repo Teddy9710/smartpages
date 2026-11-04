@@ -15,6 +15,8 @@
   const LOCAL_DIRECTORY_STORE = 'settings';
   const LOCAL_DIRECTORY_HANDLE_KEY = 'directoryHandle';
   const DEFAULT_BUCKET = 'smartpages-assets';
+  const CLOUD_REQUEST_TIMEOUT = 10000;
+  const CLOUD_RETRY_DELAY = 250;
   let cloudBaseSdkPromise = null;
 
   function loadCloudBaseSdk() {
@@ -264,6 +266,8 @@
       this.now = options.now || (() => Date.now());
       this.randomUUID = options.randomUUID || (() => globalScope.crypto.randomUUID());
       this.imageCompressor = options.imageCompressor || (dataUrl => this._compressImageDataUrl(dataUrl));
+      this.requestTimeout = Number(options.requestTimeout) > 0 ? Number(options.requestTimeout) : CLOUD_REQUEST_TIMEOUT;
+      this.retryDelay = Number(options.retryDelay) >= 0 ? Number(options.retryDelay) : CLOUD_RETRY_DELAY;
       this.assetUrlMap = new Map();
       if (!this.fetch) throw new CloudDocumentError('Fetch API is unavailable', 'FETCH_UNAVAILABLE');
     }
@@ -320,9 +324,71 @@
       return this._authenticate('/auth/v1/token?grant_type=password', { email, password });
     }
 
+    async _request(url, options = {}) {
+      const method = String(options.method || 'GET').toUpperCase();
+      const retryable = ['GET', 'HEAD', 'OPTIONS'].includes(method);
+      const maxAttempts = retryable ? 2 : 1;
+      const callerSignal = options.signal;
+      const AbortControllerImpl = globalScope.AbortController;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        const controller = AbortControllerImpl ? new AbortControllerImpl() : null;
+        let timeoutId = null;
+        let callerAbortHandler = null;
+        try {
+          if (callerSignal?.aborted) {
+            throw new CloudDocumentError('Cloud request was cancelled', 'REQUEST_ABORTED');
+          }
+          if (controller) {
+            timeoutId = globalScope.setTimeout(
+              () => controller.abort(),
+              this.requestTimeout
+            );
+            callerAbortHandler = () => controller.abort();
+            callerSignal?.addEventListener('abort', callerAbortHandler, { once: true });
+          }
+
+          const requestOptions = controller
+            ? { ...options, signal: controller.signal }
+            : { ...options };
+          const response = await this.fetch(url, requestOptions);
+          const shouldRetry = retryable
+            && attempt < maxAttempts
+            && (response.status === 429 || response.status >= 500);
+          if (shouldRetry) {
+            await new Promise(resolve => globalScope.setTimeout(resolve, this.retryDelay));
+            continue;
+          }
+          return response;
+        } catch (error) {
+          if (error instanceof CloudDocumentError) throw error;
+          if (error?.name === 'AbortError') {
+            if (callerSignal?.aborted) {
+              throw new CloudDocumentError('Cloud request was cancelled', 'REQUEST_ABORTED');
+            }
+            throw new CloudDocumentError('Cloud request timed out. Check your network and try again.', 'REQUEST_TIMEOUT');
+          }
+          if (attempt < maxAttempts) {
+            await new Promise(resolve => globalScope.setTimeout(resolve, this.retryDelay));
+            continue;
+          }
+          throw new CloudDocumentError(
+            'Cloud request failed. Check your network and try again.',
+            'NETWORK_ERROR'
+          );
+        } finally {
+          if (timeoutId !== null) globalScope.clearTimeout(timeoutId);
+          if (callerSignal && callerAbortHandler) {
+            callerSignal.removeEventListener('abort', callerAbortHandler);
+          }
+        }
+      }
+      throw new CloudDocumentError('Cloud request failed', 'NETWORK_ERROR');
+    }
+
     async _authenticate(path, body) {
       const config = await this._requireConfig();
-      const response = await this.fetch(`${config.url}${path}`, {
+      const response = await this._request(`${config.url}${path}`, {
         method: 'POST',
         headers: this._headers(config),
         body: JSON.stringify(body)
@@ -343,7 +409,7 @@
       const config = await this.getConfig();
       const session = await this.storage.get(CLOUD_SESSION_KEY);
       if (config.url && config.anonKey && session?.accessToken) {
-        await this.fetch(`${config.url}/auth/v1/logout`, {
+        await this._request(`${config.url}/auth/v1/logout`, {
           method: 'POST',
           headers: this._headers(config, session.accessToken)
         }).catch(() => null);
@@ -364,7 +430,7 @@
 
     async _refreshSession(refreshToken) {
       const config = await this._requireConfig();
-      const response = await this.fetch(`${config.url}/auth/v1/token?grant_type=refresh_token`, {
+      const response = await this._request(`${config.url}/auth/v1/token?grant_type=refresh_token`, {
         method: 'POST',
         headers: this._headers(config),
         body: JSON.stringify({ refresh_token: refreshToken })
@@ -382,7 +448,7 @@
       const context = await this._authorizedContext();
       const query = String(search || '').trim();
       const searchFilter = query ? `&title=ilike.*${encodeURIComponent(query.replace(/[,*()]/g, ''))}*` : '';
-      const response = await this.fetch(
+      const response = await this._request(
         `${context.config.url}/rest/v1/cloud_documents?document_type=eq.generated&select=id,title,format,revision,created_at,updated_at&order=updated_at.desc${searchFilter}`,
         { headers: this._headers(context.config, context.session.accessToken) }
       );
@@ -392,7 +458,7 @@
     async getDocument(id) {
       const context = await this._authorizedContext();
       const safeId = encodeURIComponent(String(id || ''));
-      const response = await this.fetch(
+      const response = await this._request(
         `${context.config.url}/rest/v1/cloud_documents?id=eq.${safeId}&document_type=eq.generated&select=*`,
         { headers: this._headers(context.config, context.session.accessToken) }
       );
@@ -415,7 +481,7 @@
     async listDocumentVersions(documentId) {
       const context = await this._authorizedContext();
       const safeId = encodeURIComponent(String(documentId || ''));
-      const response = await this.fetch(
+      const response = await this._request(
         `${context.config.url}/rest/v1/cloud_document_versions?document_id=eq.${safeId}&select=id,document_id,title,format,revision,event,created_at&order=revision.desc`,
         { headers: this._headers(context.config, context.session.accessToken) }
       );
@@ -425,7 +491,7 @@
     async getDocumentVersion(versionId) {
       const context = await this._authorizedContext();
       const safeId = encodeURIComponent(String(versionId || ''));
-      const response = await this.fetch(
+      const response = await this._request(
         `${context.config.url}/rest/v1/cloud_document_versions?id=eq.${safeId}&select=*`,
         { headers: this._headers(context.config, context.session.accessToken) }
       );
@@ -445,7 +511,7 @@
         const cloudContent = await this._uploadEmbeddedAssets(
           String(input?.content || ''), documentId, context, uploadedPaths
         );
-        const response = await this.fetch(`${context.config.url}/rest/v1/rpc/save_generated_document`, {
+        const response = await this._request(`${context.config.url}/rest/v1/rpc/save_generated_document`, {
           method: 'POST',
           headers: this._headers(context.config, context.session.accessToken),
           body: JSON.stringify({
@@ -499,7 +565,7 @@
         console.warn('[SmartPages:Cloud] Failed to list document assets before deletion:', error);
         return [];
       });
-      const response = await this.fetch(
+      const response = await this._request(
         `${context.config.url}/rest/v1/cloud_documents?id=eq.${encodeURIComponent(String(id || ''))}&document_type=eq.generated`,
         {
           method: 'DELETE',
@@ -524,7 +590,7 @@
         const assetId = this.randomUUID();
         const path = `${context.session.user.id}/${documentId}/${assetId}.${extension}`;
         const bytes = this._decodeBase64(match[2]);
-        const response = await this.fetch(
+      const response = await this._request(
           `${context.config.url}/storage/v1/object/${encodeURIComponent(context.config.bucket)}/${path.split('/').map(encodeURIComponent).join('/')}`,
           {
             method: 'POST',
@@ -584,7 +650,7 @@
       const prefix = `${context.session.user.id}/${String(documentId || '')}`;
       const paths = [];
       for (let offset = 0; ; offset += 1000) {
-        const response = await this.fetch(
+      const response = await this._request(
           `${context.config.url}/storage/v1/object/list/${encodeURIComponent(context.config.bucket)}`,
           {
             method: 'POST',
@@ -605,7 +671,7 @@
     async _removeAssets(paths, context) {
       const uniquePaths = [...new Set((paths || []).filter(Boolean))];
       for (let index = 0; index < uniquePaths.length; index += 1000) {
-        const response = await this.fetch(
+      const response = await this._request(
           `${context.config.url}/storage/v1/object/${encodeURIComponent(context.config.bucket)}`,
           {
             method: 'DELETE',
@@ -625,7 +691,7 @@
       const markers = [...new Set(result.match(/smartpages-asset:\/\/[A-Za-z0-9._%/-]+/g) || [])];
       for (const marker of markers) {
         const path = marker.slice('smartpages-asset://'.length);
-        const response = await this.fetch(
+        const response = await this._request(
           `${context.config.url}/storage/v1/object/sign/${encodeURIComponent(context.config.bucket)}/${path.split('/').map(encodeURIComponent).join('/')}`,
           {
             method: 'POST',

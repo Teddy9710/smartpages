@@ -36,3 +36,12 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build extension
+        run: npm run build
+
+      - name: Validate extension sources
+        run: node scripts/validate.js --quiet

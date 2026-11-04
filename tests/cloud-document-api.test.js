@@ -103,6 +103,36 @@ function jsonResponse(data, status = 200) {
   );
   assert.equal(provider._headers({ anonKey: 'sb_publishable_test' }).Authorization, undefined);
   assert.equal(provider._headers({ anonKey: 'sb_publishable_test' }, 'user-jwt').Authorization, 'Bearer user-jwt');
+
+  let retryAttempts = 0;
+  const retryProvider = new SupabaseCloudDocumentProvider({
+    storage: providerStorage,
+    retryDelay: 0,
+    fetch: async (_url, options = {}) => {
+      retryAttempts += 1;
+      assert.ok(options.signal);
+      return retryAttempts === 1 ? jsonResponse({ message: 'temporary outage' }, 503) : jsonResponse([]);
+    }
+  });
+  assert.deepEqual(await retryProvider.listDocuments(), []);
+  assert.equal(retryAttempts, 2);
+
+  const timeoutProvider = new SupabaseCloudDocumentProvider({
+    storage: providerStorage,
+    requestTimeout: 5,
+    fetch: (_url, options = {}) => new Promise((_resolve, reject) => {
+      options.signal.addEventListener('abort', () => {
+        const error = new Error('aborted');
+        error.name = 'AbortError';
+        reject(error);
+      }, { once: true });
+    })
+  });
+  await assert.rejects(
+    () => timeoutProvider.listDocuments(),
+    error => error.code === 'REQUEST_TIMEOUT'
+  );
+
   const saved = await provider.saveDocument({
     title: 'Cloud doc',
     format: 'markdown',
