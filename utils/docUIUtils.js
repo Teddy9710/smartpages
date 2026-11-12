@@ -194,9 +194,10 @@ class DocUIHelper {
     this._searchQuery = String(filter || '');
     const container = document.getElementById(this._id('documents-list'));
     if (!container) return;
+    const isEn = document.documentElement.lang === 'en-US';
 
     container.replaceChildren(
-      createElement('div', { className: 'loading-placeholder' }, '正在加载文档列表...')
+      createElement('div', { className: 'loading-placeholder' }, isEn ? 'Loading documents...' : '正在加载文档列表...')
     );
 
     try {
@@ -214,17 +215,17 @@ class DocUIHelper {
         if (docs.length > 0) {
           docs.forEach(doc => container.appendChild(this.createDocumentItemElement(doc)));
         } else {
-          container.appendChild(createElement('div', { className: 'no-documents' }, '暂无文档'));
+          container.appendChild(createElement('div', { className: 'no-documents' }, isEn ? 'No documents yet.' : '暂无文档'));
         }
       } else {
         container.replaceChildren(
-          createElement('div', { className: 'no-documents' }, '加载失败: ' + result.message)
+          createElement('div', { className: 'no-documents' }, (isEn ? 'Failed to load: ' : '加载失败: ') + result.message)
         );
       }
     } catch (error) {
       if (requestId !== this._listRequestId) return;
       container.replaceChildren(
-        createElement('div', { className: 'no-documents' }, '加载失败: ' + error.message)
+        createElement('div', { className: 'no-documents' }, (isEn ? 'Failed to load: ' : '加载失败: ') + error.message)
       );
     }
   }
@@ -235,9 +236,10 @@ class DocUIHelper {
     this._searchQuery = String(query || '');
     const container = document.getElementById(this._id('documents-list'));
     if (!container) return;
+    const isEn = document.documentElement.lang === 'en-US';
 
     container.replaceChildren(
-      createElement('div', { className: 'loading-placeholder' }, '正在搜索文档...')
+      createElement('div', { className: 'loading-placeholder' }, isEn ? 'Searching documents...' : '正在搜索文档...')
     );
 
     try {
@@ -252,17 +254,17 @@ class DocUIHelper {
         if (documents.length > 0) {
           documents.forEach(doc => container.appendChild(this.createDocumentItemElement(doc)));
         } else {
-          container.appendChild(createElement('div', { className: 'no-documents' }, '未找到匹配的文档'));
+          container.appendChild(createElement('div', { className: 'no-documents' }, isEn ? 'No matching documents found.' : '未找到匹配的文档'));
         }
       } else {
         container.replaceChildren(
-          createElement('div', { className: 'no-documents' }, '搜索失败: ' + result.message)
+          createElement('div', { className: 'no-documents' }, (isEn ? 'Search failed: ' : '搜索失败: ') + result.message)
         );
       }
     } catch (error) {
       if (requestId !== this._listRequestId) return;
       container.replaceChildren(
-        createElement('div', { className: 'no-documents' }, '搜索失败: ' + error.message)
+        createElement('div', { className: 'no-documents' }, (isEn ? 'Search failed: ' : '搜索失败: ') + error.message)
       );
     }
   }

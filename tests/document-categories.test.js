@@ -58,6 +58,8 @@ const { DocumentApi } = require('../utils/documentApi.js');
   assert.match(uiSource, /isEn \? 'Size: ' : '大小: '/);
   assert.match(uiSource, /isEn \? 'View' : '查看'/);
   assert.match(uiSource, /isEn \? 'Delete' : '删除'/);
+  assert.match(uiSource, /isEn \? 'Loading documents\.\.\.' : '正在加载文档列表\.\.\.'/);
+  assert.match(uiSource, /isEn \? 'No matching documents found\.' : '未找到匹配的文档'/);
 })().catch(error => {
   console.error(error);
   process.exit(1);
