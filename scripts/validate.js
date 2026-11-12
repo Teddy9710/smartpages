@@ -38,7 +38,7 @@ const issues = [];
 log.info('🔍 Validating SmartPages extension files...\n');
 
 filesToCheck.forEach(filePath => {
-  const fullPath = path.join(__dirname, filePath);
+  const fullPath = path.join(__dirname, '..', filePath);
 
   if (!fs.existsSync(fullPath)) {
     issues.push(`❌ ${filePath}: File not found`);

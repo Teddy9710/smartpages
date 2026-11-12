@@ -52,6 +52,9 @@ const { DocumentApi } = require('../utils/documentApi.js');
   assert.match(uiSource, /__uncategorized__/);
   assert.match(uiSource, /_listRequestId/);
   assert.match(uiSource, /if \(requestId !== this\._listRequestId\) return;/);
+  assert.match(uiSource, /storage\.onChanged/);
+  assert.match(uiSource, /loadDocumentsList\(this\._searchQuery\)/);
+  assert.match(uiSource, /_storageChangeTimer/);
 })().catch(error => {
   console.error(error);
   process.exit(1);

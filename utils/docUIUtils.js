@@ -43,6 +43,29 @@ class DocUIHelper {
     this._categoryFilter = '';
     this._searchQuery = '';
     this._listRequestId = 0;
+    this._storageChangeTimer = null;
+    this._storageChangeListener = (changes, areaName) => {
+      if (areaName !== 'local' || !changes?.documents) return;
+      if (typeof document === 'undefined' || !document.getElementById(this._id('documents-list'))) return;
+
+      clearTimeout(this._storageChangeTimer);
+      this._storageChangeTimer = setTimeout(() => {
+        this.loadDocumentsList(this._searchQuery);
+      }, 100);
+    };
+
+    if (typeof chrome !== 'undefined' && chrome.storage?.onChanged?.addListener) {
+      chrome.storage.onChanged.addListener(this._storageChangeListener);
+    }
+  }
+
+  /** Release listeners and timers when the owning page is torn down. */
+  destroy() {
+    clearTimeout(this._storageChangeTimer);
+    this._storageChangeTimer = null;
+    if (typeof chrome !== 'undefined' && chrome.storage?.onChanged?.removeListener) {
+      chrome.storage.onChanged.removeListener(this._storageChangeListener);
+    }
   }
 
   /** Resolve element ID with optional source prefix */
