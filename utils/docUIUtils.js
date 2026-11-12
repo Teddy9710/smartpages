@@ -323,13 +323,13 @@ class DocUIHelper {
     const docInfo = createElement('div', { className: 'doc-info' }, [
       createElement('div', { className: 'doc-name', textContent: doc.name }),
       createElement('div', { className: 'doc-meta' }, [
-        createElement('span', {}, '大小: ' + formatFileSize(doc.size)),
-        createElement('span', {}, '类型: ' + (doc.type || 'unknown')),
+        createElement('span', {}, (isEn ? 'Size: ' : '大小: ') + formatFileSize(doc.size)),
+        createElement('span', {}, (isEn ? 'Type: ' : '类型: ') + (doc.type || 'unknown')),
         createElement('span', { className: 'doc-category' }, categoryLabel),
         ...(Number(doc.ocrPageCount) > 0
-          ? [createElement('span', {}, `AI OCR: ${doc.ocrPageCount} 页`)]
+          ? [createElement('span', {}, isEn ? `AI OCR: ${doc.ocrPageCount} pages` : `AI OCR: ${doc.ocrPageCount} 页`)]
           : []),
-        createElement('span', {}, '上传时间: ' + formatDate(doc.uploadTime))
+        createElement('span', {}, (isEn ? 'Uploaded: ' : '上传时间: ') + formatDate(doc.uploadTime))
       ])
     ]);
 
@@ -346,12 +346,12 @@ class DocUIHelper {
       }),
       createElement('button', {
         className: 'doc-action-btn view',
-        textContent: '查看',
+        textContent: isEn ? 'View' : '查看',
         onclick: () => self.viewDocument(doc.id)
       }),
       createElement('button', {
         className: 'doc-action-btn delete',
-        textContent: '删除',
+        textContent: isEn ? 'Delete' : '删除',
         onclick: () => self.deleteDocument(doc.id)
       })
     ];

@@ -55,6 +55,9 @@ const { DocumentApi } = require('../utils/documentApi.js');
   assert.match(uiSource, /storage\.onChanged/);
   assert.match(uiSource, /loadDocumentsList\(this\._searchQuery\)/);
   assert.match(uiSource, /_storageChangeTimer/);
+  assert.match(uiSource, /isEn \? 'Size: ' : '大小: '/);
+  assert.match(uiSource, /isEn \? 'View' : '查看'/);
+  assert.match(uiSource, /isEn \? 'Delete' : '删除'/);
 })().catch(error => {
   console.error(error);
   process.exit(1);
