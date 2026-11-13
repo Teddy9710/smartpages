@@ -338,27 +338,32 @@ class DocUIHelper {
     const defaultActions = [
       createElement('button', {
         className: 'doc-action-btn categorize',
+        type: 'button',
         textContent: isEn ? 'Category' : '分类',
         onclick: () => self.categorizeDocument(doc)
       }),
       createElement('button', {
         className: 'doc-action-btn share',
+        type: 'button',
         textContent: isEn ? 'Share' : '分享',
         onclick: () => self.shareDocument(doc.id)
       }),
       createElement('button', {
         className: 'doc-action-btn view',
+        type: 'button',
         textContent: isEn ? 'View' : '查看',
         onclick: () => self.viewDocument(doc.id)
       }),
       createElement('button', {
         className: 'doc-action-btn delete',
+        type: 'button',
         textContent: isEn ? 'Delete' : '删除',
         onclick: () => self.deleteDocument(doc.id)
       })
     ];
     const customActions = this._actions.map(action => createElement('button', {
       className: `doc-action-btn ${action.className || ''}`.trim(),
+      type: 'button',
       textContent: action.label,
       onclick: () => action.onClick?.(doc)
     }));
